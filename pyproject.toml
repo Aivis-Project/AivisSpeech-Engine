@@ -119,7 +119,7 @@ ruff = "^0.11.1"
 typos = "^1.31.1"
 
 [tool.poetry.group.build.dependencies]
-pyinstaller = "^5.13"
+pyinstaller = "^6.0"
 pip-licenses = "5.0.0" # NOTE: must be specified exactly (c.f. #1281)
 taskipy = "^1.12.2"
 
