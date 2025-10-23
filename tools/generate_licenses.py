@@ -108,6 +108,7 @@ def _update_licenses(pip_licenses: list[_PipLicense]) -> list[_License]:
 
         # 開発時のみ利用するライブラリを無視
         if package_name in [
+            "annotated-doc",
             "license-expression",
             "packageurl-python",
             "pip-requirements-parser",
