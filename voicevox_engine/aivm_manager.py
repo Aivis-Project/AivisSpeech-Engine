@@ -41,7 +41,7 @@ class AivmManager:
 
     def __init__(self, installed_models_dir: Path):
         """
-        AivmManager のコンストラクタ
+        AivmManager のコンストラクタ。
 
         Parameters
         ----------
@@ -75,7 +75,7 @@ class AivmManager:
 
     def get_characters(self) -> list[Character]:
         """
-        すべてのインストール済み音声合成モデル内の話者の一覧を Character 型で取得する (MetasStore 互換用)
+        すべてのインストール済み音声合成モデル内の話者の一覧を Character 型で取得する (MetasStore 互換用)。
 
         Returns
         -------
@@ -103,7 +103,7 @@ class AivmManager:
 
     def get_speakers(self) -> list[Speaker]:
         """
-        すべてのインストール済み音声合成モデル内の話者の一覧を取得する
+        すべてのインストール済み音声合成モデル内の話者の一覧を取得する。
 
         Returns
         -------
@@ -122,7 +122,7 @@ class AivmManager:
 
     def get_speaker_info(self, speaker_uuid: str) -> SpeakerInfo:
         """
-        インストール済み音声合成モデル内の話者の追加情報を取得する
+        インストール済み音声合成モデル内の話者の追加情報を取得する。
 
         Parameters
         ----------
@@ -148,7 +148,7 @@ class AivmManager:
 
     def get_aivm_info(self, aivm_uuid: str) -> AivmInfo:
         """
-        音声合成モデルの UUID から AIVMX ファイルの情報を取得する
+        音声合成モデルの UUID から AIVMX ファイルの情報を取得する。
 
         Parameters
         ----------
@@ -175,7 +175,7 @@ class AivmManager:
         self, style_id: StyleId
     ) -> tuple[AivmManifest, AivmManifestSpeaker, AivmManifestSpeakerStyle]:
         """
-        スタイル ID に対応する AivmManifest, AivmManifestSpeaker, AivmManifestSpeakerStyle を取得する
+        スタイル ID に対応する AivmManifest, AivmManifestSpeaker, AivmManifestSpeakerStyle を取得する。
 
         Parameters
         ----------
@@ -217,7 +217,7 @@ class AivmManager:
 
     def get_installed_aivm_infos(self) -> dict[str, AivmInfo]:
         """
-        すべてのインストール済み音声合成モデルの情報を取得する
+        すべてのインストール済み音声合成モデルの情報を取得する。
 
         Returns
         -------
@@ -230,8 +230,8 @@ class AivmManager:
 
     def update_model_load_state(self, aivm_uuid: str, is_loaded: bool) -> None:
         """
-        音声合成モデルのロード状態を更新する
-        このメソッドは StyleBertVITS2TTSEngine 上でロード/アンロードが行われた際に呼び出される
+        音声合成モデルのロード状態を更新する。
+        このメソッドは StyleBertVITS2TTSEngine 上でロード/アンロードが行われた際に呼び出される。
 
         Parameters
         ----------
@@ -246,7 +246,7 @@ class AivmManager:
 
     def install_model(self, file: BinaryIO) -> None:
         """
-        AIVMX (Aivis Voice Model for ONNX) ファイル (`.aivmx`) をインストールする
+        AIVMX (Aivis Voice Model for ONNX) ファイル (`.aivmx`) をインストールする。
 
         Parameters
         ----------
@@ -339,7 +339,7 @@ class AivmManager:
 
     def install_model_from_url(self, url: str) -> None:
         """
-        指定された URL から AIVMX (Aivis Voice Model for ONNX) ファイル (`.aivmx`) をダウンロードしてインストールする
+        指定された URL から AIVMX (Aivis Voice Model for ONNX) ファイル (`.aivmx`) をダウンロードしてインストールする。
 
         Parameters
         ----------
@@ -430,7 +430,7 @@ class AivmManager:
     def update_model(self, aivm_uuid: str) -> None:
         """
         AivisHub から指定された音声合成モデルの一番新しいバージョンをダウンロードし、
-        インストール済みの音声合成モデルへ上書き更新する
+        インストール済みの音声合成モデルへ上書き更新する。
 
         Parameters
         ----------
@@ -466,7 +466,7 @@ class AivmManager:
 
     def uninstall_model(self, aivm_uuid: str) -> None:
         """
-        インストール済み音声合成モデルをアンインストールする
+        インストール済み音声合成モデルをアンインストールする。
 
         Parameters
         ----------

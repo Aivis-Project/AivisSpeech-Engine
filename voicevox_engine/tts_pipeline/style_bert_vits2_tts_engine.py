@@ -212,9 +212,9 @@ class StyleBertVITS2TTSEngine(TTSEngine):
 
     def load_model(self, aivm_uuid: str) -> TTSModel:
         """
-        Style-Bert-VITS2 の音声合成モデルをロードする
-        StyleBertVITS2TTSEngine の初期化時に use_gpu=True が指定されている場合、モデルは GPU にロードされる
-        継承元の TTSEngine には存在しない、StyleBertVITS2TTSEngine 固有のメソッド
+        Style-Bert-VITS2 の音声合成モデルをロードする。
+        StyleBertVITS2TTSEngine の初期化時に use_gpu=True が指定されている場合、モデルは GPU にロードされる。
+        継承元の TTSEngine には存在しない、StyleBertVITS2TTSEngine 固有のメソッド。
 
         Parameters
         ----------
@@ -278,8 +278,8 @@ class StyleBertVITS2TTSEngine(TTSEngine):
 
     def unload_model(self, aivm_uuid: str) -> None:
         """
-        指定された AIVM の UUID に対応する音声合成モデルをアンロードする
-        継承元の TTSEngine には存在しない、StyleBertVITS2TTSEngine 固有のメソッド
+        指定された AIVM の UUID に対応する音声合成モデルをアンロードする。
+        継承元の TTSEngine には存在しない、StyleBertVITS2TTSEngine 固有のメソッド。
 
         Parameters
         ----------
@@ -304,8 +304,8 @@ class StyleBertVITS2TTSEngine(TTSEngine):
 
     def is_model_loaded(self, aivm_uuid: str) -> bool:
         """
-        指定された AIVM の UUID に対応する音声合成モデルがロード済みかどうかを返す
-        継承元の TTSEngine には存在しない、StyleBertVITS2TTSEngine 固有のメソッド
+        指定された AIVM の UUID に対応する音声合成モデルがロード済みかどうかを返す。
+        継承元の TTSEngine には存在しない、StyleBertVITS2TTSEngine 固有のメソッド。
 
         Parameters
         ----------
@@ -322,15 +322,15 @@ class StyleBertVITS2TTSEngine(TTSEngine):
 
     def create_accent_phrases(self, text: str, style_id: StyleId) -> list[AccentPhrase]:
         """
-        テキストからアクセント句系列を生成する
-        継承元の TTSEngine.create_accent_phrases() をオーバーライドし、Style-Bert-VITS2 に適したアクセント句系列生成処理に差し替えている
+        テキストからアクセント句系列を生成する。
+        継承元の TTSEngine.create_accent_phrases() をオーバーライドし、Style-Bert-VITS2 に適したアクセント句系列生成処理に差し替えている。
 
         Style-Bert-VITS2 は同じ pyopenjtalk ベースの自然言語処理でありながら VOICEVOX ENGINE とアクセント関連の実装が異なるため、
         VOICEVOX ENGINE 本来のアクセント句系列生成処理は利用せず、代わりに g2p() から取得したモーラ情報と音高のリストから
-        擬似的にアクセント句系列 AccentPhrase を生成する形で実装している
-        こうすることで、VOICEVOX ENGINE (pyopenjtalk) では一律削除されてしまう句読点や記号を保持した状態でアクセント句系列を生成できる
+        擬似的にアクセント句系列 AccentPhrase を生成する形で実装している。
+        こうすることで、VOICEVOX ENGINE (pyopenjtalk) では一律削除されてしまう句読点や記号を保持した状態でアクセント句系列を生成できる。
         VOICEVOX ENGINE と異なりスタイル ID に基づいてその音素長・モーラ音高を更新することは原理上不可能なため、
-        音素長・モーラ音高は常にダミー値で返される
+        音素長・モーラ音高は常にダミー値で返される。
 
         Parameters
         ----------
@@ -497,9 +497,9 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         self, accent_phrases: list[AccentPhrase], style_id: StyleId
     ) -> list[AccentPhrase]:
         """
-        アクセント句系列に含まれるモーラの音素長属性をスタイルに合わせて更新する
-        VOICEVOX ENGINE と異なりスタイル ID に基づいてその音素長を更新することは原理上不可能なため、常にダミー値が入る
-        モック版 VOICEVOX CORE を使うとスタイル ID をベースに無意味に生成した巨大な値が音素長に設定されるため、敢えて使っていない
+        アクセント句系列に含まれるモーラの音素長属性をスタイルに合わせて更新する。
+        VOICEVOX ENGINE と異なりスタイル ID に基づいてその音素長を更新することは原理上不可能なため、常にダミー値が入る。
+        モック版 VOICEVOX CORE を使うとスタイル ID をベースに無意味に生成した巨大な値が音素長に設定されるため、敢えて使っていない。
         """
 
         # すでに API リクエストで何らかの値が設定されている可能性もあるため、基本変更せずにそのまま返す
@@ -519,9 +519,9 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         self, accent_phrases: list[AccentPhrase], style_id: StyleId
     ) -> list[AccentPhrase]:
         """
-        アクセント句系列に含まれるモーラの音高属性をスタイルに合わせて更新する
-        VOICEVOX ENGINE と異なりスタイル ID に基づいてその音高を更新することは原理上不可能なため、常にダミー値が入る
-        モック版 VOICEVOX CORE を使うとスタイル ID をベースに無意味に生成した巨大な値が音高に設定されるため、敢えて使っていない
+        アクセント句系列に含まれるモーラの音高属性をスタイルに合わせて更新する。
+        VOICEVOX ENGINE と異なりスタイル ID に基づいてその音高を更新することは原理上不可能なため、常にダミー値が入る。
+        モック版 VOICEVOX CORE を使うとスタイル ID をベースに無意味に生成した巨大な値が音高に設定されるため、敢えて使っていない。
         """
 
         # すでに API リクエストで何らかの値が設定されている可能性もあるため、変更せずにそのまま返す
@@ -534,8 +534,8 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         enable_interrogative_upspeak: bool = True,
     ) -> NDArray[np.float32]:
         """
-        音声合成用のクエリに含まれる読み仮名に基づいて Style-Bert-VITS2 で音声波形を生成する
-        継承元の TTSEngine.synthesize_wave() をオーバーライドし、Style-Bert-VITS2 用の音声合成処理に差し替えている
+        音声合成用のクエリに含まれる読み仮名に基づいて Style-Bert-VITS2 で音声波形を生成する。
+        継承元の TTSEngine.synthesize_wave() をオーバーライドし、Style-Bert-VITS2 用の音声合成処理に差し替えている。
 
         Parameters
         ----------
@@ -780,8 +780,8 @@ __LONG_PATTERN: Final[re.Pattern[str]] = re.compile(r"(\w)(ー*)")
 
 def _phone_tone2mora_tone(phone_tone: list[tuple[str, int]]) -> list[tuple[Mora, int]]:
     """
-    phone_tone の phone 部分を VOICEVOX ENGINE の Mora 型に変換する。ただし最初と最後の ("_", 0) は無視する
-    style_bert_vits2.nlp.japanese.g2p_utils.phone_tone2kata_tone() をベースに改変したもの
+    phone_tone の phone 部分を VOICEVOX ENGINE の Mora 型に変換する。ただし最初と最後の ("_", 0) は無視する。
+    style_bert_vits2.nlp.japanese.g2p_utils.phone_tone2kata_tone() をベースに改変したもの。
     """
 
     phone_tone = phone_tone[1:]  # 最初の("_", 0)を無視
@@ -841,8 +841,8 @@ def _sep_kata_with_joshi2sep_phonemes_with_joshi(
     sep_kata_with_joshi: list[str],
 ) -> list[list[tuple[str | None, str]]]:
     """
-    sep_kata_with_joshi のカタカナを音素 (子音と母音のタプル) に変換する
-    style_bert_vits2.nlp.japanese.g2p_utils.__kata_to_phoneme_list() をベースに改変したもの
+    sep_kata_with_joshi のカタカナを音素 (子音と母音のタプル) に変換する。
+    style_bert_vits2.nlp.japanese.g2p_utils.__kata_to_phoneme_list() をベースに改変したもの。
     """
 
     def mora2phonemes(mora: str) -> str:

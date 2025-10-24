@@ -58,7 +58,7 @@ class AivmInfosRepository:
 
     def __init__(self, installed_models_dir: Path) -> None:
         """
-        AivmInfosRepository のコンストラクタ
+        AivmInfosRepository のコンストラクタ。
 
         Parameters
         ----------
@@ -110,7 +110,7 @@ class AivmInfosRepository:
 
     def get_installed_aivm_infos(self) -> dict[str, AivmInfo]:
         """
-        すべてのインストール済み音声合成モデルの情報を取得する
+        すべてのインストール済み音声合成モデルの情報を取得する。
 
         Returns
         -------
@@ -124,8 +124,8 @@ class AivmInfosRepository:
 
     def update_model_load_state(self, aivm_uuid: str, is_loaded: bool) -> None:
         """
-        音声合成モデルのロード状態を更新する
-        このメソッドは StyleBertVITS2TTSEngine 上でロード/アンロードが行われた際に呼び出される
+        音声合成モデルのロード状態を更新する。
+        このメソッドは StyleBertVITS2TTSEngine 上でロード/アンロードが行われた際に呼び出される。
 
         Parameters
         ----------
@@ -552,7 +552,7 @@ class AivmInfosRepository:
     @staticmethod
     def extract_base64_from_data_url(data_url: str) -> str:
         """
-        指定された Data URL から Base64 部分のみを取り出す
+        指定された Data URL から Base64 部分のみを取り出す。
 
         Parameters
         ----------
@@ -581,7 +581,7 @@ class AivmInfosRepository:
     @staticmethod
     def local_style_id_to_style_id(local_style_id: int, speaker_uuid: str) -> StyleId:
         """
-        AIVM マニフェスト内のローカルなスタイル ID を VOICEVOX ENGINE 互換のグローバルに一意な StyleId に変換する
+        AIVM マニフェスト内のローカルなスタイル ID を VOICEVOX ENGINE 互換のグローバルに一意な StyleId に変換する。
 
         Parameters
         ----------
@@ -630,7 +630,7 @@ class AivmInfosRepository:
     @staticmethod
     def style_id_to_local_style_id(style_id: StyleId) -> int:
         """
-        VOICEVOX ENGINE 互換のグローバルに一意な StyleId を AIVM マニフェスト内のローカルなスタイル ID に変換する
+        VOICEVOX ENGINE 互換のグローバルに一意な StyleId を AIVM マニフェスト内のローカルなスタイル ID に変換する。
 
         Parameters
         ----------
