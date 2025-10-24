@@ -3,71 +3,133 @@
 import logging
 import os
 import platform
-from typing import Literal, cast
+from typing import Annotated, Literal, cast
 
 import GPUtil
 import psutil
 from cpuinfo import get_cpu_info
+from pydantic import BaseModel, Field
 
 from voicevox_engine import __version__
 from voicevox_engine.logging import logger
 
-# 生成済みのユーザーエージェント文字列をキャッシュする
-__user_agent_cache: str | None = None
+
+class RuntimeEnvironment(BaseModel):
+    """ユーザーエージェント生成に利用する実行環境情報。"""
+
+    os_name: Annotated[str, Field(description="OS 名")]
+    os_version: Annotated[str, Field(description="OS バージョン")]
+    distribution: Annotated[
+        str | None,
+        Field(default=None, description="Linux ディストリビューション名"),
+    ]
+    kernel_version: Annotated[
+        str | None,
+        Field(default=None, description="Linux カーネルバージョン"),
+    ]
+    is_docker: Annotated[bool, Field(description="Docker コンテナ環境かどうか")]
+    architecture: Annotated[str, Field(description="アーキテクチャ名")]
+    cpu_name: Annotated[str, Field(description="CPU 名")]
+    gpu_names: Annotated[
+        list[str],
+        Field(
+            default_factory=list,
+            description="検出された GPU 名の一覧。GPU が存在しない場合は空リスト。",
+        ),
+    ]
+    total_memory_gb: Annotated[
+        float | None,
+        Field(
+            default=None, description="物理メモリ総量 (GB)。取得できない場合は None。"
+        ),
+    ]
+    available_memory_gb: Annotated[
+        float | None,
+        Field(
+            default=None,
+            description="使用可能な物理メモリ量 (GB)。取得できない場合は None。",
+        ),
+    ]
+    inference_type: Annotated[
+        Literal["CPU", "GPU"],
+        Field(description="音声合成に利用する推論方式"),
+    ]
 
 
-def generate_user_agent(inference_type: Literal["CPU", "GPU"] = "CPU") -> str:
+# RuntimeEnvironment は inference_type ごとに計測され、プロセス終了までキャッシュされる
+__runtime_environment_cache: dict[str, RuntimeEnvironment] = {}
+
+
+def collect_runtime_environment(
+    inference_type: Literal["CPU", "GPU"],
+) -> RuntimeEnvironment:
     """
-    ユーザーエージェント文字列を生成する。
+    ユーザーエージェント生成に必要な動作環境情報を構造化して取得する。
 
-    エラーが発生した場合でも、最低限の情報を含むユーザーエージェント文字列を返す。
+    一度収集した結果はキャッシュに格納され、プロセスが終了するまで再利用される。
+
+    Parameters
+    ----------
+    inference_type : Literal["CPU", "GPU"]
+        音声合成に利用する推論方式
+
+    Returns
+    -------
+    runtime_environment : RuntimeEnvironment
+        動作環境情報
     """
-    global __user_agent_cache
 
-    if __user_agent_cache is not None:
-        return __user_agent_cache
+    cached_environment = __runtime_environment_cache.get(inference_type)
+    if cached_environment is not None:
+        return cached_environment
 
-    def get_os_version() -> str:
-        """OS バージョンを取得する。エラー時は 'Unknown' を返す。"""
+    def get_os_details() -> tuple[str, str, str | None, str | None]:
+        """OS 名・バージョン・ディストリビューション・カーネルを取得する。"""
+
         try:
-            os_name = platform.system()
-            if os_name == "Windows":
-                try:
-                    wv = platform.win32_ver()
-                    return f"Windows/{wv[1]}"
-                except Exception as ex:
-                    logger.warning("Failed to get Windows version:", exc_info=ex)
-                    return "Windows/Unknown"
-            elif os_name == "Darwin":
-                try:
-                    ver = platform.mac_ver()[0]
-                    return f"macOS/{ver}" if ver else "macOS/Unknown"
-                except Exception as ex:
-                    logger.warning("Failed to get macOS version:", exc_info=ex)
-                    return "macOS/Unknown"
-            elif os_name == "Linux":
-                try:
-                    kernel = platform.release()
-                    try:
-                        with open("/etc/os-release", encoding="utf-8") as f:
-                            lines = f.readlines()
-                            for line in lines:
-                                if line.startswith("PRETTY_NAME="):
-                                    distro = line.split("=")[1].strip().strip('"')
-                                    return f"Linux/{distro} (Kernel: {kernel})"
-                    except Exception as ex:
-                        logger.warning("Failed to read /etc/os-release:", exc_info=ex)
-                        return f"Linux/{kernel}"
-                except Exception as ex:
-                    logger.warning("Failed to get Linux kernel version:", exc_info=ex)
-                    return "Linux/Unknown"
-            return f"{os_name}/Unknown"
+            raw_os_name = platform.system()
         except Exception as ex:
-            logger.error("Failed to get OS information:", exc_info=ex)
-            return "OS/Unknown"
+            logger.error("Failed to get OS name:", exc_info=ex)
+            return "Unknown", "Unknown", None, None
+
+        if raw_os_name == "Windows":
+            try:
+                wv = platform.win32_ver()
+                os_version = wv[1] if wv[1] else "Unknown"
+                return "Windows", os_version, None, None
+            except Exception as ex:
+                logger.warning("Failed to get Windows version:", exc_info=ex)
+                return "Windows", "Unknown", None, None
+        if raw_os_name == "Darwin":
+            try:
+                ver = platform.mac_ver()[0]
+                os_version = ver if ver else "Unknown"
+                return "macOS", os_version, None, None
+            except Exception as ex:
+                logger.warning("Failed to get macOS version:", exc_info=ex)
+                return "macOS", "Unknown", None, None
+        if raw_os_name == "Linux":
+            kernel_version = "Unknown"
+            try:
+                kernel_version = platform.release()
+            except Exception as ex:
+                logger.warning("Failed to get Linux kernel version:", exc_info=ex)
+            distribution = None
+            try:
+                with open("/etc/os-release", encoding="utf-8") as file:
+                    for line in file:
+                        if line.startswith("PRETTY_NAME="):
+                            distribution = line.split("=")[1].strip().strip('"')
+                            break
+            except Exception as ex:
+                logger.warning("Failed to read /etc/os-release:", exc_info=ex)
+            os_version = distribution if distribution is not None else "Unknown"
+            return "Linux", os_version, distribution, kernel_version
+        return raw_os_name, "Unknown", None, None
 
     def get_architecture() -> str:
         """アーキテクチャ情報を取得する。エラー時は 'Unknown' を返す。"""
+
         try:
             return platform.machine()
         except Exception as ex:
@@ -76,6 +138,7 @@ def generate_user_agent(inference_type: Literal["CPU", "GPU"] = "CPU") -> str:
 
     def get_cpu_name() -> str:
         """CPU 名を取得する。エラー時は 'Unknown' を返す。"""
+
         try:
             cpu_info = get_cpu_info()
             return cast(str, cpu_info.get("brand_raw", "Unknown"))
@@ -84,7 +147,8 @@ def generate_user_agent(inference_type: Literal["CPU", "GPU"] = "CPU") -> str:
             return "Unknown"
 
     def get_gpu_names() -> list[str]:
-        """GPU 名を取得する。複数の GPU がある場合、すべての名前をリストで返す。エラー時は ['Unknown'] を返す。"""
+        """GPU 名一覧を取得する。エラー時は ['Unknown'] を返す。"""
+
         try:
             os_name = platform.system()
             if os_name == "Windows":
@@ -100,7 +164,7 @@ def generate_user_agent(inference_type: Literal["CPU", "GPU"] = "CPU") -> str:
                         "Failed to get Windows GPU information:", exc_info=ex
                     )
                     return ["Unknown"]
-            elif os_name == "Linux":
+            if os_name == "Linux":
                 try:
                     gpus = GPUtil.getGPUs()
                     names = [gpu.name for gpu in gpus if hasattr(gpu, "name")]
@@ -114,7 +178,8 @@ def generate_user_agent(inference_type: Literal["CPU", "GPU"] = "CPU") -> str:
             return ["Unknown"]
 
     def get_memory_info() -> tuple[float | None, float | None]:
-        """メモリ情報 (全体のメモリ量と使用可能なメモリ量) を取得する。エラー時は None, None を返す。"""
+        """メモリ情報 (総量・使用可能量) を取得する。エラー時は None, None を返す。"""
+
         try:
             vm = psutil.virtual_memory()
             total_gb = round(vm.total / (1024**3), 1)
@@ -125,13 +190,14 @@ def generate_user_agent(inference_type: Literal["CPU", "GPU"] = "CPU") -> str:
             return None, None
 
     def is_docker() -> bool:
-        """Docker コンテナ内で実行されているかを判定する。エラー時は False を返す。"""
+        """Docker コンテナ内で実行されているかを判定する。"""
+
         try:
             if os.path.exists("/.dockerenv"):
                 return True
             try:
-                with open("/proc/1/cgroup", encoding="utf-8") as f:
-                    for line in f:
+                with open("/proc/1/cgroup", encoding="utf-8") as file:
+                    for line in file:
                         if "docker" in line or "kubepods" in line:
                             return True
             except (FileNotFoundError, PermissionError) as ex:
@@ -142,52 +208,119 @@ def generate_user_agent(inference_type: Literal["CPU", "GPU"] = "CPU") -> str:
             return False
 
     try:
-        # OS・アーキテクチャ・CPU 名
-        os_version = get_os_version()
-        arch = get_architecture()
+        os_name, os_version, distribution, kernel_version = get_os_details()
+        architecture = get_architecture()
         cpu_name = get_cpu_name()
-
-        # GPU 情報の取得
-        # Mac では GPU 情報が取れないので、CPU 名を GPU 名として扱う
         gpu_names = get_gpu_names()
-        gpu_info = ", ".join(gpu_names)
-        if gpu_info == "Unknown" and platform.system() == "Darwin":
-            gpu_info = cpu_name
-
-        # メモリ情報の取得
         total_gb, available_gb = get_memory_info()
-        mem_info = (
-            f"{available_gb}GB:{total_gb}GB"
-            if total_gb is not None and available_gb is not None
-            else "Unknown"
+        is_docker_env = is_docker()
+
+        # Mac では GPU 情報が取得できないため CPU 名を代替として設定する
+        if platform.system() == "Darwin" and (
+            len(gpu_names) == 0 or all(name == "Unknown" for name in gpu_names)
+        ):
+            gpu_names = [cpu_name]
+
+        runtime_environment = RuntimeEnvironment(
+            os_name=os_name,
+            os_version=os_version,
+            distribution=distribution,
+            kernel_version=kernel_version,
+            is_docker=is_docker_env,
+            architecture=architecture,
+            cpu_name=cpu_name,
+            gpu_names=gpu_names,
+            total_memory_gb=total_gb,
+            available_memory_gb=available_gb,
+            inference_type=inference_type,
         )
+        __runtime_environment_cache[inference_type] = runtime_environment
+        return runtime_environment
+    except Exception as ex:
+        logger.error("Failed to collect runtime environment information:", exc_info=ex)
+        fallback_environment = RuntimeEnvironment(
+            os_name="Unknown",
+            os_version="Unknown",
+            distribution=None,
+            kernel_version=None,
+            is_docker=False,
+            architecture="Unknown",
+            cpu_name="Unknown",
+            gpu_names=["Unknown"],
+            total_memory_gb=None,
+            available_memory_gb=None,
+            inference_type=inference_type,
+        )
+        __runtime_environment_cache[inference_type] = fallback_environment
+        return fallback_environment
 
-        # Docker 判定
-        docker_flag = " Docker;" if is_docker() else ""
 
-        # ユーザーエージェント文字列を生成
+def generate_user_agent(inference_type: Literal["CPU", "GPU"] = "CPU") -> str:
+    """
+    ユーザーエージェント文字列を生成する。
+
+    エラーが発生した場合でも、最低限の情報を含むユーザーエージェント文字列を返す。
+
+    Parameters
+    ----------
+    inference_type : Literal["CPU", "GPU"]
+        音声合成に利用する推論方式
+
+    Returns
+    -------
+    user_agent : str
+        ユーザーエージェント文字列
+    """
+
+    try:
+        runtime_environment = collect_runtime_environment(inference_type)
+
+        os_info = runtime_environment.os_name
+        if runtime_environment.os_version != "Unknown":
+            os_info = f"{os_info}/{runtime_environment.os_version}"
+        else:
+            os_info = f"{os_info}/Unknown"
+        if (
+            runtime_environment.os_name == "Linux"
+            and runtime_environment.kernel_version is not None
+            and runtime_environment.kernel_version != "Unknown"
+        ):
+            os_info = f"{os_info} (Kernel: {runtime_environment.kernel_version})"
+
+        gpu_info = ", ".join(runtime_environment.gpu_names)
+        if not gpu_info:
+            gpu_info = "Unknown"
+
+        if (
+            runtime_environment.available_memory_gb is not None
+            and runtime_environment.total_memory_gb is not None
+        ):
+            mem_info = (
+                f"{runtime_environment.available_memory_gb}GB:"
+                f"{runtime_environment.total_memory_gb}GB"
+            )
+        else:
+            mem_info = "Unknown"
+
+        docker_flag = " Docker;" if runtime_environment.is_docker is True else ""
+
         user_agent = (
             f"AivisSpeech-Engine/{__version__} "
-            f"({os_version}; {arch};"
+            f"({os_info}; {runtime_environment.architecture};"
             f"{docker_flag} "
-            f"CPU/{cpu_name}; "
+            f"CPU/{runtime_environment.cpu_name}; "
             f"GPU/{gpu_info}; "
             f"Memory/{mem_info}; "
-            f"Inference/{inference_type})"
+            f"Inference/{runtime_environment.inference_type})"
         )
-
-        __user_agent_cache = user_agent
         return user_agent
 
     except Exception as ex:
         # 最悪の場合のフォールバック
         logger.error("Failed to generate user agent string:", exc_info=ex)
-        generic_user_agent = f"AivisSpeech-Engine/{__version__}"
-        __user_agent_cache = generic_user_agent
-        return generic_user_agent
+        return f"AivisSpeech-Engine/{__version__}"
 
 
 if __name__ == "__main__":
-    # Set up logging for standalone execution
     logging.basicConfig(level=logging.DEBUG)
     print(generate_user_agent("CPU"))

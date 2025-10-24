@@ -1,6 +1,6 @@
 [tool.taskipy.tasks]
 serve = "python run.py"
-lint = "ruff check --fix ."
+lint = "ruff check --fix . ; poetry run mypy ."
 format = "ruff format ."
 mypy = "mypy ."
 typos = "typos"

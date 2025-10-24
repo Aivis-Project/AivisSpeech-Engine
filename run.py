@@ -20,7 +20,7 @@ import warnings
 from dataclasses import asdict, dataclass
 from io import TextIOWrapper
 from pathlib import Path
-from typing import TextIO, TypeVar
+from typing import Literal, TextIO, TypeVar
 
 import sentry_sdk
 import uvicorn
@@ -45,7 +45,7 @@ from voicevox_engine.utility.path_utility import (
     engine_root,
     get_save_dir,
 )
-from voicevox_engine.utility.user_agent_utility import generate_user_agent
+from voicevox_engine.utility.user_agent_utility import collect_runtime_environment
 
 
 def decide_boolean_from_env(env_name: str) -> bool:
@@ -373,7 +373,10 @@ def main() -> None:
             )
 
         # 起動時の可能な限り早い段階で実行結果をキャッシュしておくのが重要
-        generate_user_agent("GPU" if args.use_gpu is True else "CPU")
+        selected_inference_type: Literal["CPU", "GPU"] = (
+            "GPU" if args.use_gpu is True else "CPU"
+        )
+        collect_runtime_environment(selected_inference_type)
 
         logger.info(f"AivisSpeech Engine version {__version__}")
         if args.disable_sentry:
