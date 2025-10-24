@@ -122,24 +122,24 @@ class AivmInfosRepository:
         assert self._installed_aivm_infos is not None
         return self._installed_aivm_infos
 
-    def update_model_load_state(self, aivm_uuid: str, is_loaded: bool) -> None:
+    def update_model_load_state(self, aivm_model_uuid: str, is_loaded: bool) -> None:
         """
         音声合成モデルのロード状態を更新する。
         このメソッドは StyleBertVITS2TTSEngine 上でロード/アンロードが行われた際に呼び出される。
 
         Parameters
         ----------
-        aivm_uuid : str
-            AIVM マニフェスト記載の UUID
+         aivm_model_uuid : str
+            AIVM マニフェスト記載の音声合成モデルの UUID
         is_loaded : bool
             モデルがロードされているかどうか
         """
 
         if (
             self._installed_aivm_infos is not None
-            and aivm_uuid in self._installed_aivm_infos
+            and aivm_model_uuid in self._installed_aivm_infos
         ):
-            self._installed_aivm_infos[aivm_uuid].is_loaded = is_loaded
+            self._installed_aivm_infos[aivm_model_uuid].is_loaded = is_loaded
 
     def update_repository(self) -> None:
         """
@@ -152,9 +152,9 @@ class AivmInfosRepository:
 
         # 情報の更新前に、現在保持されている既存のロード状態を新しい AivmInfo に移行する
         if self._installed_aivm_infos is not None:
-            for aivm_uuid, aivm_info in new_installed_aivm_infos.items():
-                if aivm_uuid in self._installed_aivm_infos:
-                    aivm_info.is_loaded = self._installed_aivm_infos[aivm_uuid].is_loaded  # fmt: skip
+            for aivm_model_uuid, aivm_info in new_installed_aivm_infos.items():
+                if aivm_model_uuid in self._installed_aivm_infos:
+                    aivm_info.is_loaded = self._installed_aivm_infos[ aivm_model_uuid].is_loaded  # fmt: skip
 
         # 内部状態を更新
         self._installed_aivm_infos = new_installed_aivm_infos
@@ -282,12 +282,12 @@ class AivmInfosRepository:
                 continue
 
             # 音声合成モデルの UUID
-            aivm_uuid = str(aivm_manifest.uuid)
+            aivm_model_uuid = str(aivm_manifest.uuid)
 
             # すでに同一 UUID のファイルがインストール済みかどうかのチェック
-            if aivm_uuid in aivm_infos:
+            if aivm_model_uuid in aivm_infos:
                 logger.info(
-                    f"{aivm_file_path}: AIVM model {aivm_uuid} is already installed. Skipping..."
+                    f"{aivm_file_path}: AIVM model {aivm_model_uuid} is already installed. Skipping..."
                 )
                 continue
 
@@ -437,7 +437,7 @@ class AivmInfosRepository:
                 aivm_info.speakers.append(aivm_info_speaker)
 
             # 完成した AivmInfo を UUID をキーとして追加
-            aivm_infos[aivm_uuid] = aivm_info
+            aivm_infos[aivm_model_uuid] = aivm_info
 
         # 音声合成モデル名でソートしてから返す
         sorted_aivm_infos = dict(sorted(aivm_infos.items(), key=lambda x: x[1].manifest.name))  # fmt: skip

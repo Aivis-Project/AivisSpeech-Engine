@@ -76,26 +76,30 @@ def generate_aivm_models_router(
             )
 
     @router.get(
-        "/{aivm_uuid}",
+        "/{ aivm_model_uuid}",
         summary="指定された音声合成モデルの情報を取得する",
         response_description="指定された音声合成モデルの情報",
     )
     def get_aivm_info(
-        aivm_uuid: Annotated[str, Path(description="音声合成モデルの UUID")],
+        aivm_model_uuid: Annotated[
+            str, Path(description="AIVM マニフェスト記載の音声合成モデルの UUID")
+        ],
     ) -> AivmInfo:
         """
         指定された音声合成モデルの情報を取得します。
         """
 
-        return aivm_manager.get_aivm_info(aivm_uuid)
+        return aivm_manager.get_aivm_info(aivm_model_uuid)
 
     @router.post(
-        "/{aivm_uuid}/load",
+        "/{ aivm_model_uuid}/load",
         status_code=204,
         summary="指定された音声合成モデルをロードする",
     )
     def load_model(
-        aivm_uuid: Annotated[str, Path(description="音声合成モデルの UUID")],
+        aivm_model_uuid: Annotated[
+            str, Path(description="AIVM マニフェスト記載の音声合成モデルの UUID")
+        ],
     ) -> None:
         """
         指定された音声合成モデルをロードします。すでにロード済みの場合は何も行われません。<br>
@@ -104,7 +108,7 @@ def generate_aivm_models_router(
 
         # まず対応する音声合成モデルがインストールされているかを確認
         # 存在しない場合は内部で HTTPException が送出される
-        aivm_info = aivm_manager.get_aivm_info(aivm_uuid)
+        aivm_info = aivm_manager.get_aivm_info(aivm_model_uuid)
 
         # StyleBertVITS2TTSEngine を取得し、音声合成モデルをロード
         engine = tts_engines.get_tts_engine(LATEST_VERSION)
@@ -112,12 +116,14 @@ def generate_aivm_models_router(
         engine.load_model(str(aivm_info.manifest.uuid))
 
     @router.post(
-        "/{aivm_uuid}/unload",
+        "/{ aivm_model_uuid}/unload",
         status_code=204,
         summary="指定された音声合成モデルをアンロードする",
     )
     def unload_model(
-        aivm_uuid: Annotated[str, Path(description="音声合成モデルの UUID")],
+        aivm_model_uuid: Annotated[
+            str, Path(description="AIVM マニフェスト記載の音声合成モデルの UUID")
+        ],
     ) -> None:
         """
         指定された音声合成モデルをアンロードします。
@@ -125,7 +131,7 @@ def generate_aivm_models_router(
 
         # まず対応する音声合成モデルがインストールされているかを確認
         # 存在しない場合は内部で HTTPException が送出される
-        aivm_info = aivm_manager.get_aivm_info(aivm_uuid)
+        aivm_info = aivm_manager.get_aivm_info(aivm_model_uuid)
 
         # StyleBertVITS2TTSEngine を取得し、音声合成モデルをアンロード
         engine = tts_engines.get_tts_engine(LATEST_VERSION)
@@ -133,12 +139,14 @@ def generate_aivm_models_router(
         engine.unload_model(str(aivm_info.manifest.uuid))
 
     @router.post(
-        "/{aivm_uuid}/update",
+        "/{ aivm_model_uuid}/update",
         status_code=204,
         summary="指定された音声合成モデルを更新する",
     )
     def update_model(
-        aivm_uuid: Annotated[str, Path(description="音声合成モデルの UUID")],
+        aivm_model_uuid: Annotated[
+            str, Path(description="AIVM マニフェスト記載の音声合成モデルの UUID")
+        ],
     ) -> None:
         """
         AivisHub から指定された音声合成モデルの一番新しいバージョンをダウンロードし、
@@ -147,19 +155,21 @@ def generate_aivm_models_router(
 
         # まず対応する音声合成モデルがインストールされているかを確認
         # 存在しない場合は内部で HTTPException が送出される
-        aivm_info = aivm_manager.get_aivm_info(aivm_uuid)
+        aivm_info = aivm_manager.get_aivm_info(aivm_model_uuid)
 
         # AivisHub からダウンロードした新しいバージョンの音声合成モデルを上書きインストール
         aivm_manager.update_model(str(aivm_info.manifest.uuid))
 
     @router.delete(
-        "/{aivm_uuid}/uninstall",
+        "/{ aivm_model_uuid}/uninstall",
         status_code=204,
         dependencies=[Depends(verify_mutability)],
         summary="指定された音声合成モデルをアンインストールする",
     )
     def uninstall_model(
-        aivm_uuid: Annotated[str, Path(description="音声合成モデルの UUID")],
+        aivm_model_uuid: Annotated[
+            str, Path(description="AIVM マニフェスト記載の音声合成モデルの UUID")
+        ],
     ) -> None:
         """
         指定された音声合成モデルをアンインストールします。
@@ -167,7 +177,7 @@ def generate_aivm_models_router(
 
         # まず対応する音声合成モデルがインストールされているかを確認
         # 存在しない場合は内部で HTTPException が送出される
-        aivm_info = aivm_manager.get_aivm_info(aivm_uuid)
+        aivm_info = aivm_manager.get_aivm_info(aivm_model_uuid)
 
         # StyleBertVITS2TTSEngine を取得し、音声合成モデルをアンロード
         # アンインストール前にアンロードしておかないと、既にロードされている場合に

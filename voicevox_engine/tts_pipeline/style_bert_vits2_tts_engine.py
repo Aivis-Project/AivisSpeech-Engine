@@ -178,8 +178,8 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         # load_all_models が True の場合は全ての音声合成モデルをロードしておく
         if load_all_models is True:
             logger.info("Loading all models...")
-            for aivm_uuid in self.aivm_manager.get_installed_aivm_infos().keys():
-                self.load_model(aivm_uuid)
+            for aivm_model_uuid in self.aivm_manager.get_installed_aivm_infos().keys():
+                self.load_model(aivm_model_uuid)
             logger.info("All models loaded.")
 
         # VOICEVOX CORE の通常の CoreWrapper の代わりに MockCoreWrapper を利用する
@@ -210,7 +210,7 @@ class StyleBertVITS2TTSEngine(TTSEngine):
             else False,  # fmt: skip
         )
 
-    def load_model(self, aivm_uuid: str) -> TTSModel:
+    def load_model(self, aivm_model_uuid: str) -> TTSModel:
         """
         Style-Bert-VITS2 の音声合成モデルをロードする。
         StyleBertVITS2TTSEngine の初期化時に use_gpu=True が指定されている場合、モデルは GPU にロードされる。
@@ -218,8 +218,8 @@ class StyleBertVITS2TTSEngine(TTSEngine):
 
         Parameters
         ----------
-        aivm_uuid : str
-            AIVM の UUID
+         aivm_model_uuid : str
+            AIVM マニフェスト記載の音声合成モデルの UUID
 
         Returns
         -------
@@ -228,11 +228,11 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         """
 
         # 既に読み込まれている場合はそのまま返す
-        if aivm_uuid in self.tts_models:
-            return self.tts_models[aivm_uuid]
+        if aivm_model_uuid in self.tts_models:
+            return self.tts_models[aivm_model_uuid]
 
         # AIVM メタデータを読み込む
-        aivm_info = self.aivm_manager.get_aivm_info(aivm_uuid)
+        aivm_info = self.aivm_manager.get_aivm_info(aivm_model_uuid)
         try:
             with open(aivm_info.file_path, mode="rb") as f:
                 aivm_metadata = aivmlib.read_aivmx_metadata(f)
@@ -266,51 +266,51 @@ class StyleBertVITS2TTSEngine(TTSEngine):
             onnx_providers=self.onnx_providers,
         )  # fmt: skip
         start_time = time.time()
-        logger.info(f"Loading {aivm_info.manifest.name} ({aivm_uuid}) ...")
+        logger.info(f"Loading {aivm_info.manifest.name} ({aivm_model_uuid}) ...")
         tts_model.load()
-        self.tts_models[aivm_uuid] = tts_model
-        self.aivm_manager.update_model_load_state(aivm_uuid, is_loaded=True)
+        self.tts_models[aivm_model_uuid] = tts_model
+        self.aivm_manager.update_model_load_state(aivm_model_uuid, is_loaded=True)
         logger.info(
-            f"{aivm_info.manifest.name} ({aivm_uuid}) loaded. ({time.time() - start_time:.2f}s)"
+            f"{aivm_info.manifest.name} ({aivm_model_uuid}) loaded. ({time.time() - start_time:.2f}s)"
         )
 
         return tts_model
 
-    def unload_model(self, aivm_uuid: str) -> None:
+    def unload_model(self, aivm_model_uuid: str) -> None:
         """
-        指定された AIVM の UUID に対応する音声合成モデルをアンロードする。
+        指定されたモデル UUID に対応する音声合成モデルをアンロードする。
         継承元の TTSEngine には存在しない、StyleBertVITS2TTSEngine 固有のメソッド。
 
         Parameters
         ----------
-        aivm_uuid : str
-            AIVM の UUID
+         aivm_model_uuid : str
+            AIVM マニフェスト記載の音声合成モデルの UUID
         """
 
         # モデルがロードされていない場合は何もしない
-        if not self.is_model_loaded(aivm_uuid):
+        if not self.is_model_loaded(aivm_model_uuid):
             return
 
         # モデルをアンロード
-        aivm_info = self.aivm_manager.get_aivm_info(aivm_uuid)
+        aivm_info = self.aivm_manager.get_aivm_info(aivm_model_uuid)
         start_time = time.time()
-        logger.info(f"Unloading {aivm_info.manifest.name} ({aivm_uuid}) ...")
-        self.tts_models[aivm_uuid].unload()
-        del self.tts_models[aivm_uuid]
-        self.aivm_manager.update_model_load_state(aivm_uuid, is_loaded=False)
+        logger.info(f"Unloading {aivm_info.manifest.name} ({aivm_model_uuid}) ...")
+        self.tts_models[aivm_model_uuid].unload()
+        del self.tts_models[aivm_model_uuid]
+        self.aivm_manager.update_model_load_state(aivm_model_uuid, is_loaded=False)
         logger.info(
-            f"{aivm_info.manifest.name} ({aivm_uuid}) unloaded. ({time.time() - start_time:.2f}s)"
+            f"{aivm_info.manifest.name} ({aivm_model_uuid}) unloaded. ({time.time() - start_time:.2f}s)"
         )
 
-    def is_model_loaded(self, aivm_uuid: str) -> bool:
+    def is_model_loaded(self, aivm_model_uuid: str) -> bool:
         """
-        指定された AIVM の UUID に対応する音声合成モデルがロード済みかどうかを返す。
+        指定されたモデル UUID に対応する音声合成モデルがロード済みかどうかを返す。
         継承元の TTSEngine には存在しない、StyleBertVITS2TTSEngine 固有のメソッド。
 
         Parameters
         ----------
-        aivm_uuid : str
-            AIVM の UUID
+         aivm_model_uuid : str
+            AIVM マニフェスト記載の音声合成モデルの UUID
 
         Returns
         -------
@@ -318,7 +318,7 @@ class StyleBertVITS2TTSEngine(TTSEngine):
             モデルがロード済みかどうか
         """
 
-        return aivm_uuid in self.tts_models
+        return aivm_model_uuid in self.tts_models
 
     def create_accent_phrases(self, text: str, style_id: StyleId) -> list[AccentPhrase]:
         """

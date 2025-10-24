@@ -64,8 +64,8 @@ class AivmManager:
         current_installed_aivm_infos = self._repository.get_installed_aivm_infos()
         if len(current_installed_aivm_infos) == 0:
             logger.warning("No models are installed. Installing default models...")
-            for aivm_uuid in self.DEFAULT_MODEL_UUIDS:
-                url = f"{self._repository.AIVISHUB_API_BASE_URL}/aivm-models/{aivm_uuid}/download?model_type=AIVMX"
+            for aivm_model_uuid in self.DEFAULT_MODEL_UUIDS:
+                url = f"{self._repository.AIVISHUB_API_BASE_URL}/aivm-models/{aivm_model_uuid}/download?model_type=AIVMX"
                 logger.info(f"Installing default model from {url}...")
                 self.install_model_from_url(url)
         else:
@@ -146,14 +146,14 @@ class AivmManager:
             detail=f"話者 {speaker_uuid} はインストールされていません。",
         )
 
-    def get_aivm_info(self, aivm_uuid: str) -> AivmInfo:
+    def get_aivm_info(self, aivm_model_uuid: str) -> AivmInfo:
         """
         音声合成モデルの UUID から AIVMX ファイルの情報を取得する。
 
         Parameters
         ----------
-        aivm_uuid : str
-            音声合成モデルの UUID (aivm_manifest.json に記載されているものと同一)
+         aivm_model_uuid : str
+            AIVM マニフェスト記載の音声合成モデルの UUID
 
         Returns
         -------
@@ -163,12 +163,12 @@ class AivmManager:
 
         aivm_infos = self.get_installed_aivm_infos()
         for aivm_info in aivm_infos.values():
-            if str(aivm_info.manifest.uuid) == aivm_uuid:
+            if str(aivm_info.manifest.uuid) == aivm_model_uuid:
                 return aivm_info
 
         raise HTTPException(
             status_code=404,
-            detail=f"音声合成モデル {aivm_uuid} はインストールされていません。",
+            detail=f"音声合成モデル {aivm_model_uuid} はインストールされていません。",
         )
 
     def get_aivm_manifest_from_style_id(
@@ -228,21 +228,21 @@ class AivmManager:
         # リポジトリの現在の状態を返す
         return self._repository.get_installed_aivm_infos()
 
-    def update_model_load_state(self, aivm_uuid: str, is_loaded: bool) -> None:
+    def update_model_load_state(self, aivm_model_uuid: str, is_loaded: bool) -> None:
         """
         音声合成モデルのロード状態を更新する。
         このメソッドは StyleBertVITS2TTSEngine 上でロード/アンロードが行われた際に呼び出される。
 
         Parameters
         ----------
-        aivm_uuid : str
-            AIVM マニフェスト記載の UUID
+         aivm_model_uuid : str
+            AIVM マニフェスト記載の音声合成モデルの UUID
         is_loaded : bool
             モデルがロードされているかどうか
         """
 
         # リポジトリの現在のモデルロード状態を更新する
-        self._repository.update_model_load_state(aivm_uuid, is_loaded)
+        self._repository.update_model_load_state(aivm_model_uuid, is_loaded)
 
     def install_model(self, file: BinaryIO) -> None:
         """
@@ -360,9 +360,9 @@ class AivmManager:
                     detail="Invalid AivisHub URL.",
                 )
             # group(0) は一致した文字列全体なので、group(1) で UUID 部分のみを取得
-            aivm_uuid = uuid_match.group(1)
+            aivm_model_uuid = uuid_match.group(1)
             # AIVMX ダウンロード用の API の URL に置き換え
-            url = f"{self._repository.AIVISHUB_API_BASE_URL}/aivm-models/{aivm_uuid}/download?model_type=AIVMX"
+            url = f"{self._repository.AIVISHUB_API_BASE_URL}/aivm-models/{aivm_model_uuid}/download?model_type=AIVMX"
             logger.info(
                 f"Detected AivisHub model page URL. Using download API URL: {url}"
             )
@@ -427,59 +427,59 @@ class AivmManager:
             detail=f"AIVMX ファイルのダウンロードに失敗しました。({last_exception})",
         ) from last_exception
 
-    def update_model(self, aivm_uuid: str) -> None:
+    def update_model(self, aivm_model_uuid: str) -> None:
         """
         AivisHub から指定された音声合成モデルの一番新しいバージョンをダウンロードし、
         インストール済みの音声合成モデルへ上書き更新する。
 
         Parameters
         ----------
-        aivm_uuid : str
-            音声合成モデルの UUID (aivm_manifest.json に記載されているものと同一)
+         aivm_model_uuid : str
+            AIVM マニフェスト記載の音声合成モデルの UUID
         """
 
         # 対象の音声合成モデルがインストール済みかを確認
         installed_aivm_infos = self.get_installed_aivm_infos()
-        if aivm_uuid not in installed_aivm_infos.keys():
+        if aivm_model_uuid not in installed_aivm_infos.keys():
             raise HTTPException(
                 status_code=404,
-                detail=f"音声合成モデル {aivm_uuid} はインストールされていません。",
+                detail=f"音声合成モデル {aivm_model_uuid} はインストールされていません。",
             )
 
         # アップデートが利用可能かを確認
-        aivm_info = installed_aivm_infos[aivm_uuid]
+        aivm_info = installed_aivm_infos[aivm_model_uuid]
         if not aivm_info.is_update_available:
             raise HTTPException(
                 status_code=422,
-                detail=f"音声合成モデル {aivm_uuid} にアップデートはありません。",
+                detail=f"音声合成モデル {aivm_model_uuid} にアップデートはありません。",
             )
 
         # AivisHub からアップデートをダウンロードしてインストール
         logger.info(
-            f"Updating AIVM model {aivm_uuid} to version {aivm_info.latest_version}..."
+            f"Updating AIVM model {aivm_model_uuid} to version {aivm_info.latest_version}..."
         )
-        download_url = f"{self._repository.AIVISHUB_API_BASE_URL}/aivm-models/{aivm_uuid}/download?model_type=AIVMX"
+        download_url = f"{self._repository.AIVISHUB_API_BASE_URL}/aivm-models/{aivm_model_uuid}/download?model_type=AIVMX"
         self.install_model_from_url(download_url)
         logger.info(
-            f"Updated AIVM model {aivm_uuid} to version {aivm_info.latest_version}."
+            f"Updated AIVM model {aivm_model_uuid} to version {aivm_info.latest_version}."
         )
 
-    def uninstall_model(self, aivm_uuid: str) -> None:
+    def uninstall_model(self, aivm_model_uuid: str) -> None:
         """
         インストール済み音声合成モデルをアンインストールする。
 
         Parameters
         ----------
-        aivm_uuid : str
-            音声合成モデルの UUID (aivm_manifest.json に記載されているものと同一)
+         aivm_model_uuid : str
+            AIVM マニフェスト記載の音声合成モデルの UUID
         """
 
         # 対象の音声合成モデルがインストール済みかを確認
         installed_aivm_infos = self.get_installed_aivm_infos()
-        if aivm_uuid not in installed_aivm_infos.keys():
+        if aivm_model_uuid not in installed_aivm_infos.keys():
             raise HTTPException(
                 status_code=404,
-                detail=f"音声合成モデル {aivm_uuid} はインストールされていません。",
+                detail=f"音声合成モデル {aivm_model_uuid} はインストールされていません。",
             )
 
         # インストール済みの音声合成モデルの数を確認
@@ -495,11 +495,11 @@ class AivmManager:
         ## AivmInfo 内に格納されているファイルパスを使って削除する
         ## 万が一 AIVMX ファイルが存在しない場合は無視する
         logger.info(
-            f"Uninstalling AIVMX file from {installed_aivm_infos[aivm_uuid].file_path}..."
+            f"Uninstalling AIVMX file from {installed_aivm_infos[aivm_model_uuid].file_path}..."
         )
-        installed_aivm_infos[aivm_uuid].file_path.unlink(missing_ok=True)
+        installed_aivm_infos[aivm_model_uuid].file_path.unlink(missing_ok=True)
         logger.info(
-            f"Uninstalled AIVMX file from {installed_aivm_infos[aivm_uuid].file_path}."
+            f"Uninstalled AIVMX file from {installed_aivm_infos[aivm_model_uuid].file_path}."
         )
 
         # すべてのインストール済み音声合成モデルの情報を再取得
