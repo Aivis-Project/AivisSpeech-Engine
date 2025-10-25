@@ -20,7 +20,7 @@ import warnings
 from dataclasses import asdict, dataclass
 from io import TextIOWrapper
 from pathlib import Path
-from typing import Literal, TextIO, TypeVar
+from typing import TextIO, TypeVar
 
 import sentry_sdk
 import uvicorn
@@ -373,10 +373,9 @@ def main() -> None:
             )
 
         # 起動時の可能な限り早い段階で実行結果をキャッシュしておくのが重要
-        selected_inference_type: Literal["CPU", "GPU"] = (
-            "GPU" if args.use_gpu is True else "CPU"
+        collect_runtime_environment(
+            inference_type="GPU" if args.use_gpu is True else "CPU"
         )
-        collect_runtime_environment(selected_inference_type)
 
         logger.info(f"AivisSpeech Engine version {__version__}")
         if args.disable_sentry:
