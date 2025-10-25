@@ -14,41 +14,35 @@ from voicevox_engine import __version__
 from voicevox_engine.logging import logger
 
 
-class RuntimeEnvironment(BaseModel):
-    """ユーザーエージェント生成に利用する実行環境情報。"""
+class AivisSpeechRuntimeEnvironment(BaseModel):
+    """
+    AivisSpeech Engine の実行環境情報。
+    """
 
     os_name: Annotated[str, Field(description="OS 名")]
     os_version: Annotated[str, Field(description="OS バージョン")]
     distribution: Annotated[
         str | None,
-        Field(default=None, description="Linux ディストリビューション名"),
+        Field(description="Linux ディストリビューション名 (存在しない場合は null)"),
     ]
     kernel_version: Annotated[
         str | None,
-        Field(default=None, description="Linux カーネルバージョン"),
+        Field(description="Linux カーネルバージョン (存在しない場合は null)"),
     ]
     is_docker: Annotated[bool, Field(description="Docker コンテナ環境かどうか")]
     architecture: Annotated[str, Field(description="アーキテクチャ名")]
     cpu_name: Annotated[str, Field(description="CPU 名")]
     gpu_names: Annotated[
         list[str],
-        Field(
-            default_factory=list,
-            description="検出された GPU 名の一覧。GPU が存在しない場合は空リスト。",
-        ),
+        Field(description="検出された GPU 名の一覧 (GPU が存在しない場合は空リスト)"),
     ]
     total_memory_gb: Annotated[
-        float | None,
-        Field(
-            default=None, description="物理メモリ総量 (GB)。取得できない場合は None。"
-        ),
+        float,
+        Field(description="物理メモリ総量 (GB)"),
     ]
     available_memory_gb: Annotated[
-        float | None,
-        Field(
-            default=None,
-            description="使用可能な物理メモリ量 (GB)。取得できない場合は None。",
-        ),
+        float,
+        Field(description="使用可能な物理メモリ量 (GB)"),
     ]
     inference_type: Annotated[
         Literal["CPU", "GPU"],
@@ -57,12 +51,12 @@ class RuntimeEnvironment(BaseModel):
 
 
 # RuntimeEnvironment は inference_type ごとに計測され、プロセス終了までキャッシュされる
-__runtime_environment_cache: dict[str, RuntimeEnvironment] = {}
+__runtime_environment_cache: dict[str, AivisSpeechRuntimeEnvironment] = {}
 
 
 def collect_runtime_environment(
     inference_type: Literal["CPU", "GPU"],
-) -> RuntimeEnvironment:
+) -> AivisSpeechRuntimeEnvironment:
     """
     ユーザーエージェント生成に必要な動作環境情報を構造化して取得する。
 
@@ -85,7 +79,6 @@ def collect_runtime_environment(
 
     def get_os_details() -> tuple[str, str, str | None, str | None]:
         """OS 名・バージョン・ディストリビューション・カーネルを取得する。"""
-
         try:
             raw_os_name = platform.system()
         except Exception as ex:
@@ -129,7 +122,6 @@ def collect_runtime_environment(
 
     def get_architecture() -> str:
         """アーキテクチャ情報を取得する。エラー時は 'Unknown' を返す。"""
-
         try:
             return platform.machine()
         except Exception as ex:
@@ -138,7 +130,6 @@ def collect_runtime_environment(
 
     def get_cpu_name() -> str:
         """CPU 名を取得する。エラー時は 'Unknown' を返す。"""
-
         try:
             cpu_info = get_cpu_info()
             return cast(str, cpu_info.get("brand_raw", "Unknown"))
@@ -148,7 +139,6 @@ def collect_runtime_environment(
 
     def get_gpu_names() -> list[str]:
         """GPU 名一覧を取得する。エラー時は ['Unknown'] を返す。"""
-
         try:
             os_name = platform.system()
             if os_name == "Windows":
@@ -177,21 +167,15 @@ def collect_runtime_environment(
             logger.error("Failed to get GPU information:", exc_info=ex)
             return ["Unknown"]
 
-    def get_memory_info() -> tuple[float | None, float | None]:
-        """メモリ情報 (総量・使用可能量) を取得する。エラー時は None, None を返す。"""
-
-        try:
-            vm = psutil.virtual_memory()
-            total_gb = round(vm.total / (1024**3), 1)
-            available_gb = round(vm.available / (1024**3), 1)
-            return total_gb, available_gb
-        except Exception as ex:
-            logger.error("Failed to get memory information:", exc_info=ex)
-            return None, None
+    def get_memory_info() -> tuple[float, float]:
+        """メモリ情報 (総量・使用可能量) を取得する。"""
+        vm = psutil.virtual_memory()
+        total_gb = round(vm.total / (1024**3), 1)
+        available_gb = round(vm.available / (1024**3), 1)
+        return total_gb, available_gb
 
     def is_docker() -> bool:
         """Docker コンテナ内で実行されているかを判定する。"""
-
         try:
             if os.path.exists("/.dockerenv"):
                 return True
@@ -221,7 +205,7 @@ def collect_runtime_environment(
         ):
             gpu_names = [cpu_name]
 
-        runtime_environment = RuntimeEnvironment(
+        runtime_environment = AivisSpeechRuntimeEnvironment(
             os_name=os_name,
             os_version=os_version,
             distribution=distribution,
@@ -238,7 +222,8 @@ def collect_runtime_environment(
         return runtime_environment
     except Exception as ex:
         logger.error("Failed to collect runtime environment information:", exc_info=ex)
-        fallback_environment = RuntimeEnvironment(
+        total_gb, available_gb = get_memory_info()
+        fallback_environment = AivisSpeechRuntimeEnvironment(
             os_name="Unknown",
             os_version="Unknown",
             distribution=None,
@@ -247,8 +232,8 @@ def collect_runtime_environment(
             architecture="Unknown",
             cpu_name="Unknown",
             gpu_names=["Unknown"],
-            total_memory_gb=None,
-            available_memory_gb=None,
+            total_memory_gb=total_gb,
+            available_memory_gb=available_gb,
             inference_type=inference_type,
         )
         __runtime_environment_cache[inference_type] = fallback_environment

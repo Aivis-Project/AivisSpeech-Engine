@@ -13,21 +13,20 @@ from voicevox_engine.metas.Metas import StyleId
 class Preset(BaseModel):
     """プリセット情報。"""
 
-    id: int = Field(title="プリセット ID")
-    name: str = Field(title="プリセット名")
-    speaker_uuid: str = Field(title="キャラクターの UUID")
-    style_id: StyleId = Field(title="スタイル ID")
+    id: int = Field(description="プリセット ID 。")
+    name: str = Field(description="プリセット名。")
+    speaker_uuid: str = Field(description="キャラクターの UUID 。")
+    style_id: StyleId = Field(description="スタイル ID 。")
     speedScale: float = Field(
-        title="全体の話速",
         description=(
             "全体の話速を 0.5 ~ 2.0 の範囲で指定する (デフォルト: 1.0) 。\n"
             "2.0 で 2 倍速、0.5 で 0.5 倍速になる。"
         ),
     )
     intonationScale: float = Field(
-        title="話者スタイルの感情表現の強さ (「全体の抑揚」ではない点で VOICEVOX ENGINE と異なる)",
         description=(
             "選択した話者スタイルの感情表現の強弱を 0.0 ~ 2.0 の範囲で指定する (デフォルト: 1.0) 。\n"
+            "「全体の抑揚」ではない点で VOICEVOX ENGINE と仕様が異なる。\n"
             "数値が大きいほど、選択した話者スタイルに近い感情表現が込められた声になる。\n"
             "例えば話者スタイルが「上機嫌」なら、数値が大きいほどより嬉しそうな明るい話し方になる。\n"
             "一方で、話者やスタイルによっては、数値を上げすぎると発声がおかしくなったり、棒読みで不自然な声になる場合もある。\n"
@@ -37,15 +36,14 @@ class Preset(BaseModel):
     )
     tempoDynamicsScale: float = Field(
         default=1.0,
-        title="テンポの緩急 (AivisSpeech Engine 固有のフィールド)",
         description=(
-            "話す速さの緩急の強弱を 0.0 ~ 2.0 の範囲で指定する (デフォルト: 1.0) 。\n"
+            "話す速さ（テンポ）の緩急の強弱を 0.0 ~ 2.0 の範囲で指定する (デフォルト: 1.0) 。\n"
+            "AivisSpeech Engine 固有のフィールドで、VOICEVOX ENGINE には存在しない。\n"
             "数値が大きいほどより早口で生っぽい抑揚がついた声になる。\n"
             "VOICEVOX ENGINE との互換性のため、未指定時はデフォルト値が適用される。"
         ),
     )
     pitchScale: float = Field(
-        title="全体の音高",
         description=(
             "全体の音高を -0.15 ~ 0.15 の範囲で指定する (デフォルト: 0.0) 。\n"
             "数値が大きいほど高い声になる。\n"
@@ -53,14 +51,13 @@ class Preset(BaseModel):
         ),
     )
     volumeScale: float = Field(
-        title="全体の音量",
         description=(
             "全体の音量を 0.0 ~ 2.0 の範囲で指定する (デフォルト: 1.0) 。\n"
             "数値が大きいほど大きな声になる。"
         ),
     )
-    prePhonemeLength: float = Field(title="音声の前の無音時間 (秒)")
-    postPhonemeLength: float = Field(title="音声の後の無音時間 (秒)")
+    prePhonemeLength: float = Field(description="音声の前の無音時間 (秒)。")
+    postPhonemeLength: float = Field(description="音声の後の無音時間 (秒)。")
     pauseLength: float | SkipJsonSchema[None] = Field(
         default=None,
         title="AivisSpeech Engine ではサポートされていないフィールドです (常に無視されます)",

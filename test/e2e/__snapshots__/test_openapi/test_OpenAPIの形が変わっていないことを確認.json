@@ -40,39 +40,46 @@
         "description": "AIVM (Aivis Voice Model) 仕様に準拠した音声合成モデルのメタデータ情報。\n\nAIVM マニフェストには、音声合成モデルに関連する全てのメタデータが含まれる。\nspeakers フィールド内の話者情報は、VOICEVOX ENGINE との API 互換性のために、\nAIVM マニフェストを基に Speaker / SpeakerStyle / SpeakerInfo / StyleInfo モデルに変換したもの。",
         "properties": {
           "file_path": {
+            "description": "AIVMX ファイルのインストール先パス",
             "format": "path",
-            "title": "AIVMX ファイルのインストール先パス",
+            "title": "File Path",
             "type": "string"
           },
           "file_size": {
-            "title": "AIVMX ファイルのインストールサイズ (バイト単位)",
+            "description": "AIVMX ファイルのインストールサイズ (バイト単位)",
+            "title": "File Size",
             "type": "integer"
           },
           "is_loaded": {
-            "title": "この音声合成モデルがロードされているかどうか",
+            "description": "この音声合成モデルがロードされているかどうか",
+            "title": "Is Loaded",
             "type": "boolean"
           },
           "is_private_model": {
-            "title": "AivisHub で公開されておらず、ユーザーがローカルからインストールしたモデルの場合は True (ネットワークエラーなどで AivisHub から情報を取得できなかった場合も True を返す)",
+            "description": "AivisHub で公開されておらず、ユーザーがローカルからインストールしたモデルの場合は True (ネットワークエラーなどで AivisHub から情報を取得できなかった場合も True を返す)",
+            "title": "Is Private Model",
             "type": "boolean"
           },
           "is_update_available": {
-            "title": "この音声合成モデルの新しいバージョンが AivisHub で公開されているかどうか",
+            "description": "この音声合成モデルの新しいバージョンが AivisHub で公開されているかどうか",
+            "title": "Is Update Available",
             "type": "boolean"
           },
           "latest_version": {
-            "title": "この音声合成モデルの AivisHub で公開されている最新バージョン (AivisHub で公開されていない場合は AIVM マニフェスト記載のバージョン)",
+            "description": "この音声合成モデルの AivisHub で公開されている最新バージョン (AivisHub で公開されていない場合は AIVM マニフェスト記載のバージョン)",
+            "title": "Latest Version",
             "type": "string"
           },
           "manifest": {
             "$ref": "#/components/schemas/AivmManifest",
-            "title": "AIVM マニフェスト"
+            "description": "AIVM マニフェスト"
           },
           "speakers": {
+            "description": "話者情報のリスト (VOICEVOX ENGINE 互換)",
             "items": {
               "$ref": "#/components/schemas/LibrarySpeaker"
             },
-            "title": "話者情報のリスト (VOICEVOX ENGINE 互換)",
+            "title": "Speakers",
             "type": "array"
           }
         },
@@ -310,28 +317,31 @@
         "description": "音声合成用のクエリ。",
         "properties": {
           "accent_phrases": {
+            "description": "アクセント句のリスト。",
             "items": {
               "$ref": "#/components/schemas/AccentPhrase"
             },
-            "title": "アクセント句のリスト",
+            "title": "Accent Phrases",
             "type": "array"
           },
           "intonationScale": {
-            "description": "選択した話者スタイルの感情表現の強弱を 0.0 ~ 2.0 の範囲で指定する (デフォルト: 1.0) 。\n数値が大きいほど、選択した話者スタイルに近い感情表現が込められた声になる。\n例えば話者スタイルが「上機嫌」なら、数値が大きいほどより嬉しそうな明るい話し方になる。\n一方で、話者やスタイルによっては、数値を上げすぎると発声がおかしくなったり、棒読みで不自然な声になる場合もある。\n正しく発声できる上限値は話者やスタイルごとに異なる。必要に応じて最適な値を見つけて調整すること。\n全スタイルの平均であるノーマルスタイルでは自動で適切な感情表現が選択されるため、この値を指定しても無視される。",
-            "title": "話者スタイルの感情表現の強さ (「全体の抑揚」ではない点で VOICEVOX ENGINE と異なる)",
+            "description": "選択した話者スタイルの感情表現の強弱を 0.0 ~ 2.0 の範囲で指定する (デフォルト: 1.0) 。\n「全体の抑揚」ではない点で VOICEVOX ENGINE と仕様が異なる。\n数値が大きいほど、選択した話者スタイルに近い感情表現が込められた声になる。\n例えば話者スタイルが「上機嫌」なら、数値が大きいほどより嬉しそうな明るい話し方になる。\n一方で、話者やスタイルによっては、数値を上げすぎると発声がおかしくなったり、棒読みで不自然な声になる場合もある。\n正しく発声できる上限値は話者やスタイルごとに異なる。必要に応じて最適な値を見つけて調整すること。\n全スタイルの平均であるノーマルスタイルでは自動で適切な感情表現が選択されるため、この値を指定しても無視される。",
+            "title": "Intonationscale",
             "type": "number"
           },
           "kana": {
-            "description": "読み上げるテキストを指定する。\nVOICEVOX ENGINE では AquesTalk 風記法テキストが入る読み取り専用フィールドだが (音声合成時には無視される) 、AivisSpeech Engine では音声合成時に漢字や記号が含まれた通常の読み上げテキストも必要なため、苦肉の策で読み上げテキスト指定用のフィールドとして転用した。\nVOICEVOX ENGINE との互換性のため None や空文字列が指定された場合も動作するが、その場合はアクセント句から自動生成されたひらがな文字列が読み上げテキストになるため、不自然なイントネーションになってしまう。\n可能な限り kana に通常の読み上げテキストを指定した上で音声合成 API に渡すことを推奨する。",
-            "title": "読み上げるテキスト (「読みの AquesTalk 風記法テキスト」ではない点で VOICEVOX ENGINE と異なる)",
+            "description": "読み上げるテキストを指定する。「読みの AquesTalk 風記法テキスト」ではない点で VOICEVOX ENGINE と仕様が異なる。\nVOICEVOX ENGINE では AquesTalk 風記法テキストが入る読み取り専用フィールドだが (音声合成時には無視される) 、AivisSpeech Engine では音声合成時に漢字や記号が含まれた通常の読み上げテキストも必要なため、苦肉の策で読み上げテキスト指定用のフィールドとして転用した。\nVOICEVOX ENGINE との互換性のため None や空文字列が指定された場合も動作するが、その場合はアクセント句から自動生成されたひらがな文字列が読み上げテキストになるため、不自然なイントネーションになってしまう。\n可能な限り kana に通常の読み上げテキストを指定した上で音声合成 API に渡すことを推奨する。",
+            "title": "Kana",
             "type": "string"
           },
           "outputSamplingRate": {
-            "title": "音声データの出力サンプリングレート",
+            "description": "音声データの出力サンプリングレート。",
+            "title": "Outputsamplingrate",
             "type": "integer"
           },
           "outputStereo": {
-            "title": "音声データをステレオ出力するか否か",
+            "description": "音声データをステレオ出力するか否か。",
+            "title": "Outputstereo",
             "type": "boolean"
           },
           "pauseLength": {
@@ -354,31 +364,33 @@
           },
           "pitchScale": {
             "description": "全体の音高を -0.15 ~ 0.15 の範囲で指定する (デフォルト: 0.0) 。\n数値が大きいほど高い声になる。\nVOICEVOX ENGINE と異なり、この値を 0.0 から変更すると音質が劣化するため注意が必要。",
-            "title": "全体の音高",
+            "title": "Pitchscale",
             "type": "number"
           },
           "postPhonemeLength": {
-            "title": "音声の後の無音時間 (秒)",
+            "description": "音声の後の無音時間 (秒)。",
+            "title": "Postphonemelength",
             "type": "number"
           },
           "prePhonemeLength": {
-            "title": "音声の前の無音時間 (秒)",
+            "description": "音声の前の無音時間 (秒)。",
+            "title": "Prephonemelength",
             "type": "number"
           },
           "speedScale": {
             "description": "全体の話速を 0.5 ~ 2.0 の範囲で指定する (デフォルト: 1.0) 。\n2.0 で 2 倍速、0.5 で 0.5 倍速になる。",
-            "title": "全体の話速",
+            "title": "Speedscale",
             "type": "number"
           },
           "tempoDynamicsScale": {
             "default": 1.0,
-            "description": "話す速さの緩急の強弱を 0.0 ~ 2.0 の範囲で指定する (デフォルト: 1.0) 。\n数値が大きいほどより早口で生っぽい抑揚がついた声になる。\nVOICEVOX ENGINE との互換性のため、未指定時はデフォルト値が適用される。",
-            "title": "テンポの緩急 (AivisSpeech Engine 固有のフィールド)",
+            "description": "話す速さ（テンポ）の緩急の強弱を 0.0 ~ 2.0 の範囲で指定する (デフォルト: 1.0) 。\nAivisSpeech Engine 固有のフィールドで、VOICEVOX ENGINE には存在しない。\n数値が大きいほどより早口で生っぽい抑揚がついた声になる。\nVOICEVOX ENGINE との互換性のため、未指定時はデフォルト値が適用される。",
+            "title": "Tempodynamicsscale",
             "type": "number"
           },
           "volumeScale": {
             "description": "全体の音量を 0.0 ~ 2.0 の範囲で指定する (デフォルト: 1.0) 。\n数値が大きいほど大きな声になる。",
-            "title": "全体の音量",
+            "title": "Volumescale",
             "type": "number"
           }
         },
@@ -743,7 +755,8 @@
         "description": "モーラ（子音＋母音）ごとの情報。",
         "properties": {
           "consonant": {
-            "title": "子音の音素",
+            "description": "子音の音素。",
+            "title": "Consonant",
             "type": "string"
           },
           "consonant_length": {
@@ -758,11 +771,12 @@
           },
           "text": {
             "description": "子音＋母音に対応する文字。\nVOICEVOX ENGINE と異なり、感嘆符・句読点などの記号もモーラに含まれる。\n記号モーラの場合、`text` には記号がそのまま、`vowel` には \"pau\" が設定される。",
-            "title": "子音＋母音に対応する文字",
+            "title": "Text",
             "type": "string"
           },
           "vowel": {
-            "title": "母音の音素",
+            "description": "母音の音素。",
+            "title": "Vowel",
             "type": "string"
           },
           "vowel_length": {
@@ -867,16 +881,18 @@
         "description": "プリセット情報。",
         "properties": {
           "id": {
-            "title": "プリセット ID",
+            "description": "プリセット ID 。",
+            "title": "Id",
             "type": "integer"
           },
           "intonationScale": {
-            "description": "選択した話者スタイルの感情表現の強弱を 0.0 ~ 2.0 の範囲で指定する (デフォルト: 1.0) 。\n数値が大きいほど、選択した話者スタイルに近い感情表現が込められた声になる。\n例えば話者スタイルが「上機嫌」なら、数値が大きいほどより嬉しそうな明るい話し方になる。\n一方で、話者やスタイルによっては、数値を上げすぎると発声がおかしくなったり、棒読みで不自然な声になる場合もある。\n正しく発声できる上限値は話者やスタイルごとに異なる。必要に応じて最適な値を見つけて調整すること。\n全スタイルの平均であるノーマルスタイルでは自動で適切な感情表現が選択されるため、この値を指定しても無視される。",
-            "title": "話者スタイルの感情表現の強さ (「全体の抑揚」ではない点で VOICEVOX ENGINE と異なる)",
+            "description": "選択した話者スタイルの感情表現の強弱を 0.0 ~ 2.0 の範囲で指定する (デフォルト: 1.0) 。\n「全体の抑揚」ではない点で VOICEVOX ENGINE と仕様が異なる。\n数値が大きいほど、選択した話者スタイルに近い感情表現が込められた声になる。\n例えば話者スタイルが「上機嫌」なら、数値が大きいほどより嬉しそうな明るい話し方になる。\n一方で、話者やスタイルによっては、数値を上げすぎると発声がおかしくなったり、棒読みで不自然な声になる場合もある。\n正しく発声できる上限値は話者やスタイルごとに異なる。必要に応じて最適な値を見つけて調整すること。\n全スタイルの平均であるノーマルスタイルでは自動で適切な感情表現が選択されるため、この値を指定しても無視される。",
+            "title": "Intonationscale",
             "type": "number"
           },
           "name": {
-            "title": "プリセット名",
+            "description": "プリセット名。",
+            "title": "Name",
             "type": "string"
           },
           "pauseLength": {
@@ -892,39 +908,43 @@
           },
           "pitchScale": {
             "description": "全体の音高を -0.15 ~ 0.15 の範囲で指定する (デフォルト: 0.0) 。\n数値が大きいほど高い声になる。\nVOICEVOX ENGINE と異なり、この値を 0.0 から変更すると音質が劣化するため注意が必要。",
-            "title": "全体の音高",
+            "title": "Pitchscale",
             "type": "number"
           },
           "postPhonemeLength": {
-            "title": "音声の後の無音時間 (秒)",
+            "description": "音声の後の無音時間 (秒)。",
+            "title": "Postphonemelength",
             "type": "number"
           },
           "prePhonemeLength": {
-            "title": "音声の前の無音時間 (秒)",
+            "description": "音声の前の無音時間 (秒)。",
+            "title": "Prephonemelength",
             "type": "number"
           },
           "speaker_uuid": {
-            "title": "キャラクターの UUID",
+            "description": "キャラクターの UUID 。",
+            "title": "Speaker Uuid",
             "type": "string"
           },
           "speedScale": {
             "description": "全体の話速を 0.5 ~ 2.0 の範囲で指定する (デフォルト: 1.0) 。\n2.0 で 2 倍速、0.5 で 0.5 倍速になる。",
-            "title": "全体の話速",
+            "title": "Speedscale",
             "type": "number"
           },
           "style_id": {
-            "title": "スタイル ID",
+            "description": "スタイル ID 。",
+            "title": "Style Id",
             "type": "integer"
           },
           "tempoDynamicsScale": {
             "default": 1.0,
-            "description": "話す速さの緩急の強弱を 0.0 ~ 2.0 の範囲で指定する (デフォルト: 1.0) 。\n数値が大きいほどより早口で生っぽい抑揚がついた声になる。\nVOICEVOX ENGINE との互換性のため、未指定時はデフォルト値が適用される。",
-            "title": "テンポの緩急 (AivisSpeech Engine 固有のフィールド)",
+            "description": "話す速さ（テンポ）の緩急の強弱を 0.0 ~ 2.0 の範囲で指定する (デフォルト: 1.0) 。\nAivisSpeech Engine 固有のフィールドで、VOICEVOX ENGINE には存在しない。\n数値が大きいほどより早口で生っぽい抑揚がついた声になる。\nVOICEVOX ENGINE との互換性のため、未指定時はデフォルト値が適用される。",
+            "title": "Tempodynamicsscale",
             "type": "number"
           },
           "volumeScale": {
             "description": "全体の音量を 0.0 ~ 2.0 の範囲で指定する (デフォルト: 1.0) 。\n数値が大きいほど大きな声になる。",
-            "title": "全体の音量",
+            "title": "Volumescale",
             "type": "number"
           }
         },
