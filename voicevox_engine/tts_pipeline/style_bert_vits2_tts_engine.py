@@ -200,14 +200,18 @@ class StyleBertVITS2TTSEngine(TTSEngine):
             cpu=True,
             # CUDA: CUDA Execution Provider が利用可能な場合は True
             # この値が True であるからといって、必ずしも CUDA 推論が利用できるとは限らない
-            cuda=True
-            if "CUDAExecutionProvider" in self.available_onnx_providers
-            else False,
+            cuda=(
+                True
+                if "CUDAExecutionProvider" in self.available_onnx_providers
+                else False
+            ),
             # DirectML: DirectML Execution Provider が利用可能な場合は True
             # この値が True であるからといって、必ずしも DirectML 推論が利用できるとは限らない
-            dml=True
-            if "DmlExecutionProvider" in self.available_onnx_providers
-            else False,  # fmt: skip
+            dml=(
+                True
+                if "DmlExecutionProvider" in self.available_onnx_providers
+                else False
+            ),
         )
 
     def load_model(self, aivm_model_uuid: str) -> TTSModel:
