@@ -1781,7 +1781,7 @@
         ]
       }
     },
-    "/aivm_models/{ aivm_model_uuid}": {
+    "/aivm_models/{aivm_model_uuid}": {
       "get": {
         "description": "指定された音声合成モデルの情報を取得します。",
         "operationId": "get_aivm_info",
@@ -1826,7 +1826,7 @@
         ]
       }
     },
-    "/aivm_models/{ aivm_model_uuid}/load": {
+    "/aivm_models/{aivm_model_uuid}/load": {
       "post": {
         "description": "指定された音声合成モデルをロードします。すでにロード済みの場合は何も行われません。<br>\n実行しなくても他の API は利用できますが、音声合成の初回実行時に時間がかかることがあります。",
         "operationId": "load_model",
@@ -1864,7 +1864,7 @@
         ]
       }
     },
-    "/aivm_models/{ aivm_model_uuid}/uninstall": {
+    "/aivm_models/{aivm_model_uuid}/uninstall": {
       "delete": {
         "description": "指定された音声合成モデルをアンインストールします。",
         "operationId": "uninstall_model",
@@ -1902,7 +1902,7 @@
         ]
       }
     },
-    "/aivm_models/{ aivm_model_uuid}/unload": {
+    "/aivm_models/{aivm_model_uuid}/unload": {
       "post": {
         "description": "指定された音声合成モデルをアンロードします。",
         "operationId": "unload_model",
@@ -1940,7 +1940,7 @@
         ]
       }
     },
-    "/aivm_models/{ aivm_model_uuid}/update": {
+    "/aivm_models/{aivm_model_uuid}/update": {
       "post": {
         "description": "AivisHub から指定された音声合成モデルの一番新しいバージョンをダウンロードし、\nインストール済みの音声合成モデルへ上書き更新します。",
         "operationId": "update_model",
