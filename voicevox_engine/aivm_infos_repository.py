@@ -72,6 +72,9 @@ class AivmInfosRepository:
         # すべてのインストール済み音声合成モデルの情報を保持するマップ
         self._installed_aivm_infos: dict[str, AivmInfo] | None = None
 
+        # デフォルトモデルの UUID の順序（AivisHub API から取得した順序に従う）
+        self._default_model_uuid_order: list[str] | None = None
+
         # コンストラクタ初期化時（＝エンジン起動時）、キャッシュがあればそこから即座に読み込む
         ## update_repository() は比較的実行コストが高い（モデル数が増えるほど時間がかかる）ため、
         ## 現在起動時に残したキャッシュを活用し、エンジンの起動を高速化する
@@ -159,12 +162,10 @@ class AivmInfosRepository:
             )
             return
 
-        # 完成した AivmInfo をモデル UUID をキーとして追加または更新し、再度名前順でソートする
+        # 完成した AivmInfo をモデル UUID をキーとして追加または更新し、再度デフォルトモデル優先・名前順でソートする
         aivm_model_uuid, aivm_info = build_result
         self._installed_aivm_infos[aivm_model_uuid] = aivm_info
-        self._installed_aivm_infos = dict(
-            sorted(self._installed_aivm_infos.items(), key=lambda x: x[1].manifest.name)
-        )
+        self._installed_aivm_infos = self._sort_models(self._installed_aivm_infos)
 
         # AivisHub 上での最新バージョン情報を取得し、内部状態を更新する
         try:
@@ -184,29 +185,36 @@ class AivmInfosRepository:
         # 現在保持している情報をキャッシュに反映
         self._persist_to_cache()
 
-    def mark_default_models(self, default_model_uuids: set[uuid.UUID]) -> None:
+    def mark_default_models(self, default_model_uuids: list[uuid.UUID]) -> None:
         """
-        デフォルトモデルの UUID セットに基づいて、デフォルトモデルかどうかのフラグを更新する。
+        デフォルトモデルの UUID リストに基づいて、デフォルトモデルかどうかのフラグを更新する。
 
         Parameters
         ----------
-        default_model_uuids : set[uuid.UUID]
-            AivisHub がデフォルトインストール対象として指定した音声合成モデルの UUID セット
+        default_model_uuids : list[uuid.UUID]
+            AivisHub がデフォルトインストール対象として指定した音声合成モデルの UUID リスト（順序付き）
         """
 
         # この時点で確実にインストール済み音声合成モデルの情報が存在しているべき
         assert self._installed_aivm_infos is not None
 
+        # デフォルトモデルの順序を保持
+        self._default_model_uuid_order = [str(uuid) for uuid in default_model_uuids]
+
+        # UUID セットを作成してフラグ更新に使用
+        default_model_uuid_set = set(default_model_uuids)
+
         is_changed = False
         for model_uuid, info in self._installed_aivm_infos.items():
-            new_flag = uuid.UUID(model_uuid) in default_model_uuids
+            new_flag = uuid.UUID(model_uuid) in default_model_uuid_set
             if info.is_default_model != new_flag:
                 # サーバー側の指定に追従してフラグを更新
                 info.is_default_model = new_flag
                 is_changed = True
 
-        # フラグが更新されていた場合は現在保持している情報をキャッシュに反映
+        # フラグが更新されていた場合はソートを実行してからキャッシュに反映
         if is_changed is True:
+            self._installed_aivm_infos = self._sort_models(self._installed_aivm_infos)
             self._persist_to_cache()
 
     def update_model_load_state(self, aivm_model_uuid: str, is_loaded: bool) -> None:
@@ -282,8 +290,60 @@ class AivmInfosRepository:
                 exc_info=ex,
             )
 
+        # 最終的にデフォルトモデル優先・名前順でソート
+        self._installed_aivm_infos = self._sort_models(self._installed_aivm_infos)
+
         # 現在保持している情報をキャッシュに反映
         self._persist_to_cache()
+
+    def _sort_models(self, aivm_infos: dict[str, AivmInfo]) -> dict[str, AivmInfo]:
+        """
+        音声合成モデルの辞書をソートする。
+        デフォルトモデルが先頭に来て、その中では AivisHub から取得した順序に従う。
+        非デフォルトモデルは名前順でソートされる。
+
+        Parameters
+        ----------
+        aivm_infos : dict[str, AivmInfo]
+            ソート対象の音声合成モデルの辞書
+
+        Returns
+        -------
+        dict[str, AivmInfo]
+            ソート済みの音声合成モデルの辞書
+        """
+
+        def sort_key(item: tuple[str, AivmInfo]) -> tuple[bool, int, str]:
+            """
+            ソートキーを生成する。
+
+            Returns
+            -------
+            tuple[bool, int, str]
+                (is_default_model の逆順, デフォルトモデルの順序, モデル名)
+            """
+            model_uuid, aivm_info = item
+            # デフォルトモデルかどうか（False が先に来るように、not を適用）
+            is_default = not aivm_info.is_default_model
+
+            # デフォルトモデルの順序
+            if (
+                aivm_info.is_default_model is True
+                and self._default_model_uuid_order is not None
+            ):
+                # 順序リストに含まれている場合は、そのインデックスを使用
+                try:
+                    order_index = self._default_model_uuid_order.index(model_uuid)
+                except ValueError:
+                    # 順序リストに含まれていない場合は最後に配置
+                    order_index = len(self._default_model_uuid_order)
+            else:
+                # 非デフォルトモデルまたは順序が設定されていない場合は、名前順でソートするため大きな値を設定
+                order_index = 999999
+
+            return (is_default, order_index, aivm_info.manifest.name)
+
+        return dict(sorted(aivm_infos.items(), key=sort_key))
 
     def _load_from_cache(self) -> bool:
         """
@@ -309,7 +369,8 @@ class AivmInfosRepository:
                 # すべてのモデルのロード状態を False にする
                 for aivm_info in result.values():
                     aivm_info.is_loaded = False
-                self._installed_aivm_infos = result
+                # デフォルトモデル優先・名前順でソート
+                self._installed_aivm_infos = self._sort_models(result)
                 logger.info(
                     f"Loaded {len(self._installed_aivm_infos)} models from cache."
                 )
@@ -350,6 +411,7 @@ class AivmInfosRepository:
     def _scan_models(cls, installed_models_dir: Path) -> dict[str, AivmInfo]:
         """
         指定されたディレクトリに保存されている *.aivmx ファイルを走査し、すべての音声合成モデルの情報を取得する。
+        このメソッドはソートを行わないので、呼び出し元の責任でソートを行う必要がある。
 
         Parameters
         ----------
@@ -419,13 +481,11 @@ class AivmInfosRepository:
             # 完成した AivmInfo を UUID をキーとして追加
             aivm_infos[aivm_model_uuid] = aivm_info
 
-        # 音声合成モデル名でソートしてから返す
-        sorted_aivm_infos = dict(sorted(aivm_infos.items(), key=lambda x: x[1].manifest.name))  # fmt: skip
         logger.info(
-            f"Scanned {len(sorted_aivm_infos)} installed models. ({time.time() - start_time:.2f}s)"
+            f"Scanned {len(aivm_infos)} installed models. ({time.time() - start_time:.2f}s)"
         )
 
-        return sorted_aivm_infos
+        return aivm_infos
 
     @classmethod
     def _build_aivm_info_from_metadata(

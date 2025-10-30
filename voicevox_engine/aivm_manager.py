@@ -67,7 +67,10 @@ class AivmManager:
         # インストール済み音声合成モデルの一覧をログ出力
         logger.info("Installed models:")
         for aivm_info in self._repository.get_installed_aivm_infos().values():
-            logger.info(f"- {aivm_info.manifest.name} ({aivm_info.manifest.uuid})")
+            logger.info(
+                f"- {aivm_info.manifest.name} ({aivm_info.manifest.uuid})"
+                + (" (default)" if aivm_info.is_default_model is True else "")
+            )
 
     def _apply_forced_removal_rules(self) -> None:
         """
@@ -134,12 +137,6 @@ class AivmManager:
         # ネットワークエラーなどで取得できなかった場合、フォールバックとしてハードコードされた値が返される
         default_model_properties = AivisHubClient.fetch_default_models()
 
-        # デフォルトモデルの UUID セットを構築
-        # この情報は後で self._repository.mark_default_models() に渡すために保持しておく
-        default_model_uuid_set = {
-            model_property.model_uuid for model_property in default_model_properties
-        }
-
         # 指定されたデフォルトモデルごとにインストールまたは更新を行う
         for model_property in default_model_properties:
             model_uuid_str = str(model_property.model_uuid)
@@ -192,7 +189,10 @@ class AivmManager:
         # デフォルトモデル指定フラグを更新
         ## AivisHub から取得したデフォルトモデル一覧に基づいて、各モデルの is_default_model フラグを更新する
         ## この処理はデフォルトモデルすべてのインストールまたは更新が終わった後に実行する必要がある（インストール前だと情報が取得できていないため）
-        self._repository.mark_default_models(default_model_uuid_set)
+        default_model_uuid_list = [
+            model_property.model_uuid for model_property in default_model_properties
+        ]
+        self._repository.mark_default_models(default_model_uuid_list)
 
     def get_characters(self) -> list[Character]:
         """
