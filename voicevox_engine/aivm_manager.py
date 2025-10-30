@@ -604,10 +604,10 @@ class AivmManager:
         # 対象の音声合成モデルがインストール済みかを確認
         installed_aivm_infos = self.get_installed_aivm_infos()
         if aivm_model_uuid not in installed_aivm_infos.keys():
-            logger.error(f"Model {aivm_model_uuid} is not installed.")
+            logger.error(f"Model {aivm_model_uuid} is already uninstalled.")
             raise HTTPException(
                 status_code=404,
-                detail=f"音声合成モデル {aivm_model_uuid} はインストールされていません。",
+                detail=f"音声合成モデル {aivm_model_uuid} は既にアンインストールされています。",
             )
 
         # 対象の音声合成モデル情報を取得
@@ -620,7 +620,7 @@ class AivmManager:
             )
             raise HTTPException(
                 status_code=400,
-                detail="指定された音声合成モデルはデフォルトモデルのためアンインストールできません。",
+                detail="デフォルトモデルはアンインストールできません。",
             )
 
         # インストール済みの音声合成モデルの数を確認 (強制削除フラグが False の場合のみ)
