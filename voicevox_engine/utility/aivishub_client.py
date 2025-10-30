@@ -394,9 +394,12 @@ class AivisHubClient:
             return FORCED_REMOVAL_RULES.copy()
 
     @staticmethod
-    def fetch_model_detail(aivm_model_uuid: uuid.UUID) -> AivmModelResponse | None:
+    async def fetch_model_detail(
+        aivm_model_uuid: uuid.UUID,
+    ) -> AivmModelResponse | None:
         """
         指定された音声合成モデルの詳細情報を取得する。
+        呼び出し元関数が非同期関数であるため、このメソッドのみ非同期関数として実装している。
 
         Parameters
         ----------
@@ -411,12 +414,20 @@ class AivisHubClient:
 
         # API リクエストを送信
         try:
-            response = AivisHubClient._request(
-                method="GET",
-                path=f"/aivm-models/{aivm_model_uuid}",
-            )
-            # 404 の場合は単に当該モデルが AivisHub に公開されていないだけなので、エラーは出さずに None を返す
+            async with httpx.AsyncClient() as client:
+                response = await client.request(
+                    method="GET",
+                    url=f"{AivisHubClient.BASE_URL}/aivm-models/{aivm_model_uuid}",
+                    # 環境情報から生成したユーザーエージェントを設定
+                    headers={"User-Agent": generate_user_agent()},
+                    # API が死んでる時に接続を待ち続けないようにタイムアウトを設定
+                    # 接続タイムアウト: 10秒 / 読み取りタイムアウト: 30秒
+                    timeout=httpx.Timeout(10.0, read=30.0),
+                    # リダイレクトを追跡する
+                    follow_redirects=True,
+                )
             if response.status_code == 404:
+                # 404 の場合は単に当該モデルが AivisHub に公開されていないだけなので、エラーは出さずに None を返す
                 return None
             response.raise_for_status()
             return AivmModelResponse.model_validate(response.json())

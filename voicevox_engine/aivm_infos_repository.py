@@ -640,9 +640,8 @@ class AivmInfosRepository:
         async def fetch_latest_version(aivm_info: AivmInfo) -> None:
             try:
                 # AivisHub 上に同じ UUID で公開されている音声合成モデルがあれば情報を取得
-                model_info = await asyncio.to_thread(
-                    AivisHubClient.fetch_model_detail,
-                    aivm_info.manifest.uuid,
+                model_info = await AivisHubClient.fetch_model_detail(
+                    aivm_model_uuid=aivm_info.manifest.uuid,
                 )
 
                 # AivisHub 上に同じ UUID で公開されている音声合成モデルがない (もしくは取得エラーが発生した) 場合は何もしない
