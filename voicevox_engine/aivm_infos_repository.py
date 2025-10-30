@@ -12,7 +12,7 @@ from typing import Final
 
 import aivmlib
 from aivmlib.schemas.aivm_manifest import AivmMetadata, ModelArchitecture
-from pydantic import TypeAdapter
+from pydantic import BaseModel, TypeAdapter
 from semver.version import Version
 
 from voicevox_engine.library.model import LibrarySpeaker
@@ -31,7 +31,12 @@ from voicevox_engine.utility.path_utility import get_save_dir
 
 __all__ = ["AivmInfosRepository"]
 
-AivmInfosCache = TypeAdapter(dict[str, AivmInfo])
+
+class AivmInfosCacheData(BaseModel):
+    """キャッシュファイルに保存されるデータ構造"""
+
+    aivm_infos: dict[str, AivmInfo]
+    default_model_uuid_order: list[str] | None = None
 
 
 class AivmInfosRepository:
@@ -120,6 +125,7 @@ class AivmInfosRepository:
 
         # この時点で確実にインストール済み音声合成モデルの情報が存在しているべき
         assert self._installed_aivm_infos is not None
+
         return self._installed_aivm_infos
 
     def upsert_model_from_metadata(
@@ -141,13 +147,13 @@ class AivmInfosRepository:
         # この時点で確実にインストール済み音声合成モデルの情報が存在しているべき
         assert self._installed_aivm_infos is not None
 
-        # 当該モデルが既に存在する場合（つまりモデル更新時）、既存のロード状態とデフォルトモデルフラグを引き継ぐ
+        # 当該モデルが既に存在する場合（つまりモデル更新時）、既存のロード状態を引き継ぐ
         manifest_uuid = str(aivm_metadata.manifest.uuid)
         existing_info = self._installed_aivm_infos.get(manifest_uuid)
         is_loaded = existing_info.is_loaded if existing_info is not None else False
-        is_default_model = (
-            existing_info.is_default_model if existing_info is not None else False
-        )
+
+        # デフォルトモデルかどうかは常に _default_model_uuid_order に基づいて判定する
+        is_default_model = self._is_default_model(manifest_uuid)
 
         # AIVM メタデータから AivmInfo を構築する
         build_result = self._build_aivm_info_from_metadata(
@@ -199,21 +205,16 @@ class AivmInfosRepository:
         assert self._installed_aivm_infos is not None
 
         # デフォルトモデルの順序を保持
+        old_order = self._default_model_uuid_order
         self._default_model_uuid_order = [str(uuid) for uuid in default_model_uuids]
 
-        # UUID セットを作成してフラグ更新に使用
-        default_model_uuid_set = set(default_model_uuids)
-
-        is_changed = False
+        # 全てのモデルの is_default_model フラグを現在の _default_model_uuid_order に基づいて再設定
         for model_uuid, info in self._installed_aivm_infos.items():
-            new_flag = uuid.UUID(model_uuid) in default_model_uuid_set
-            if info.is_default_model != new_flag:
-                # サーバー側の指定に追従してフラグを更新
-                info.is_default_model = new_flag
-                is_changed = True
+            info.is_default_model = self._is_default_model(model_uuid)
 
-        # フラグが更新されていた場合はソートを実行してからキャッシュに反映
-        if is_changed is True:
+        # 順序情報が設定された場合、または順序が変わった場合は必ず再ソートしてキャッシュに反映
+        order_set = old_order != self._default_model_uuid_order
+        if order_set is True:
             self._installed_aivm_infos = self._sort_models(self._installed_aivm_infos)
             self._persist_to_cache()
 
@@ -290,7 +291,11 @@ class AivmInfosRepository:
                 exc_info=ex,
             )
 
-        # 最終的にデフォルトモデル優先・名前順でソート
+        # スキャンで取得したモデル情報の is_default_model フラグを正しく設定
+        for model_uuid, info in self._installed_aivm_infos.items():
+            info.is_default_model = self._is_default_model(model_uuid)
+
+        # ソート
         self._installed_aivm_infos = self._sort_models(self._installed_aivm_infos)
 
         # 現在保持している情報をキャッシュに反映
@@ -345,6 +350,25 @@ class AivmInfosRepository:
 
         return dict(sorted(aivm_infos.items(), key=sort_key))
 
+    def _is_default_model(self, model_uuid: str) -> bool:
+        """
+        指定されたモデル UUID がデフォルトモデルかどうかを判定する。
+
+        Parameters
+        ----------
+        model_uuid : str
+            判定対象のモデル UUID
+
+        Returns
+        -------
+        bool
+            デフォルトモデルの場合 True、そうでない場合 False
+        """
+
+        if self._default_model_uuid_order is None:
+            return False
+        return model_uuid in self._default_model_uuid_order
+
     def _load_from_cache(self) -> bool:
         """
         キャッシュファイルからすべてのインストール済み音声合成モデルの情報を取得し、
@@ -365,12 +389,37 @@ class AivmInfosRepository:
             try:
                 # キャッシュファイルからインストール済みの音声合成モデルの情報を読み込む
                 with open(self.CACHE_FILE_PATH, encoding="utf-8") as f:
-                    result = AivmInfosCache.validate_json(f.read())
+                    cache_json = f.read()
+
+                # 既存のキャッシュ形式（dict[str, AivmInfo]）との互換性を保つ
+                try:
+                    cache_data = AivmInfosCacheData.model_validate_json(cache_json)
+                    aivm_infos = cache_data.aivm_infos
+                    self._default_model_uuid_order = cache_data.default_model_uuid_order
+                except Exception:
+                    # 旧形式のキャッシュファイルの場合は、dict[str, AivmInfo] として読み込む
+                    aivm_infos = TypeAdapter(dict[str, AivmInfo]).validate_json(
+                        cache_json
+                    )
+                    self._default_model_uuid_order = None
+
                 # すべてのモデルのロード状態を False にする
-                for aivm_info in result.values():
+                for aivm_info in aivm_infos.values():
                     aivm_info.is_loaded = False
-                # デフォルトモデル優先・名前順でソート
-                self._installed_aivm_infos = self._sort_models(result)
+
+                # 一旦読み込んだ結果を保持
+                self._installed_aivm_infos = aivm_infos
+
+                # キャッシュから読み込んだモデル情報の is_default_model フラグを正しく設定
+                # （キャッシュに保存されている値は古い可能性があるため、現在の _default_model_uuid_order に基づいて再設定）
+                for model_uuid, info in self._installed_aivm_infos.items():
+                    info.is_default_model = self._is_default_model(model_uuid)
+
+                # ソート
+                self._installed_aivm_infos = self._sort_models(
+                    self._installed_aivm_infos
+                )
+
                 logger.info(
                     f"Loaded {len(self._installed_aivm_infos)} models from cache."
                 )
@@ -393,22 +442,23 @@ class AivmInfosRepository:
 
         with self._lock:
             try:
+                # キャッシュデータを構築（デフォルトモデルの順序情報も含める）
+                cache_data = AivmInfosCacheData(
+                    aivm_infos=self._installed_aivm_infos,
+                    default_model_uuid_order=self._default_model_uuid_order,
+                )
+
                 # 一時ファイルに書き込んでから名前変更することで、
                 # 書き込み中にクラッシュしてもキャッシュファイルが壊れないようにする
                 temp_path = self.CACHE_FILE_PATH.with_suffix(".tmp")
                 with open(temp_path, mode="w", encoding="utf-8") as f:
-                    f.write(
-                        AivmInfosCache.dump_json(
-                            self._installed_aivm_infos, indent=4
-                        ).decode("utf-8")
-                    )
+                    f.write(cache_data.model_dump_json(indent=4))
                 # ファイル名を変更（既存のファイルは上書き）
                 temp_path.replace(self.CACHE_FILE_PATH)
             except Exception as ex:
                 logger.warning("Failed to save cache file:", exc_info=ex)
 
-    @classmethod
-    def _scan_models(cls, installed_models_dir: Path) -> dict[str, AivmInfo]:
+    def _scan_models(self, installed_models_dir: Path) -> dict[str, AivmInfo]:
         """
         指定されたディレクトリに保存されている *.aivmx ファイルを走査し、すべての音声合成モデルの情報を取得する。
         このメソッドはソートを行わないので、呼び出し元の責任でソートを行う必要がある。
@@ -464,13 +514,16 @@ class AivmInfosRepository:
                 )
                 continue
 
+            # デフォルトモデルかどうかは常に _default_model_uuid_order に基づいて判定する
+            is_default_model = self._is_default_model(aivm_model_uuid)
+
             # AIVM メタデータから AivmInfo を構築する
-            ## スキャン時は一旦 is_loaded=False、is_default_model=False として構築する
-            build_result = cls._build_aivm_info_from_metadata(
+            ## スキャン時は is_loaded=False として構築する
+            build_result = self._build_aivm_info_from_metadata(
                 aivm_metadata,
                 aivm_file_path,
                 is_loaded=False,
-                is_default_model=False,
+                is_default_model=is_default_model,
             )
 
             # AIVM マニフェストのバリデーションエラーやサポートされていないバージョンなどで None が返された場合はスキップ
