@@ -50,6 +50,12 @@
             "title": "File Size",
             "type": "integer"
           },
+          "is_default_model": {
+            "default": false,
+            "description": "AivisHub がデフォルトインストール対象として指定した音声合成モデルかどうか",
+            "title": "Is Default Model",
+            "type": "boolean"
+          },
           "is_loaded": {
             "description": "この音声合成モデルがロードされているかどうか",
             "title": "Is Loaded",
