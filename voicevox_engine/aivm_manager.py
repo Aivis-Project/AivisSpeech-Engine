@@ -432,7 +432,7 @@ class AivmManager:
         # AIVMX ファイルをインストール
         ## 通常は重複防止のため "(音声合成モデルの UUID).aivmx" のフォーマットのファイル名でインストールされるが、
         ## 手動で .aivmx ファイルをインストール先ディレクトリにコピーしても一通り動作するように考慮している
-        logger.info(f"Installing AIVMX file to {aivm_file_path}...")
+        logger.info("Installing AIVMX file ...")
         try:
             with open(aivm_file_path, mode="wb") as f:
                 f.write(file.read())
@@ -507,7 +507,7 @@ class AivmManager:
                     timeout=httpx.Timeout(10.0, read=300.0),
                 )
                 response.raise_for_status()
-                logger.info(f"Downloaded AIVMX file from {download_url}.")
+                logger.info("Downloaded AIVMX file.")
                 # ダウンロードした AIVMX ファイルの内容を渡してインストール処理を行う
                 self.install_model(BytesIO(response.content))
                 return
@@ -644,9 +644,7 @@ class AivmManager:
                 f"Uninstalling model {aivm_model_uuid} from {target_info.file_path}..."
             )
         target_info.file_path.unlink(missing_ok=True)
-        logger.info(
-            f"Uninstalled model {aivm_model_uuid} from {target_info.file_path}."
-        )
+        logger.info(f"Uninstalled model {aivm_model_uuid}.")
 
         # リポジトリから当該モデルの情報を削除
         self._repository.remove_model(aivm_model_uuid)
