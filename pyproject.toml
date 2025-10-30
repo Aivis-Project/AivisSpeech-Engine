@@ -54,6 +54,7 @@ filterwarnings = ["ignore::pydantic.warnings.PydanticDeprecatedSince20"]
 
 [tool.typos.default.extend-words]
 datas = "datas" # PyInstaller's argument
+Collet = "Collet"  # CUDA EULA
 
 [tool.typos.files]
 extend-exclude = [

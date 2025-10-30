@@ -420,7 +420,7 @@ def _create_synthesis_test_base(text: str) -> list[AccentPhrase]:
     return tts_engine.create_accent_phrases(text, StyleId(1))
 
 
-def _assert_equeal_accent_phrases(
+def _assert_equal_accent_phrases(
     expected: list[AccentPhrase], outputs: list[AccentPhrase]
 ) -> None:
     def _to_native_and_round(x: list[AccentPhrase]) -> Any:
@@ -440,7 +440,7 @@ def test_create_accent_phrases() -> None:
     expected = _koreha_arimasuka_base_expected()
     expected[-1].is_interrogative = True
     actual = tts_engine.create_accent_phrases(text, StyleId(1))
-    _assert_equeal_accent_phrases(expected, actual)
+    _assert_equal_accent_phrases(expected, actual)
 
 
 def test_upspeak_voiced_last_mora() -> None:
@@ -463,7 +463,7 @@ def test_upspeak_voiced_last_mora() -> None:
     # Outputs
     outputs = _apply_interrogative_upspeak(inputs, True)
     # Test
-    _assert_equeal_accent_phrases(expected, outputs)
+    _assert_equal_accent_phrases(expected, outputs)
 
     # voiced + "？" + flagOFF -> non-upspeak
     # Inputs
@@ -474,7 +474,7 @@ def test_upspeak_voiced_last_mora() -> None:
     # Outputs
     outputs = _apply_interrogative_upspeak(inputs, False)
     # Test
-    _assert_equeal_accent_phrases(expected, outputs)
+    _assert_equal_accent_phrases(expected, outputs)
 
     # voiced + "" + flagON -> non-upspeak
     # Inputs
@@ -484,7 +484,7 @@ def test_upspeak_voiced_last_mora() -> None:
     # Outputs
     outputs = _apply_interrogative_upspeak(inputs, True)
     # Test
-    _assert_equeal_accent_phrases(expected, outputs)
+    _assert_equal_accent_phrases(expected, outputs)
 
 
 def test_upspeak_voiced_N_last_mora() -> None:
@@ -515,7 +515,7 @@ def test_upspeak_voiced_N_last_mora() -> None:
     # Outputs
     outputs = _apply_interrogative_upspeak(inputs, True)
     # Test
-    _assert_equeal_accent_phrases(expected, outputs)
+    _assert_equal_accent_phrases(expected, outputs)
 
     # voiced + "？" + flagON -> upspeak
     # Inputs
@@ -536,7 +536,7 @@ def test_upspeak_voiced_N_last_mora() -> None:
     # Outputs
     outputs = _apply_interrogative_upspeak(inputs, True)
     # Test
-    _assert_equeal_accent_phrases(expected, outputs)
+    _assert_equal_accent_phrases(expected, outputs)
 
     # voiced + "？" + flagOFF -> non-upspeak
     # Inputs
@@ -547,7 +547,7 @@ def test_upspeak_voiced_N_last_mora() -> None:
     # Outputs
     outputs = _apply_interrogative_upspeak(inputs, False)
     # Test
-    _assert_equeal_accent_phrases(expected, outputs)
+    _assert_equal_accent_phrases(expected, outputs)
 
 
 def test_upspeak_unvoiced_last_mora() -> None:
@@ -578,7 +578,7 @@ def test_upspeak_unvoiced_last_mora() -> None:
     # Outputs
     outputs = _apply_interrogative_upspeak(inputs, True)
     # Test
-    _assert_equeal_accent_phrases(expected, outputs)
+    _assert_equal_accent_phrases(expected, outputs)
 
     # unvoiced + "？" + flagON -> non-upspeak
     # Inputs
@@ -589,7 +589,7 @@ def test_upspeak_unvoiced_last_mora() -> None:
     # Outputs
     outputs = _apply_interrogative_upspeak(inputs, True)
     # Test
-    _assert_equeal_accent_phrases(expected, outputs)
+    _assert_equal_accent_phrases(expected, outputs)
 
     # unvoiced + "？" + flagOFF -> non-upspeak
     # Inputs
@@ -600,7 +600,7 @@ def test_upspeak_unvoiced_last_mora() -> None:
     # Outputs
     outputs = _apply_interrogative_upspeak(inputs, False)
     # Test
-    _assert_equeal_accent_phrases(expected, outputs)
+    _assert_equal_accent_phrases(expected, outputs)
 
 
 def test_upspeak_voiced_u_last_mora() -> None:
@@ -631,7 +631,7 @@ def test_upspeak_voiced_u_last_mora() -> None:
     # Outputs
     outputs = _apply_interrogative_upspeak(inputs, True)
     # Test
-    _assert_equeal_accent_phrases(expected, outputs)
+    _assert_equal_accent_phrases(expected, outputs)
 
     # voiced + "？" + flagON -> upspeak
     # Inputs
@@ -652,7 +652,7 @@ def test_upspeak_voiced_u_last_mora() -> None:
     # Outputs
     outputs = _apply_interrogative_upspeak(inputs, True)
     # Test
-    _assert_equeal_accent_phrases(expected, outputs)
+    _assert_equal_accent_phrases(expected, outputs)
 
     # voiced + "？" + flagOFF -> non-upspeak
     # Inputs
@@ -663,4 +663,4 @@ def test_upspeak_voiced_u_last_mora() -> None:
     # Outputs
     outputs = _apply_interrogative_upspeak(inputs, False)
     # Test
-    _assert_equeal_accent_phrases(expected, outputs)
+    _assert_equal_accent_phrases(expected, outputs)
