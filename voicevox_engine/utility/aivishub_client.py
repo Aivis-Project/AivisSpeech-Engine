@@ -122,7 +122,7 @@ class AivmModelVoiceSample(BaseModel):
     音声サンプル情報。
     """
 
-    url: str
+    audio_url: str
     transcript: str
 
 
@@ -270,15 +270,30 @@ class AivisHubClient:
         )
 
     @staticmethod
-    def fetch_default_models() -> AivisSpeechDefaultModelsResponse | None:
+    def fetch_default_models() -> list[AivisSpeechDefaultModelProperty]:
         """
-        AivisHub API からデフォルトモデル一覧を取得する。
+        AivisSpeech Engine が起動時に自動的にインストールする音声合成モデルの一覧を取得する。
+        ネットワークエラーなどで取得できなかった場合、フォールバックとしてハードコードされた値が返される。
 
         Returns
         -------
-        AivisSpeechDefaultModelsResponse | None
-            デフォルトモデル一覧。取得に失敗した場合は None
+        list[AivisSpeechDefaultModelProperty]
+            AivisSpeech Engine が起動時に自動的にインストールする音声合成モデルの一覧
         """
+
+        # プリインストール対象の音声合成モデルの定義
+        ## 何らかの理由で AivisHub API から情報が取得できなかった場合にフォールバックとして利用する
+        ## 通常は AivisHub API から取得した最新の情報を優先する
+        DEFAULT_MODEL_PROPERTIES: list[AivisSpeechDefaultModelProperty] = [
+            AivisSpeechDefaultModelProperty(
+                model_uuid=uuid.UUID("22e8ed77-94fe-4ef2-871f-a86f94e9a579"),
+                latest_version="1.0.0",
+            ),
+            AivisSpeechDefaultModelProperty(
+                model_uuid=uuid.UUID("a59cb814-0083-4369-8542-f51a29e72af7"),
+                latest_version="1.0.0",
+            ),
+        ]
 
         try:
             response = AivisHubClient._request(
@@ -286,42 +301,63 @@ class AivisHubClient:
                 path="/aivisspeech/default-models",
             )
             response.raise_for_status()
-            return AivisSpeechDefaultModelsResponse.model_validate(response.json())
+            return AivisSpeechDefaultModelsResponse.model_validate(
+                response.json()
+            ).aivm_models
         except ValidationError as ex:
             logger.warning(
                 "[AivisHubClient] Failed to parse default models.",
                 exc_info=ex,
             )
-            return None
+            return DEFAULT_MODEL_PROPERTIES.copy()
         except httpx.HTTPStatusError as ex:
             logger.warning(
                 f"[AivisHubClient] Failed to fetch default models from AivisHub. (HTTP Error: {ex.response.status_code})",
                 exc_info=ex,
             )
-            return None
+            return DEFAULT_MODEL_PROPERTIES.copy()
         except httpx.TimeoutException as ex:
             logger.warning(
                 "[AivisHubClient] Timeout while fetching default models from AivisHub.",
                 exc_info=ex,
             )
-            return None
+            return DEFAULT_MODEL_PROPERTIES.copy()
         except httpx.HTTPError as ex:
             logger.warning(
                 f"[AivisHubClient] Failed to fetch default models from AivisHub. ({type(ex).__name__}: {ex})",
                 exc_info=ex,
             )
-            return None
+            return DEFAULT_MODEL_PROPERTIES.copy()
 
     @staticmethod
-    def fetch_forced_removal_rules() -> AivisSpeechForcedRemovalRulesResponse | None:
+    def fetch_forced_removal_rules() -> list[AivisSpeechForcedRemovalRule]:
         """
-        AivisHub API から強制削除ルール一覧を取得する。
+        AivisSpeech Engine が強制削除対象とする音声合成モデルとバージョン条件のルールの一覧を取得する。
+        ネットワークエラーなどで取得できなかった場合、フォールバックとしてハードコードされた値が返される。
 
         Returns
         -------
-        AivisSpeechForcedRemovalRulesResponse | None
-            強制削除ルール一覧。取得に失敗した場合は None
+        list[AivisSpeechForcedRemovalRule]
+            AivisSpeech Engine で強制的に削除すべき音声合成モデルのバージョン条件
         """
+
+        # 音声合成モデルの強制削除ルールの定義
+        ## 何らかの理由で AivisHub API から情報が取得できなかった場合にフォールバックとして利用する
+        ## 通常は AivisHub API から取得した最新の情報を優先する
+        FORCED_REMOVAL_RULES: list[AivisSpeechForcedRemovalRule] = [
+            AivisSpeechForcedRemovalRule(
+                model_uuid=uuid.UUID("a59cb814-0083-4369-8542-f51a29e72af7"),
+                version_specifiers=["<1.1.0"],
+            ),
+            AivisSpeechForcedRemovalRule(
+                model_uuid=uuid.UUID("1e5ae2f1-b3bc-4d90-b618-d891a3d7383b"),
+                version_specifiers=None,
+            ),
+            AivisSpeechForcedRemovalRule(
+                model_uuid=uuid.UUID("4cf3e1d8-5583-41a9-a554-b2d2cda2c569"),
+                version_specifiers=None,
+            ),
+        ]
 
         try:
             response = AivisHubClient._request(
@@ -329,31 +365,33 @@ class AivisHubClient:
                 path="/aivisspeech/forced-removal-rules",
             )
             response.raise_for_status()
-            return AivisSpeechForcedRemovalRulesResponse.model_validate(response.json())
+            return AivisSpeechForcedRemovalRulesResponse.model_validate(
+                response.json()
+            ).rules
         except ValidationError as ex:
             logger.warning(
                 "[AivisHubClient] Failed to parse forced removal rules.",
                 exc_info=ex,
             )
-            return None
+            return FORCED_REMOVAL_RULES.copy()
         except httpx.HTTPStatusError as ex:
             logger.warning(
                 f"[AivisHubClient] Failed to fetch forced removal rules from AivisHub. (HTTP Error: {ex.response.status_code})",
                 exc_info=ex,
             )
-            return None
+            return FORCED_REMOVAL_RULES.copy()
         except httpx.TimeoutException as ex:
             logger.warning(
                 "[AivisHubClient] Timeout while fetching forced removal rules from AivisHub.",
                 exc_info=ex,
             )
-            return None
+            return FORCED_REMOVAL_RULES.copy()
         except httpx.HTTPError as ex:
             logger.warning(
                 f"[AivisHubClient] Failed to fetch forced removal rules from AivisHub. ({type(ex).__name__}: {ex})",
                 exc_info=ex,
             )
-            return None
+            return FORCED_REMOVAL_RULES.copy()
 
     @staticmethod
     def fetch_model_detail(aivm_model_uuid: uuid.UUID) -> AivmModelResponse | None:
@@ -374,7 +412,8 @@ class AivisHubClient:
         # API リクエストを送信
         try:
             response = AivisHubClient._request(
-                method="GET", path=f"/aivm-models/{aivm_model_uuid}"
+                method="GET",
+                path=f"/aivm-models/{aivm_model_uuid}",
             )
             # 404 の場合は単に当該モデルが AivisHub に公開されていないだけなので、エラーは出さずに None を返す
             if response.status_code == 404:
@@ -500,7 +539,7 @@ class AivisHubClient:
                 "[AivisHubClient] Timeout while sending event to AivisHub.",
                 exc_info=ex,
             )
-        except httpx.HTTPError as ex:
+        except Exception as ex:
             logger.warning(
                 f"[AivisHubClient] Failed to send event to AivisHub. ({type(ex).__name__}: {ex})",
                 exc_info=ex,

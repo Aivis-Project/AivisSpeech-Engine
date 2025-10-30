@@ -113,6 +113,10 @@ class AivmInfo(BaseModel):
     is_private_model: bool = Field(
         description="AivisHub で公開されておらず、ユーザーがローカルからインストールしたモデルの場合は True (ネットワークエラーなどで AivisHub から情報を取得できなかった場合も True を返す)",
     )
+    is_default_model: bool = Field(
+        description="AivisHub がデフォルトインストール対象として指定した音声合成モデルかどうか",
+        default=False,  # 旧バージョンで生成されたモデル情報キャッシュの読み込みエラー回避のためデフォルト値を指定
+    )
     latest_version: str = Field(
         description="この音声合成モデルの AivisHub で公開されている最新バージョン (AivisHub で公開されていない場合は AIVM マニフェスト記載のバージョン)"
     )

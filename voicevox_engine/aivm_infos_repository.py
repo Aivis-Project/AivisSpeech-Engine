@@ -6,12 +6,12 @@ import hashlib
 import sys
 import threading
 import time
+import uuid
 from pathlib import Path
 from typing import Final
 
 import aivmlib
-import httpx
-from aivmlib.schemas.aivm_manifest import ModelArchitecture
+from aivmlib.schemas.aivm_manifest import AivmMetadata, ModelArchitecture
 from pydantic import TypeAdapter
 from semver.version import Version
 
@@ -26,8 +26,8 @@ from voicevox_engine.metas.Metas import (
     StyleInfo,
 )
 from voicevox_engine.model import AivmInfo
+from voicevox_engine.utility.aivishub_client import AivisHubClient
 from voicevox_engine.utility.path_utility import get_save_dir
-from voicevox_engine.utility.user_agent_utility import generate_user_agent
 
 __all__ = ["AivmInfosRepository"]
 
@@ -40,9 +40,6 @@ class AivmInfosRepository:
 
     エンジン起動時はキャッシュがあれば読み込み、バックグラウンドですべてのインストール済み音声合成モデルの情報を構築する。
     """
-
-    # AivisHub API のベース URL
-    AIVISHUB_API_BASE_URL: Final[str] = "https://api.aivis-project.com/v1"
 
     # AivisSpeech でサポートされているマニフェストバージョン
     SUPPORTED_MANIFEST_VERSIONS: Final[list[str]] = ["1.0"]
@@ -105,7 +102,7 @@ class AivmInfosRepository:
             # キャッシュ情報が存在しない際はサーバー起動前に情報準備が必要なため、同期的にスキャンを行う
             self.update_repository()
 
-        # この時点で確実に self._installed_aivm_infos が None でないことを保証する
+        # この時点で確実にインストール済み音声合成モデルの情報が存在しているべき
         assert self._installed_aivm_infos is not None
 
     def get_installed_aivm_infos(self) -> dict[str, AivmInfo]:
@@ -118,9 +115,99 @@ class AivmInfosRepository:
             インストール済み音声合成モデルの情報 (キー: 音声合成モデルの UUID, 値: AivmInfo)
         """
 
-        # コンストラクタ初期化時に確認した通り、この時点で self._installed_aivm_infos が None でないことを保証する
+        # この時点で確実にインストール済み音声合成モデルの情報が存在しているべき
         assert self._installed_aivm_infos is not None
         return self._installed_aivm_infos
+
+    def upsert_model_from_metadata(
+        self,
+        aivm_metadata: AivmMetadata,
+        aivm_file_path: Path,
+    ) -> None:
+        """
+        指定された AIVM メタデータをリポジトリの内部状態に追加または更新する。
+
+        Parameters
+        ----------
+        aivm_metadata : AivmMetadata
+            AIVM メタデータ
+        aivm_file_path : Path
+            AIVM メタデータに対応する AIVMX ファイルのパス
+        """
+
+        # この時点で確実にインストール済み音声合成モデルの情報が存在しているべき
+        assert self._installed_aivm_infos is not None
+
+        # 当該モデルが既に存在する場合（つまりモデル更新時）、既存のロード状態とデフォルトモデルフラグを引き継ぐ
+        manifest_uuid = str(aivm_metadata.manifest.uuid)
+        existing_info = self._installed_aivm_infos.get(manifest_uuid)
+        is_loaded = existing_info.is_loaded if existing_info is not None else False
+        is_default_model = (
+            existing_info.is_default_model if existing_info is not None else False
+        )
+
+        # AIVM メタデータから AivmInfo を構築する
+        build_result = self._build_aivm_info_from_metadata(
+            aivm_metadata,
+            aivm_file_path,
+            is_loaded=is_loaded,
+            is_default_model=is_default_model,
+        )
+        if build_result is None:
+            logger.warning(
+                f"{aivm_file_path}: Failed to build AivmInfo from metadata. The model will be skipped."
+            )
+            return
+
+        # 完成した AivmInfo をモデル UUID をキーとして追加または更新し、再度名前順でソートする
+        aivm_model_uuid, aivm_info = build_result
+        self._installed_aivm_infos[aivm_model_uuid] = aivm_info
+        self._installed_aivm_infos = dict(
+            sorted(self._installed_aivm_infos.items(), key=lambda x: x[1].manifest.name)
+        )
+
+        # AivisHub 上での最新バージョン情報を取得し、内部状態を更新する
+        try:
+            # 対象モデル単体の最新バージョン情報だけを問い合わせ、局所的に更新する
+            updated = asyncio.run(
+                self._update_latest_version_info(
+                    {aivm_model_uuid: self._installed_aivm_infos[aivm_model_uuid]}
+                )
+            )
+            self._installed_aivm_infos[aivm_model_uuid] = updated[aivm_model_uuid]
+        except Exception as ex:
+            logger.warning(
+                f"Failed to refresh model {aivm_model_uuid}'s latest version info.",
+                exc_info=ex,
+            )
+
+        # 現在保持している情報をキャッシュに反映
+        self._persist_to_cache()
+
+    def mark_default_models(self, default_model_uuids: set[uuid.UUID]) -> None:
+        """
+        デフォルトモデルの UUID セットに基づいて、デフォルトモデルかどうかのフラグを更新する。
+
+        Parameters
+        ----------
+        default_model_uuids : set[uuid.UUID]
+            AivisHub がデフォルトインストール対象として指定した音声合成モデルの UUID セット
+        """
+
+        # この時点で確実にインストール済み音声合成モデルの情報が存在しているべき
+        assert self._installed_aivm_infos is not None
+
+        is_changed = False
+        for model_uuid, info in self._installed_aivm_infos.items():
+            new_flag = uuid.UUID(model_uuid) in default_model_uuids
+            if info.is_default_model != new_flag:
+                # サーバー側の指定に追従してフラグを更新
+                info.is_default_model = new_flag
+                is_changed = True
+
+        # フラグが更新されていた場合は現在保持している情報をキャッシュに反映
+        if is_changed is True:
+            self._persist_to_cache()
 
     def update_model_load_state(self, aivm_model_uuid: str, is_loaded: bool) -> None:
         """
@@ -135,11 +222,35 @@ class AivmInfosRepository:
             モデルがロードされているかどうか
         """
 
-        if (
-            self._installed_aivm_infos is not None
-            and aivm_model_uuid in self._installed_aivm_infos
-        ):
-            self._installed_aivm_infos[aivm_model_uuid].is_loaded = is_loaded
+        # この時点で確実にインストール済み音声合成モデルの情報が存在しているべき
+        assert self._installed_aivm_infos is not None
+
+        # すでにインストール済みの音声合成モデルでない場合は何もしない
+        if aivm_model_uuid not in self._installed_aivm_infos:
+            return
+
+        # ロード状態を更新
+        self._installed_aivm_infos[aivm_model_uuid].is_loaded = is_loaded
+
+        # ロード状態はキャッシュには含める必要がないのでキャッシュ更新は行わない
+
+    def remove_model(self, aivm_model_uuid: str) -> None:
+        """
+        指定された音声合成モデルを内部リポジトリから削除する。
+        """
+
+        # この時点で確実にインストール済み音声合成モデルの情報が存在しているべき
+        assert self._installed_aivm_infos is not None
+
+        # すでにインストール済みの音声合成モデルでない場合は何もしない
+        if aivm_model_uuid not in self._installed_aivm_infos:
+            return
+
+        # キャッシュから対象モデルを除外
+        self._installed_aivm_infos.pop(aivm_model_uuid, None)
+
+        # 現在保持している情報をキャッシュに反映
+        self._persist_to_cache()
 
     def update_repository(self) -> None:
         """
@@ -171,7 +282,7 @@ class AivmInfosRepository:
                 exc_info=ex,
             )
 
-        # 現在保持している情報をキャッシュに保存
+        # 現在保持している情報をキャッシュに反映
         self._persist_to_cache()
 
     def _load_from_cache(self) -> bool:
@@ -287,155 +398,24 @@ class AivmInfosRepository:
             # すでに同一 UUID のファイルがインストール済みかどうかのチェック
             if aivm_model_uuid in aivm_infos:
                 logger.info(
-                    f"{aivm_file_path}: AIVM model {aivm_model_uuid} is already installed. Skipping..."
+                    f"{aivm_file_path}: Model {aivm_model_uuid} is already installed. Skipping..."
                 )
                 continue
 
-            # マニフェストバージョンのバリデーション
-            # バージョン文字列をメジャー・マイナーに分割
-            manifest_version_parts = aivm_manifest.manifest_version.split(".")
-            if len(manifest_version_parts) != 2:
-                logger.warning(
-                    f"{aivm_file_path}: Invalid AIVM manifest version format: {aivm_manifest.manifest_version} Skipping..."
-                )
-                continue
-            # サポートされているマニフェストバージョンごとにチェック
-            manifest_major, _ = map(int, manifest_version_parts)
-            for supported_manifest_version in cls.SUPPORTED_MANIFEST_VERSIONS:
-                # メジャーバージョンを取得
-                supported_major = int(supported_manifest_version.split(".")[0])
-                if manifest_major != supported_major:
-                    # メジャーバージョンが AIVM マニフェストのものと異なる場合はスキップ
-                    logger.warning(
-                        f"{aivm_file_path}: AIVM manifest version {aivm_manifest.manifest_version} is not supported (different major version). Skipping..."
-                    )
-                    continue
-                # 同じメジャーバージョンだが、より新しいマイナーバージョンの場合は警告を出して続行
-                elif (
-                    aivm_manifest.manifest_version
-                    not in cls.SUPPORTED_MANIFEST_VERSIONS
-                ):
-                    logger.warning(
-                        f"{aivm_file_path}: AIVM manifest version {aivm_manifest.manifest_version} is newer than supported versions. Trying to load anyway..."
-                    )
-
-            # 音声合成モデルのアーキテクチャがサポートされているかどうかのチェック
-            if aivm_manifest.model_architecture not in cls.SUPPORTED_MODEL_ARCHITECTURES:  # fmt: skip
-                logger.warning(
-                    f"{aivm_file_path}: Model architecture {aivm_manifest.model_architecture} is not supported. Skipping..."
-                )
-                continue
-
-            # 仮の AivmInfo モデルを作成
-            aivm_info = AivmInfo(
+            # AIVM メタデータから AivmInfo を構築する
+            ## スキャン時は一旦 is_loaded=False、is_default_model=False として構築する
+            build_result = cls._build_aivm_info_from_metadata(
+                aivm_metadata,
+                aivm_file_path,
                 is_loaded=False,
-                # 初期値として False を設定 (AivisHub から情報を取得できるまではアップデートなし扱い)
-                is_update_available=False,
-                # 初期値として True を設定 (AivisHub にモデルが公開されているか確認できるまでは Private 扱い)
-                is_private_model=True,
-                # 初期値として AIVM マニフェスト記載のバージョンを設定
-                latest_version=aivm_manifest.version,
-                # AIVMX ファイルのインストール先パス
-                file_path=aivm_file_path,
-                # AIVMX ファイルのインストールサイズ (バイト単位)
-                file_size=aivm_file_path.stat().st_size,
-                # AIVM マニフェスト
-                manifest=aivm_manifest,
-                # 話者情報は後で追加するため、空リストを渡す
-                speakers=[],
+                is_default_model=False,
             )
 
-            # 話者情報を LibrarySpeaker に変換し、AivmInfo.speakers に追加
-            for speaker_manifest in aivm_manifest.speakers:
-                speaker_uuid = str(speaker_manifest.uuid)
+            # AIVM マニフェストのバリデーションエラーやサポートされていないバージョンなどで None が返された場合はスキップ
+            if build_result is None:
+                continue
 
-                # AivisSpeech Engine は日本語のみをサポートするため、日本語をサポートしない話者は除外
-                ## 念のため小文字に変換してから比較
-                supported_langs = [
-                    lang.lower() for lang in speaker_manifest.supported_languages
-                ]
-                if not any(lang in supported_langs for lang in ['ja', 'ja-jp']):  # fmt: skip
-                    logger.warning(f"{aivm_file_path}: Speaker {speaker_uuid} does not support Japanese. Skipping...")  # fmt: skip
-                    continue
-
-                # 話者アイコンを Base64 文字列に変換
-                speaker_icon = cls.extract_base64_from_data_url(speaker_manifest.icon)
-
-                # スタイルごとのメタデータを取得
-                speaker_styles: list[SpeakerStyle] = []
-                style_infos: list[StyleInfo] = []
-                for style_manifest in speaker_manifest.styles:
-                    # AIVM マニフェスト内の話者スタイル ID を VOICEVOX ENGINE 互換の StyleId に変換
-                    style_id = cls.local_style_id_to_style_id(style_manifest.local_id, speaker_uuid)  # fmt: skip
-
-                    # SpeakerStyle の作成
-                    speaker_style = SpeakerStyle(
-                        # VOICEVOX ENGINE 互換のスタイル ID
-                        id=style_id,
-                        # スタイル名
-                        name=style_manifest.name,
-                        # AivisSpeech は歌唱音声合成に対応しないので talk で固定
-                        type="talk",
-                    )
-                    speaker_styles.append(speaker_style)
-
-                    # StyleInfo の作成
-                    style_info = StyleInfo(
-                        # VOICEVOX ENGINE 互換のスタイル ID
-                        id=style_id,
-                        # アイコン画像
-                        ## 未指定時は話者のアイコン画像がスタイルのアイコン画像として使われる
-                        icon=cls.extract_base64_from_data_url(style_manifest.icon) if style_manifest.icon else speaker_icon,
-                        # 立ち絵を省略
-                        ## VOICEVOX ENGINE 本家では portrait に立ち絵が入るが、AivisSpeech Engine では敢えてアイコン画像のみを設定する
-                        portrait=None,
-                        # ボイスサンプル
-                        voice_samples=[
-                            cls.extract_base64_from_data_url(sample.audio)
-                            for sample in style_manifest.voice_samples
-                        ],
-                        # 書き起こしテキスト
-                        voice_sample_transcripts=[
-                            sample.transcript
-                            for sample in style_manifest.voice_samples
-                        ],
-                    )  # fmt: skip
-                    style_infos.append(style_info)
-
-                # LibrarySpeaker の作成
-                ## 事前に取得・生成した SpeakerStyle / StyleInfo をそれぞれ Speaker / SpeakerInfo に設定する
-                aivm_info_speaker = LibrarySpeaker(
-                    # 話者情報
-                    speaker=Speaker(
-                        # 話者 UUID
-                        speaker_uuid=speaker_uuid,
-                        # 話者名
-                        name=speaker_manifest.name,
-                        # 話者のバージョン
-                        ## 音声合成モデルのバージョンを話者のバージョンとして設定する
-                        version=aivm_manifest.version,
-                        # AivisSpeech Engine では全話者に対し常にモーフィング機能を無効化する
-                        ## Style-Bert-VITS2 の仕様上音素長を一定にできず、話者ごとに発話タイミングがずれてまともに合成できないため
-                        supported_features=SpeakerSupportedFeatures(
-                            permitted_synthesis_morphing="NOTHING",
-                        ),
-                        # 話者スタイル情報
-                        styles=speaker_styles,
-                    ),
-                    # 追加の話者情報
-                    speaker_info=SpeakerInfo(
-                        # ライセンス (Markdown またはプレーンテキスト)
-                        ## 同一 AIVM / AIVMX ファイル内のすべての話者は同一のライセンスを持つ
-                        policy=aivm_manifest.license if aivm_manifest.license else "",
-                        # アイコン画像
-                        ## VOICEVOX ENGINE 本家では portrait に立ち絵が入るが、AivisSpeech Engine では敢えてアイコン画像を設定する
-                        portrait=speaker_icon,
-                        # 追加の話者スタイル情報
-                        style_infos=style_infos,
-                    ),
-                )  # fmt: skip
-                aivm_info.speakers.append(aivm_info_speaker)
-
+            aivm_model_uuid, aivm_info = build_result
             # 完成した AivmInfo を UUID をキーとして追加
             aivm_infos[aivm_model_uuid] = aivm_info
 
@@ -448,11 +428,202 @@ class AivmInfosRepository:
         return sorted_aivm_infos
 
     @classmethod
+    def _build_aivm_info_from_metadata(
+        cls,
+        aivm_metadata: AivmMetadata,
+        aivm_file_path: Path,
+        is_loaded: bool,
+        is_default_model: bool,
+    ) -> tuple[str, AivmInfo] | None:
+        """
+        指定された AIVM メタデータと AIVMX ファイルのパスから AivmInfo を構築する。
+
+        Parameters
+        ----------
+        aivm_metadata : AivmMetadata
+            AIVM メタデータ
+        aivm_file_path : Path
+            AIVMX ファイルのパス
+        is_loaded : bool
+            モデルがロードされているかどうか
+        is_default_model : bool
+            デフォルトモデルかどうか
+
+        Returns
+        -------
+        tuple[str, AivmInfo] | None
+            モデル UUID と AivmInfo のタプル。バリデーション失敗時は None
+        """
+
+        aivm_manifest = aivm_metadata.manifest
+        aivm_model_uuid = str(aivm_manifest.uuid)
+
+        # バージョン文字列をメジャー・マイナーに分割
+        manifest_version_parts = aivm_manifest.manifest_version.split(".")
+        if len(manifest_version_parts) != 2:
+            logger.warning(
+                f"{aivm_file_path}: Invalid AIVM manifest version format: {aivm_manifest.manifest_version} Skipping..."
+            )
+            return None
+
+        # サポートされているマニフェストバージョンごとにチェック
+        manifest_major, _ = map(int, manifest_version_parts)
+        for supported_manifest_version in cls.SUPPORTED_MANIFEST_VERSIONS:
+            # メジャーバージョンを取得
+            supported_major = int(supported_manifest_version.split(".")[0])
+            if manifest_major != supported_major:
+                # メジャーバージョンが AIVM マニフェストのものと異なる場合はスキップ
+                logger.warning(
+                    f"{aivm_file_path}: AIVM manifest version {aivm_manifest.manifest_version} is not supported (different major version). Skipping..."
+                )
+                return None
+
+            # 同じメジャーバージョンだが、より新しいマイナーバージョンの場合は警告を出して続行
+            if aivm_manifest.manifest_version not in cls.SUPPORTED_MANIFEST_VERSIONS:
+                logger.warning(
+                    f"{aivm_file_path}: AIVM manifest version {aivm_manifest.manifest_version} is newer than supported versions. Trying to load anyway..."
+                )
+
+        # 音声合成モデルのアーキテクチャがサポートされているかどうかのチェック
+        if aivm_manifest.model_architecture not in cls.SUPPORTED_MODEL_ARCHITECTURES:
+            logger.warning(
+                f"{aivm_file_path}: Model architecture {aivm_manifest.model_architecture} is not supported. Skipping..."
+            )
+            return None
+
+        # 仮の AivmInfo モデルを作成
+        aivm_info = AivmInfo(
+            # ロード状態の初期値を設定
+            is_loaded=is_loaded,
+            # 初期値として False を設定 (AivisHub から情報を取得できるまではアップデートなし扱い)
+            is_update_available=False,
+            # 初期値として True を設定 (AivisHub にモデルが公開されているかどうか確認できるまでは Private 扱い)
+            is_private_model=True,
+            # デフォルトモデルかどうかの初期値を設定
+            is_default_model=is_default_model,
+            # 初期値として AIVM マニフェスト記載のバージョンを設定
+            latest_version=aivm_manifest.version,
+            # AIVMX ファイルのインストール先パス
+            file_path=aivm_file_path,
+            # AIVMX ファイルのインストールサイズ (バイト単位)
+            file_size=aivm_file_path.stat().st_size,
+            # AIVM マニフェスト
+            manifest=aivm_manifest,
+            # 話者情報は後で追加するため、空リストを渡す
+            speakers=[],
+        )
+
+        # 話者情報を LibrarySpeaker に変換し、AivmInfo.speakers に追加
+        for speaker_manifest in aivm_manifest.speakers:
+            speaker_uuid = str(speaker_manifest.uuid)
+
+            # AivisSpeech Engine は日本語のみをサポートするため、日本語をサポートしない話者は除外
+            ## 念のため小文字に変換してから比較
+            supported_langs = [
+                lang.lower() for lang in speaker_manifest.supported_languages
+            ]
+            if not any(lang in supported_langs for lang in ['ja', 'ja-jp']):  # fmt: skip
+                logger.warning(
+                    f"{aivm_file_path}: Speaker {speaker_uuid} does not support Japanese. Skipping..."
+                )
+                continue
+
+            # 話者アイコンを Base64 文字列に変換
+            speaker_icon = cls.extract_base64_from_data_url(speaker_manifest.icon)
+
+            # スタイルごとのメタデータを取得
+            speaker_styles: list[SpeakerStyle] = []
+            style_infos: list[StyleInfo] = []
+            for style_manifest in speaker_manifest.styles:
+                # AIVM マニフェスト内の話者スタイル ID を VOICEVOX ENGINE 互換の StyleId に変換
+                style_id = cls.local_style_id_to_style_id(style_manifest.local_id, speaker_uuid)  # fmt: skip
+
+                # SpeakerStyle の作成
+                speaker_style = SpeakerStyle(
+                    # VOICEVOX ENGINE 互換のスタイル ID
+                    id=style_id,
+                    # スタイル名
+                    name=style_manifest.name,
+                    # AivisSpeech は歌唱音声合成に対応しないので talk で固定
+                    type="talk",
+                )
+                speaker_styles.append(speaker_style)
+
+                # StyleInfo の作成
+                style_info = StyleInfo(
+                    # VOICEVOX ENGINE 互換のスタイル ID
+                    id=style_id,
+                    # アイコン画像
+                    ## 未指定時は話者のアイコン画像がスタイルのアイコン画像として使われる
+                    icon=(
+                        cls.extract_base64_from_data_url(style_manifest.icon)
+                        if style_manifest.icon is not None
+                        else speaker_icon
+                    ),
+                    # 立ち絵を省略
+                    ## VOICEVOX ENGINE 本家では portrait に立ち絵が入るが、AivisSpeech Engine では敢えてアイコン画像のみを設定する
+                    portrait=None,
+                    # ボイスサンプル
+                    voice_samples=[
+                        cls.extract_base64_from_data_url(sample.audio)
+                        for sample in style_manifest.voice_samples
+                    ],
+                    # 書き起こしテキスト
+                    voice_sample_transcripts=[
+                        sample.transcript for sample in style_manifest.voice_samples
+                    ],
+                )
+                style_infos.append(style_info)
+
+            # 話者スタイルが存在しない (AIVM 仕様違反) 場合はスキップ
+            if len(speaker_styles) == 0:
+                logger.warning(
+                    f"{aivm_file_path}: Speaker {speaker_uuid} has no styles. Skipping..."
+                )
+                continue
+
+            # AIVM マニフェスト内の話者情報を LibrarySpeaker に変換
+            # 事前に取得・生成した SpeakerStyle / StyleInfo をそれぞれ Speaker / SpeakerInfo に設定する
+            aivm_info_speaker = LibrarySpeaker(
+                # 話者情報
+                speaker=Speaker(
+                    # 話者 UUID
+                    speaker_uuid=speaker_uuid,
+                    # 話者名
+                    name=speaker_manifest.name,
+                    # 話者のバージョン
+                    ## 音声合成モデルのバージョンを話者のバージョンとして設定する
+                    version=aivm_manifest.version,
+                    # AivisSpeech Engine では全話者に対し常にモーフィング機能を無効化する
+                    ## Style-Bert-VITS2 の仕様上音素長を一定にできず、話者ごとに発話タイミングがずれてまともに合成できないため
+                    supported_features=SpeakerSupportedFeatures(
+                        permitted_synthesis_morphing="NOTHING",
+                    ),
+                    # 話者スタイル情報
+                    styles=speaker_styles,
+                ),
+                # 追加の話者情報
+                speaker_info=SpeakerInfo(
+                    # ライセンス (Markdown またはプレーンテキスト)
+                    ## 同一 AIVM / AIVMX ファイル内のすべての話者は同一のライセンスを持つ
+                    policy=aivm_manifest.license if aivm_manifest.license else "",
+                    # アイコン画像
+                    ## VOICEVOX ENGINE 本家では portrait に立ち絵が入るが、AivisSpeech Engine では敢えてアイコン画像を設定する
+                    portrait=speaker_icon,
+                    # 追加の話者スタイル情報
+                    style_infos=style_infos,
+                ),
+            )  # fmt: skip
+            aivm_info.speakers.append(aivm_info_speaker)
+
+        return aivm_model_uuid, aivm_info
+
+    @classmethod
     async def _update_latest_version_info(
         cls, aivm_infos: dict[str, AivmInfo]
     ) -> dict[str, AivmInfo]:
         """
-        指定された音声合成モデルのアップデート情報を取得し、AivmInfo の latest_version と is_update_available を更新した上で返す。
+        指定された音声合成モデルの AivisHub 上でのアップデート情報を取得し、AivmInfo の latest_version と is_update_available を更新した上で返す。
         音声合成モデルごとに並行して HTTP API を叩くことで高速化を図っている（このため非同期メソッドとして実装している）。
 
         Parameters
@@ -468,55 +639,37 @@ class AivmInfosRepository:
 
         async def fetch_latest_version(aivm_info: AivmInfo) -> None:
             try:
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(
-                        f"{cls.AIVISHUB_API_BASE_URL}/aivm-models/{aivm_info.manifest.uuid}",
-                        headers={"User-Agent": generate_user_agent()},
-                        timeout=5.0,  # 5秒でタイムアウト
-                    )
-
-                    # 404 の場合は AivisHub に公開されていないモデルのためスキップ
-                    if response.status_code == 404:
-                        return
-
-                    # 200 以外のステータスコードは異常なのでエラーとして処理
-                    if response.status_code != 200:
-                        logger.warning(
-                            f"Failed to fetch model info for {aivm_info.manifest.uuid} from AivisHub (HTTP Error {response.status_code})."
-                        )
-                        logger.warning(f"Response: {response.text}")
-                        return
-
-                    model_info = response.json()
-
-                    # model_files から最新の AIVMX ファイルのバージョンを取得
-                    latest_aivmx_version = next(
-                        (
-                            file
-                            for file in model_info["model_files"]
-                            if file["model_type"] == "AIVMX"
-                        ),
-                        None,
-                    )
-
-                    if latest_aivmx_version is not None:
-                        # latest_version を更新
-                        aivm_info.latest_version = latest_aivmx_version["version"]
-                        # バージョン比較を行い is_update_available を更新
-                        current_version = Version.parse(aivm_info.manifest.version)
-                        latest_version = Version.parse(aivm_info.latest_version)
-                        aivm_info.is_update_available = latest_version > current_version
-
-                        # AivisHub に情報が存在するため、プライベートモデルではない
-                        aivm_info.is_private_model = False
-
-            except httpx.TimeoutException:
-                logger.warning(
-                    f"Timeout while fetching model info for {aivm_info.manifest.uuid} from AivisHub."
+                # AivisHub 上に同じ UUID で公開されている音声合成モデルがあれば情報を取得
+                model_info = await asyncio.to_thread(
+                    AivisHubClient.fetch_model_detail,
+                    aivm_info.manifest.uuid,
                 )
+
+                # AivisHub 上に同じ UUID で公開されている音声合成モデルがない (もしくは取得エラーが発生した) 場合は何もしない
+                if model_info is None:
+                    return
+
+                # 取得した詳細情報内から最新の AIVMX ファイルのバージョンを取得
+                latest_aivmx_version = next(
+                    (
+                        file
+                        for file in model_info.model_files
+                        if file.model_type.upper() == "AIVMX"
+                    ),
+                    None,
+                )
+                if latest_aivmx_version is not None:
+                    # AivisHub 上の最新バージョンを更新
+                    aivm_info.latest_version = latest_aivmx_version.version
+                    # バージョン比較を行いアップデート可能かどうかのフラグを更新
+                    current_version = Version.parse(aivm_info.manifest.version)
+                    latest_version = Version.parse(aivm_info.latest_version)
+                    aivm_info.is_update_available = latest_version > current_version
+                    # AivisHub に情報が存在するため、プライベートモデルではない
+                    aivm_info.is_private_model = False
+
             except Exception as ex:
                 # エラーが発生しても起動に影響を与えないよう、ログ出力のみ行う
-                # - httpx.RequestError: ネットワークエラーなど
                 # - KeyError: レスポンスの JSON に必要なキーが存在しない
                 # - StopIteration: model_files に AIVMX が存在しない
                 # - ValueError: Version.parse() が失敗

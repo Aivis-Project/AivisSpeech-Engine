@@ -16,6 +16,7 @@ import gc
 import multiprocessing
 import os
 import sys
+import traceback
 import warnings
 from dataclasses import asdict, dataclass
 from io import TextIOWrapper
@@ -40,6 +41,7 @@ from voicevox_engine.setting.setting_manager import USER_SETTING_PATH, SettingHa
 from voicevox_engine.tts_pipeline.song_engine import make_song_engines_from_cores
 from voicevox_engine.tts_pipeline.tts_engine import TTSEngineManager
 from voicevox_engine.user_dict.user_dict_manager import UserDictionary
+from voicevox_engine.utility.aivishub_client import AivisHubClient
 from voicevox_engine.utility.path_utility import (
     engine_manifest_path,
     engine_root,
@@ -340,20 +342,28 @@ def read_cli_arguments(envs: Envs) -> _CLIArgs:
 
 def main() -> None:
     """AivisSpeech Engine を実行する"""
+
+    # Windows でも multiprocessing を利用するために必要
+    multiprocessing.freeze_support()
+
+    # ユーザーの環境変数で hf_transfer が有効化されている場合に備え、事前に無効化しておく
+    os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
+
+    envs = read_environment_variables()
+    if envs.output_log_utf8:
+        set_output_log_utf8()
+
+    args = read_cli_arguments(envs)
+    if args.output_log_utf8:
+        set_output_log_utf8()
+
+    # この PC の動作環境情報を取得
+    # 起動時の可能な限り早い段階で実行結果をキャッシュしておくのが重要
+    runtime_environment = collect_runtime_environment(
+        inference_type="GPU" if args.use_gpu is True else "CPU"
+    )
+
     try:
-        multiprocessing.freeze_support()
-
-        # ユーザーの環境変数で hf_transfer が有効化されている場合に備え、事前に無効化しておく
-        os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
-
-        envs = read_environment_variables()
-        if envs.output_log_utf8:
-            set_output_log_utf8()
-
-        args = read_cli_arguments(envs)
-        if args.output_log_utf8:
-            set_output_log_utf8()
-
         # Sentry によるエラートラッキングを開始 (production 環境のみ有効)
         # ref: https://docs.sentry.io/platforms/python/integrations/fastapi/
         if not args.disable_sentry and __version__ != "latest":
@@ -371,11 +381,6 @@ def main() -> None:
                     "continuous_profiling_auto_start": True,
                 },
             )
-
-        # 起動時の可能な限り早い段階で実行結果をキャッシュしておくのが重要
-        collect_runtime_environment(
-            inference_type="GPU" if args.use_gpu is True else "CPU"
-        )
 
         logger.info(f"AivisSpeech Engine version {__version__}")
         if args.disable_sentry:
@@ -494,14 +499,28 @@ def main() -> None:
             disable_mutable_api=disable_mutable_api,
         )
 
-        # 起動処理にのみに要したメモリを開放
+        # 起動処理にのみに要したメモリを明示的に解放
         gc.collect()
+
+        # エンジンが正常に起動したことを AivisHub へ通知する
+        # イベント送信時にいかなるエラーが発生してもエラーはメソッド内で吸収されるため、起動処理には影響を与えない
+        if runtime_environment is not None:
+            AivisHubClient.send_event(
+                event_type="Startup",
+                runtime_environment=runtime_environment,
+            )
 
         # AivisSpeech Engine サーバーを起動
         # NOTE: デフォルトは ASGI に準拠した HTTP/1.1 サーバー
         uvicorn.run(app, host=args.host, port=args.port, log_config=LOGGING_CONFIG)
 
     except Exception as e:
+        # 起動時にエラーが発生した場合、スタックトレースを取得した上で起動失敗イベントを AivisHub へ通知する
+        AivisHubClient.send_event(
+            event_type="StartupFailed",
+            runtime_environment=runtime_environment,
+            stack_trace=traceback.format_exc(),
+        )
         logger.error("Unexpected error occurred during engine startup:", exc_info=e)
         raise e
 
