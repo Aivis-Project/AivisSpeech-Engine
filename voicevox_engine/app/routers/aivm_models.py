@@ -76,7 +76,7 @@ def generate_aivm_models_router(
             )
 
     @router.get(
-        "/{ aivm_model_uuid}",
+        "/{aivm_model_uuid}",
         summary="指定された音声合成モデルの情報を取得する",
         response_description="指定された音声合成モデルの情報",
     )
@@ -92,7 +92,7 @@ def generate_aivm_models_router(
         return aivm_manager.get_aivm_info(aivm_model_uuid)
 
     @router.post(
-        "/{ aivm_model_uuid}/load",
+        "/{aivm_model_uuid}/load",
         status_code=204,
         summary="指定された音声合成モデルをロードする",
     )
@@ -116,7 +116,7 @@ def generate_aivm_models_router(
         engine.load_model(str(aivm_info.manifest.uuid))
 
     @router.post(
-        "/{ aivm_model_uuid}/unload",
+        "/{aivm_model_uuid}/unload",
         status_code=204,
         summary="指定された音声合成モデルをアンロードする",
     )
@@ -139,7 +139,7 @@ def generate_aivm_models_router(
         engine.unload_model(str(aivm_info.manifest.uuid))
 
     @router.post(
-        "/{ aivm_model_uuid}/update",
+        "/{aivm_model_uuid}/update",
         status_code=204,
         summary="指定された音声合成モデルを更新する",
     )
@@ -161,7 +161,7 @@ def generate_aivm_models_router(
         aivm_manager.update_model(str(aivm_info.manifest.uuid))
 
     @router.delete(
-        "/{ aivm_model_uuid}/uninstall",
+        "/{aivm_model_uuid}/uninstall",
         status_code=204,
         dependencies=[Depends(verify_mutability)],
         summary="指定された音声合成モデルをアンインストールする",
