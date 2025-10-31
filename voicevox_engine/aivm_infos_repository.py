@@ -69,7 +69,8 @@ class AivmInfosRepository:
         """
 
         self.installed_models_dir = installed_models_dir
-        self._lock = threading.Lock()
+        self._cache_lock = threading.Lock()
+        self._state_lock = threading.Lock()
 
         # pytest から実行されているかどうか
         self._is_pytest = "pytest" in sys.argv[0] or "py.test" in sys.argv[0]
@@ -123,10 +124,11 @@ class AivmInfosRepository:
             インストール済み音声合成モデルの情報 (キー: 音声合成モデルの UUID, 値: AivmInfo)
         """
 
-        # この時点で確実にインストール済み音声合成モデルの情報が存在しているべき
-        assert self._installed_aivm_infos is not None
+        with self._state_lock:
+            # この時点で確実にインストール済み音声合成モデルの情報が存在しているべき
+            assert self._installed_aivm_infos is not None
 
-        return self._installed_aivm_infos
+            return self._installed_aivm_infos
 
     def upsert_model_from_metadata(
         self,
@@ -144,52 +146,53 @@ class AivmInfosRepository:
             AIVM メタデータに対応する AIVMX ファイルのパス
         """
 
-        # この時点で確実にインストール済み音声合成モデルの情報が存在しているべき
-        assert self._installed_aivm_infos is not None
+        with self._state_lock:
+            # この時点で確実にインストール済み音声合成モデルの情報が存在しているべき
+            assert self._installed_aivm_infos is not None
 
-        # 当該モデルが既に存在する場合（つまりモデル更新時）、既存のロード状態を引き継ぐ
-        manifest_uuid = str(aivm_metadata.manifest.uuid)
-        existing_info = self._installed_aivm_infos.get(manifest_uuid)
-        is_loaded = existing_info.is_loaded if existing_info is not None else False
+            # 当該モデルが既に存在する場合（つまりモデル更新時）、既存のロード状態を引き継ぐ
+            manifest_uuid = str(aivm_metadata.manifest.uuid)
+            existing_info = self._installed_aivm_infos.get(manifest_uuid)
+            is_loaded = existing_info.is_loaded if existing_info is not None else False
 
-        # デフォルトモデルかどうかは常に _default_model_uuid_order に基づいて判定する
-        is_default_model = self._is_default_model(manifest_uuid)
+            # デフォルトモデルかどうかは常に _default_model_uuid_order に基づいて判定する
+            is_default_model = self._is_default_model(manifest_uuid)
 
-        # AIVM メタデータから AivmInfo を構築する
-        build_result = self._build_aivm_info_from_metadata(
-            aivm_metadata,
-            aivm_file_path,
-            is_loaded=is_loaded,
-            is_default_model=is_default_model,
-        )
-        if build_result is None:
-            logger.warning(
-                f"{aivm_file_path}: Failed to build AivmInfo from metadata. The model will be skipped."
+            # AIVM メタデータから AivmInfo を構築する
+            build_result = self._build_aivm_info_from_metadata(
+                aivm_metadata,
+                aivm_file_path,
+                is_loaded=is_loaded,
+                is_default_model=is_default_model,
             )
-            return
-
-        # 完成した AivmInfo をモデル UUID をキーとして追加または更新し、再度デフォルトモデル優先・名前順でソートする
-        aivm_model_uuid, aivm_info = build_result
-        self._installed_aivm_infos[aivm_model_uuid] = aivm_info
-        self._installed_aivm_infos = self._sort_models(self._installed_aivm_infos)
-
-        # AivisHub 上での最新バージョン情報を取得し、内部状態を更新する
-        try:
-            # 対象モデル単体の最新バージョン情報だけを問い合わせ、局所的に更新する
-            updated = asyncio.run(
-                self._update_latest_version_info(
-                    {aivm_model_uuid: self._installed_aivm_infos[aivm_model_uuid]}
+            if build_result is None:
+                logger.warning(
+                    f"{aivm_file_path}: Failed to build AivmInfo from metadata. The model will be skipped."
                 )
-            )
-            self._installed_aivm_infos[aivm_model_uuid] = updated[aivm_model_uuid]
-        except Exception as ex:
-            logger.warning(
-                f"Failed to refresh model {aivm_model_uuid}'s latest version info.",
-                exc_info=ex,
-            )
+                return
 
-        # 現在保持している情報をキャッシュに反映
-        self._persist_to_cache()
+            # 完成した AivmInfo をモデル UUID をキーとして追加または更新し、再度デフォルトモデル優先・名前順でソートする
+            aivm_model_uuid, aivm_info = build_result
+            self._installed_aivm_infos[aivm_model_uuid] = aivm_info
+            self._installed_aivm_infos = self._sort_models(self._installed_aivm_infos)
+
+            # AivisHub 上での最新バージョン情報を取得し、内部状態を更新する
+            try:
+                # 対象モデル単体の最新バージョン情報だけを問い合わせ、局所的に更新する
+                updated = asyncio.run(
+                    self._update_latest_version_info(
+                        {aivm_model_uuid: self._installed_aivm_infos[aivm_model_uuid]}
+                    )
+                )
+                self._installed_aivm_infos[aivm_model_uuid] = updated[aivm_model_uuid]
+            except Exception as ex:
+                logger.warning(
+                    f"Failed to refresh model {aivm_model_uuid}'s latest version info.",
+                    exc_info=ex,
+                )
+
+            # 現在保持している情報をキャッシュに反映
+            self._persist_to_cache()
 
     def mark_default_models(self, default_model_uuids: list[uuid.UUID]) -> None:
         """
@@ -201,22 +204,25 @@ class AivmInfosRepository:
             AivisHub がデフォルトインストール対象として指定した音声合成モデルの UUID リスト（順序付き）
         """
 
-        # この時点で確実にインストール済み音声合成モデルの情報が存在しているべき
-        assert self._installed_aivm_infos is not None
+        with self._state_lock:
+            # この時点で確実にインストール済み音声合成モデルの情報が存在しているべき
+            assert self._installed_aivm_infos is not None
 
-        # デフォルトモデルの順序を保持
-        old_order = self._default_model_uuid_order
-        self._default_model_uuid_order = [str(uuid) for uuid in default_model_uuids]
+            # デフォルトモデルの順序を保持
+            old_order = self._default_model_uuid_order
+            self._default_model_uuid_order = [str(uuid) for uuid in default_model_uuids]
 
-        # 全てのモデルの is_default_model フラグを現在の _default_model_uuid_order に基づいて再設定
-        for model_uuid, info in self._installed_aivm_infos.items():
-            info.is_default_model = self._is_default_model(model_uuid)
+            # 全てのモデルの is_default_model フラグを現在の _default_model_uuid_order に基づいて再設定
+            for model_uuid, info in self._installed_aivm_infos.items():
+                info.is_default_model = self._is_default_model(model_uuid)
 
-        # 順序情報が設定された場合、または順序が変わった場合は必ず再ソートしてキャッシュに反映
-        order_set = old_order != self._default_model_uuid_order
-        if order_set is True:
-            self._installed_aivm_infos = self._sort_models(self._installed_aivm_infos)
-            self._persist_to_cache()
+            # 順序情報が設定された場合、または順序が変わった場合は必ず再ソートしてキャッシュに反映
+            order_set = old_order != self._default_model_uuid_order
+            if order_set is True:
+                self._installed_aivm_infos = self._sort_models(
+                    self._installed_aivm_infos
+                )
+                self._persist_to_cache()
 
     def update_model_load_state(self, aivm_model_uuid: str, is_loaded: bool) -> None:
         """
@@ -232,14 +238,15 @@ class AivmInfosRepository:
         """
 
         # この時点で確実にインストール済み音声合成モデルの情報が存在しているべき
-        assert self._installed_aivm_infos is not None
+        with self._state_lock:
+            assert self._installed_aivm_infos is not None
 
-        # すでにインストール済みの音声合成モデルでない場合は何もしない
-        if aivm_model_uuid not in self._installed_aivm_infos:
-            return
+            # すでにインストール済みの音声合成モデルでない場合は何もしない
+            if aivm_model_uuid not in self._installed_aivm_infos:
+                return
 
-        # ロード状態を更新
-        self._installed_aivm_infos[aivm_model_uuid].is_loaded = is_loaded
+            # ロード状態を更新
+            self._installed_aivm_infos[aivm_model_uuid].is_loaded = is_loaded
 
         # ロード状態はキャッシュには含める必要がないのでキャッシュ更新は行わない
 
@@ -248,18 +255,19 @@ class AivmInfosRepository:
         指定された音声合成モデルを内部リポジトリから削除する。
         """
 
-        # この時点で確実にインストール済み音声合成モデルの情報が存在しているべき
-        assert self._installed_aivm_infos is not None
+        with self._state_lock:
+            # この時点で確実にインストール済み音声合成モデルの情報が存在しているべき
+            assert self._installed_aivm_infos is not None
 
-        # すでにインストール済みの音声合成モデルでない場合は何もしない
-        if aivm_model_uuid not in self._installed_aivm_infos:
-            return
+            # すでにインストール済みの音声合成モデルでない場合は何もしない
+            if aivm_model_uuid not in self._installed_aivm_infos:
+                return
 
-        # キャッシュから対象モデルを除外
-        self._installed_aivm_infos.pop(aivm_model_uuid, None)
+            # キャッシュから対象モデルを除外
+            self._installed_aivm_infos.pop(aivm_model_uuid, None)
 
-        # 現在保持している情報をキャッシュに反映
-        self._persist_to_cache()
+            # 現在保持している情報をキャッシュに反映
+            self._persist_to_cache()
 
     def update_repository(self) -> None:
         """
@@ -267,39 +275,40 @@ class AivmInfosRepository:
         更新後の情報は次回起動時に利用するキャッシュにも反映される。
         """
 
-        # ファイルシステムをスキャンして最新の音声合成モデルの情報を取得
-        new_installed_aivm_infos = self._scan_models(self.installed_models_dir)
+        with self._state_lock:
+            # ファイルシステムをスキャンして最新の音声合成モデルの情報を取得
+            new_installed_aivm_infos = self._scan_models(self.installed_models_dir)
 
-        # 情報の更新前に、現在保持されている既存のロード状態を新しい AivmInfo に移行する
-        if self._installed_aivm_infos is not None:
-            for aivm_model_uuid, aivm_info in new_installed_aivm_infos.items():
-                if aivm_model_uuid in self._installed_aivm_infos:
-                    aivm_info.is_loaded = self._installed_aivm_infos[ aivm_model_uuid].is_loaded  # fmt: skip
+            # 情報の更新前に、現在保持されている既存のロード状態を新しい AivmInfo に移行する
+            if self._installed_aivm_infos is not None:
+                for aivm_model_uuid, aivm_info in new_installed_aivm_infos.items():
+                    if aivm_model_uuid in self._installed_aivm_infos:
+                        aivm_info.is_loaded = self._installed_aivm_infos[ aivm_model_uuid].is_loaded  # fmt: skip
 
-        # 内部状態を更新
-        self._installed_aivm_infos = new_installed_aivm_infos
+            # 内部状態を更新
+            self._installed_aivm_infos = new_installed_aivm_infos
 
-        # AivisHub API からインストール済み音声合成モデルのアップデート情報を取得し、内部状態を更新
-        try:
-            self._installed_aivm_infos = asyncio.run(
-                self._update_latest_version_info(self._installed_aivm_infos)
-            )
-        except Exception as ex:
-            # AivisHub API からの情報取得に失敗しても起動に影響を与えないよう、ログ出力のみ行う
-            logger.warning(
-                "Failed to fetch update information. Continuing with cached model data:",
-                exc_info=ex,
-            )
+            # AivisHub API からインストール済み音声合成モデルのアップデート情報を取得し、内部状態を更新
+            try:
+                self._installed_aivm_infos = asyncio.run(
+                    self._update_latest_version_info(self._installed_aivm_infos)
+                )
+            except Exception as ex:
+                # AivisHub API からの情報取得に失敗しても起動に影響を与えないよう、ログ出力のみ行う
+                logger.warning(
+                    "Failed to fetch update information. Continuing with cached model data:",
+                    exc_info=ex,
+                )
 
-        # スキャンで取得したモデル情報の is_default_model フラグを正しく設定
-        for model_uuid, info in self._installed_aivm_infos.items():
-            info.is_default_model = self._is_default_model(model_uuid)
+            # スキャンで取得したモデル情報の is_default_model フラグを正しく設定
+            for model_uuid, info in self._installed_aivm_infos.items():
+                info.is_default_model = self._is_default_model(model_uuid)
 
-        # ソート
-        self._installed_aivm_infos = self._sort_models(self._installed_aivm_infos)
+            # ソート
+            self._installed_aivm_infos = self._sort_models(self._installed_aivm_infos)
 
-        # 現在保持している情報をキャッシュに反映
-        self._persist_to_cache()
+            # 現在保持している情報をキャッシュに反映
+            self._persist_to_cache()
 
     def _sort_models(self, aivm_infos: dict[str, AivmInfo]) -> dict[str, AivmInfo]:
         """
@@ -385,48 +394,49 @@ class AivmInfosRepository:
             logger.info("Cache file not found, will load models directly.")
             return False
 
-        with self._lock:
-            try:
+        try:
+            with self._cache_lock:
                 # キャッシュファイルからインストール済みの音声合成モデルの情報を読み込む
                 with open(self.CACHE_FILE_PATH, encoding="utf-8") as f:
                     cache_json = f.read()
+        except Exception as ex:
+            logger.warning("Failed to load cache file:", exc_info=ex)
+            return False
 
-                # 既存のキャッシュ形式（dict[str, AivmInfo]）との互換性を保つ
-                try:
-                    cache_data = AivmInfosCacheData.model_validate_json(cache_json)
-                    aivm_infos = cache_data.aivm_infos
-                    self._default_model_uuid_order = cache_data.default_model_uuid_order
-                except Exception:
-                    # 旧形式のキャッシュファイルの場合は、dict[str, AivmInfo] として読み込む
-                    aivm_infos = TypeAdapter(dict[str, AivmInfo]).validate_json(
-                        cache_json
-                    )
-                    self._default_model_uuid_order = None
-
-                # すべてのモデルのロード状態を False にする
-                for aivm_info in aivm_infos.values():
-                    aivm_info.is_loaded = False
-
-                # 一旦読み込んだ結果を保持
-                self._installed_aivm_infos = aivm_infos
-
-                # キャッシュから読み込んだモデル情報の is_default_model フラグを正しく設定
-                # （キャッシュに保存されている値は古い可能性があるため、現在の _default_model_uuid_order に基づいて再設定）
-                for model_uuid, info in self._installed_aivm_infos.items():
-                    info.is_default_model = self._is_default_model(model_uuid)
-
-                # ソート
-                self._installed_aivm_infos = self._sort_models(
-                    self._installed_aivm_infos
-                )
-
-                logger.info(
-                    f"Loaded {len(self._installed_aivm_infos)} models from cache."
-                )
-                return True
+        try:
+            # 既存のキャッシュ形式（dict[str, AivmInfo]）との互換性を保つ
+            cache_data = AivmInfosCacheData.model_validate_json(cache_json)
+            aivm_infos = cache_data.aivm_infos
+            default_model_uuid_order = cache_data.default_model_uuid_order
+        except Exception:
+            try:
+                # 旧形式のキャッシュファイルの場合は、dict[str, AivmInfo] として読み込む
+                aivm_infos = TypeAdapter(dict[str, AivmInfo]).validate_json(cache_json)
+                default_model_uuid_order = None
             except Exception as ex:
-                logger.warning("Failed to load cache file:", exc_info=ex)
+                logger.warning("Failed to parse cache file:", exc_info=ex)
                 return False
+
+        # すべてのモデルのロード状態を False にする
+        for aivm_info in aivm_infos.values():
+            aivm_info.is_loaded = False
+
+        with self._state_lock:
+            # 解析結果を内部状態に反映
+            self._default_model_uuid_order = default_model_uuid_order
+            self._installed_aivm_infos = aivm_infos
+
+            # キャッシュから読み込んだモデル情報の is_default_model フラグを正しく設定
+            # （キャッシュに保存されている値は古い可能性があるため、現在の _default_model_uuid_order に基づいて再設定）
+            for model_uuid, info in self._installed_aivm_infos.items():
+                info.is_default_model = self._is_default_model(model_uuid)
+
+            # ソート
+            self._installed_aivm_infos = self._sort_models(self._installed_aivm_infos)
+
+            logger.info(f"Loaded {len(self._installed_aivm_infos)} models from cache.")
+
+        return True
 
     def _persist_to_cache(self) -> None:
         """
@@ -440,7 +450,7 @@ class AivmInfosRepository:
         # 万が一保存先ディレクトリが存在しない場合は作成
         self.CACHE_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-        with self._lock:
+        with self._cache_lock:
             try:
                 # キャッシュデータを構築（デフォルトモデルの順序情報も含める）
                 cache_data = AivmInfosCacheData(
