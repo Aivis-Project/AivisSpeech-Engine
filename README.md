@@ -432,30 +432,29 @@ AivisSpeech Engine のポート番号のデフォルトは `10101` です。
 
 ### Q. GPU モード (`--use_gpu`) に切り替えたのに音声生成が CPU モードよりも遅いです。
 
-**CPU 内蔵の GPU (iGPU) のみの PC でも GPU モードは使えますが、ほとんどの場合 CPU モードよりかなり遅くなってしまうため、おすすめできません。**
-
-これは、CPU 内蔵の GPU は独立した GPU (dGPU) に比べて性能が低く、AI 音声合成のような重い処理が苦手なためです。  
+CPU 内蔵の GPU (iGPU) のみの PC でも GPU モードは使えますが、ほとんどの場合 CPU モードよりかなり遅くなってしまうため、おすすめできません。  
+CPU 内蔵の GPU は独立した GPU (dGPU) に比べて性能が低く、AI 音声合成のような重い処理が苦手なためです。  
 一方で、最近の CPU は性能が大幅に向上しており、CPU だけでも十分高速に音声を生成できます。  
-そのため、dGPU 非搭載の PC では CPU モードの利用をおすすめします。
+そのため、**dGPU 非搭載の PC では CPU モードの利用をおすすめします。**
 
 ### Q. 音声生成時、Intel 第 12 世代以降の CPU でフル性能を発揮できない。
 
-Intel の第 12 世代以降の CPU（P コア・E コアのハイブリッド構成）搭載 PC をお使いの場合、Windows の電源設定によって音声生成の性能が大きく変わることがあります。  
-これは、デフォルトの「バランス」モードでは、音声生成タスクが省電力重視の E コアに割り当てられやすいためです。
-
-以下の手順で設定を変更すると、P コアと E コアの両方を最大限活用し、音声生成をより高速に行えます。
+Intel の第 12 世代以降の CPU（Pコア・Eコアのハイブリッド構成）搭載 PC をお使いの場合、Windows の電源設定によって音声生成の性能が大きく変わることがあります。  
+これは、デフォルトの「バランス」モードでは、音声生成タスクが省電力重視のEコアに割り当てられやすいためです。  
+**以下の手順で設定を変更すると、PコアとEコアの両方を最大限活用し、音声生成をより高速に行えます。**
 
 1. Windows 11 の設定を開く
 2. システム → 電源 と進む
 3. 「電源モード」を「最適なパフォーマンス」に変更する
 
-※ コントロールパネル内「電源プラン」にも「高パフォーマンス」設定がありますが、設定内容が異なります。  
+⚠️ コントロールパネル内「電源プラン」にも「高パフォーマンス」設定がありますが、設定内容が異なります。  
 Intel 第 12 世代以降の CPU では、Windows 11 の設定画面からの「電源モード」の変更をおすすめします。
 
-### Q. クレジット表記は必要ですか？
+### Q. AivisSpeech Engine は無料で利用できますか？クレジット表記は必要ですか？
 
 AivisSpeech は、利用用途を束縛されない、自由な AI 音声合成ソフトウェアを目指しています。  
-（成果物で使った音声合成モデルのライセンス次第ではありますが）少なくともソフトウェア本体はクレジット表記不要で、個人・法人・商用・非商用を問わず、自由にお使いいただけます。
+（成果物で使った音声合成モデルのライセンス次第ではありますが）**少なくともソフトウェア本体はクレジット表記不要で、個人・法人・商用・非商用を問わず、自由にお使いいただけます。**  
+[AivisHub](https://hub.aivis-project.com/) などで公開されている [ACML](https://github.com/Aivis-Project/ACML/blob/master/ACML-1.0.md) / [ACML-NC](https://github.com/Aivis-Project/ACML/blob/master/ACML-NC-1.0.md) / [パブリックドメイン (CC0)](https://creativecommons.org/publicdomain/zero/1.0/deed.ja) ライセンスの音声合成モデルをお使いなら、クレジット表記の義務はありません。
 
 …とはいえ、より多くの方に AivisSpeech のことを知っていただきたい気持ちもあります。  
 もしよければ、成果物のどこかに AivisSpeech のことをクレジットしていただけると嬉しいです。（クレジットの表記フォーマットはお任せします。）
@@ -468,28 +467,30 @@ AivisSpeech は、利用用途を束縛されない、自由な AI 音声合成�
 - **Mac:** `~/Library/Application Support/AivisSpeech-Engine/Logs`  
 - **Linux:** `~/.local/share/AivisSpeech-Engine/Logs`
 
-### Q. 不具合を見つけました。どこに報告すれば良いですか？
+### Q. フィードバックや不具合を報告するには？
 
-不具合を見つけられた方は、以下のいずれかの方法でご報告ください。
+ご感想・ご要望は、ぜひ Twitter (X) にてハッシュタグ [#AivisSpeech](https://x.com/search?q=%23AivisSpeech&src=typed_query) を付けてツイートしてください！
 
-1. **GitHub Issue (推奨)**  
-   GitHub アカウントをお持ちの方は、[GitHub の Issue](https://github.com/Aivis-Project/AivisSpeech-Engine/issues) からご報告いただけますと、早期の対応が可能です。
+うまく動かない場合や不具合を見つけられた方は、以下のいずれかの方法でご報告ください。
 
-2. **Twitter (X)**  
-   [Aivis Project 公式アカウント](https://x.com/aivis_project) へのリプライや DM、またはハッシュタグ [#AivisSpeech](https://x.com/search?q=%23AivisSpeech&src=typed_query) を付けたツイートでご報告いただけます。
+**1. GitHub Issue（推奨）**  
+GitHub アカウントをお持ちの方は、[GitHub の Issue](https://github.com/Aivis-Project/AivisSpeech/issues) からご報告いただけますと、早期の対応が可能です。
 
-3. **お問い合わせフォーム**  
-   [Aivis Project お問い合わせフォーム](https://docs.google.com/forms/d/e/1FAIpQLSd1gi8lMW1mpdrkCHbM090pWmWhKgz4tR1Obc9G9hOuWpZPsA/viewform) からもご報告いただけます。
+**2. Twitter (X)**  
+[Aivis Project 公式アカウント](https://x.com/aivis_project) へのリプライや DM、またはハッシュタグ [#AivisSpeech](https://x.com/search?q=%23AivisSpeech&src=typed_query) を付けたツイートでご報告いただけます。
 
-なるべく以下の情報を添えてご報告いただけますと、より迅速な対応が可能です。
+**3. お問い合わせフォーム**  
+[Aivis Project お問い合わせフォーム](https://docs.google.com/forms/d/e/1FAIpQLSd1gi8lMW1mpdrkCHbM090pWmWhKgz4tR1Obc9G9hOuWpZPsA/viewform) からもご報告いただけます。
 
-- 不具合の内容
-- 再現手順（動画や写真があれば添付してください）
-- OS の種類・AivisSpeech のバージョン
-- 解決のために試されたこと
-- ウイルス対策ソフトなどの有無（関係がありそうであれば）
-- 表示されたエラーメッセージ
-- エラーログ
+> [!TIP]
+> エラーメッセージや操作内容など、なるべく具体的な状況を記載いただけますと、より迅速な対応が可能です。
+> - 不具合の内容
+> - 再現手順（動画や写真があれば添付してください）
+> - OS の種類・AivisSpeech のバージョン
+> - 解決のために試されたこと
+> - ウイルス対策ソフトなどの有無（関係がありそうであれば）
+> - 表示されたエラーメッセージ
+> - エラーログ
 
 ## 開発方針
 
