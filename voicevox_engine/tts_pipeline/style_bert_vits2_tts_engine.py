@@ -56,6 +56,12 @@ class StyleBertVITS2TTSEngine(TTSEngine):
     VOICEVOX ENGINE のテキスト音声合成エンジンの実装 (TTSEngine) と API 互換性があるが、中身はほぼ別物。
     """
 
+    # BERT モデルの取得元リポジトリ
+    BERT_MODEL_REPOSITORY: Final[str] = (
+        "tsukumijima/deberta-v2-large-japanese-char-wwm-onnx"
+    )
+    # BERT モデルの固定リビジョン
+    BERT_MODEL_REVISION: Final[str] = "d701ec67708287b20d2063270f6b535e6eed09ab"
     # BERT モデルのキャッシュディレクトリ
     BERT_MODEL_CACHE_DIR: Final[Path] = get_save_dir() / "BertModelCaches"
 
@@ -160,16 +166,16 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         logger.info("Loading BERT model and tokenizer...")
         onnx_bert_models.load_model(
             language=Languages.JP,
-            pretrained_model_name_or_path="tsukumijima/deberta-v2-large-japanese-char-wwm-onnx",
+            pretrained_model_name_or_path=self.BERT_MODEL_REPOSITORY,
             onnx_providers=self.onnx_providers,
             cache_dir=str(self.BERT_MODEL_CACHE_DIR),
-            revision="d701ec67708287b20d2063270f6b535e6eed09ab",
+            revision=self.BERT_MODEL_REVISION,
         )
         onnx_bert_models.load_tokenizer(
             language=Languages.JP,
-            pretrained_model_name_or_path="tsukumijima/deberta-v2-large-japanese-char-wwm-onnx",
+            pretrained_model_name_or_path=self.BERT_MODEL_REPOSITORY,
             cache_dir=str(self.BERT_MODEL_CACHE_DIR),
-            revision="d701ec67708287b20d2063270f6b535e6eed09ab",
+            revision=self.BERT_MODEL_REVISION,
         )
         logger.info(
             f"BERT model and tokenizer loaded. ({time.time() - start_time:.2f}s)"
