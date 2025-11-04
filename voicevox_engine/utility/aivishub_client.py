@@ -287,11 +287,11 @@ class AivisHubClient:
         DEFAULT_MODEL_PROPERTIES: list[AivisSpeechDefaultModelProperty] = [
             AivisSpeechDefaultModelProperty(
                 model_uuid=uuid.UUID("22e8ed77-94fe-4ef2-871f-a86f94e9a579"),
-                latest_version="1.0.0",
+                latest_version="1.1.0",
             ),
             AivisSpeechDefaultModelProperty(
                 model_uuid=uuid.UUID("a59cb814-0083-4369-8542-f51a29e72af7"),
-                latest_version="1.0.0",
+                latest_version="1.2.0",
             ),
         ]
 
