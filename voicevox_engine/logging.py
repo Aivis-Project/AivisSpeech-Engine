@@ -33,29 +33,29 @@ LOGGING_CONFIG: dict[str, Any] = {
         "default": {
             "()": "uvicorn.logging.DefaultFormatter",
             "datefmt": "%Y/%m/%d %H:%M:%S",
-            "format": "[%(asctime)s] %(levelprefix)s %(message)s",
+            "format": "[%(asctime)s.%(msecs)03d] %(levelprefix)s %(message)s",
         },
         "default_file": {
             "()": "uvicorn.logging.DefaultFormatter",
             "datefmt": "%Y/%m/%d %H:%M:%S",
-            "format": "[%(asctime)s] %(levelprefix)s %(message)s",
+            "format": "[%(asctime)s.%(msecs)03d] %(levelprefix)s %(message)s",
             "use_colors": False,  # ANSI エスケープシーケンスを出力しない
         },
         # アクセスログ用のログフォーマッター
         "access": {
             "()": "uvicorn.logging.AccessFormatter",
             "datefmt": "%Y/%m/%d %H:%M:%S",
-            "format": '[%(asctime)s] %(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s',
+            "format": '[%(asctime)s.%(msecs)03d] %(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s',
         },
         "access_file": {
             "()": "uvicorn.logging.AccessFormatter",
             "datefmt": "%Y/%m/%d %H:%M:%S",
-            "format": '[%(asctime)s] %(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s',
+            "format": '[%(asctime)s.%(msecs)03d] %(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s',
             "use_colors": False,  # ANSI エスケープシーケンスを出力しない
         },
     },
     "handlers": {
-        ## サーバーログは標準出力と logs/AivisSpeech-Engine.log の両方に出力する
+        # サーバーログは標準出力と logs/AivisSpeech-Engine.log の両方に出力する
         "default": {
             "formatter": "default",
             "class": "logging.StreamHandler",
@@ -68,7 +68,7 @@ LOGGING_CONFIG: dict[str, Any] = {
             "mode": "a",
             "encoding": "utf-8",
         },
-        ## アクセスログは標準出力と logs/AivisSpeech-Engine-Access.log の両方に出力する
+        # アクセスログは標準出力と logs/AivisSpeech-Engine-Access.log の両方に出力する
         "access": {
             "formatter": "access",
             "class": "logging.StreamHandler",
