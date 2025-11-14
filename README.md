@@ -602,11 +602,11 @@ poetry run task build
 AivisSpeech Engine は、多くの素晴らしいオープンソースソフトウェアとその貢献に深く支えられています。  
 オープンソースソフトウェアを開発してくださった全ての方々、コミュニティの皆様の貢献とサポートに、心より感謝いたします。
 
-- [@litagin02](https://github.com/litagin02)
 - [@Stardust-minus](https://github.com/Stardust-minus)
 - [@tuna2134](https://github.com/tuna2134)
 - [@googlefan256](https://github.com/googlefan256)
 - [@WariHima](https://github.com/WariHima)
+- [@Patchethium](https://github.com/Patchethium)]
 - [VOICEVOX ENGINE](https://github.com/VOICEVOX/voicevox_engine) Contributors
 - Everyone in [AI声づくり技術研究会](https://zenn.dev/p/aivoicelab)
 
