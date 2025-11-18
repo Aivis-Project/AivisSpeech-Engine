@@ -77,7 +77,7 @@ uvicorn = "^0.34.0"
 soundfile = "^0.13.1"
 pyyaml = "^6.0.1"
 pyworld-prebuilt = "^0.3.5.post2"
-pyopenjtalk-plus = "^0.4.1.post5"
+pyopenjtalk-plus = "^0.4.1.post7"
 semver = "^3.0.0"
 platformdirs = "^4.2.0"
 soxr = "^0.5.0"
@@ -97,7 +97,7 @@ truststore = "^0.10.0"
 # aivmlib は AIVMX ファイルのメタデータ読み取りに必要
 aivmlib = "^1.2.1"
 # AivisSpeech-Engine にはカスタマイズされた Style-Bert-VITS2 が必要
-style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "f04c32738639b4c8016d1157f2ace2688154d943" }
+style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "1c24a199f20ce1dbf9fec477d8d4595233870d3f" }
 # OS に応じて適切な ONNX Runtime プラグインをインストール
 # onnxruntime (CPU): onnxruntime-directml / onnxruntime-gpu 非対応の環境すべて
 onnxruntime = { version = "^1.21.0", markers = "(sys_platform != 'linux' or platform_machine != 'x86_64') and sys_platform != 'win32'" }
