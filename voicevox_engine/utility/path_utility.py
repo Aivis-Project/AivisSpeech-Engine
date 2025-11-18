@@ -43,40 +43,55 @@ def get_save_dir() -> Path:
 
 
 def ensure_directory_exists(directory: Path, *, create_parents: bool = False) -> None:
-    """指定されたディレクトリが存在することを確認し、競合するファイルがあればリネームする。"""
+    """指定したパスをディレクトリとして利用可能な状態に整える。"""
+
+    def _is_directory_ready(directory: Path) -> bool:
+        """ディレクトリまたは有効なディレクトリシンボリックリンクなら True を返す。"""
+        try:
+            return directory.is_dir()
+        except OSError:
+            return False
+
+    def _generate_conflict_path(directory: Path) -> Path:
+        """競合するファイルまたはシンボリックリンクの退避先パスを生成する。"""
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        base_name = f"{directory.name}.conflict-{timestamp}"
+        candidate = directory.with_name(base_name)
+        counter = 1
+        while candidate.exists():
+            candidate = directory.with_name(
+                f"{directory.name}.conflict-{timestamp}-{counter}"
+            )
+            counter += 1
+        return candidate
+
     try:
         directory.mkdir(parents=create_parents, exist_ok=True)
         return
     except FileExistsError as ex:
-        if directory.exists():
-            is_directory = directory.is_dir()
-            if is_directory is True:
-                return
-            conflict_path = _generate_conflict_path(directory)
+        if _is_directory_ready(directory) is True:
+            return
+
+        conflict_path = _generate_conflict_path(directory)
+        try:
             directory.rename(conflict_path)
-            logger.warning(
-                "Renamed conflicting file %s to %s before creating directory.",
-                directory,
-                conflict_path,
+        except OSError as rename_ex:
+            logger.error(
+                f"Failed to rename conflicting path {directory}.",
+                exc_info=rename_ex,
             )
-            directory.mkdir(parents=create_parents, exist_ok=True)
-            return
-        raise ex
-    except OSError as ex:
-        if directory.exists() and directory.is_dir():
-            return
-        raise ex
-
-
-def _generate_conflict_path(directory: Path) -> Path:
-    """競合するファイルのリネーム先を生成する。"""
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    base_name = f"{directory.name}.conflict-{timestamp}"
-    candidate = directory.with_name(base_name)
-    counter = 1
-    while candidate.exists():
-        candidate = directory.with_name(
-            f"{directory.name}.conflict-{timestamp}-{counter}"
+            raise ex from rename_ex
+        logger.warning(
+            f"Renamed conflicting path {directory} to {conflict_path} before creating directory.",
         )
-        counter += 1
-    return candidate
+
+        try:
+            directory.mkdir(parents=create_parents, exist_ok=True)
+        except FileExistsError:
+            if _is_directory_ready(directory) is True:
+                return
+            raise
+    except OSError as ex:
+        if _is_directory_ready(directory) is True:
+            return
+        raise ex
