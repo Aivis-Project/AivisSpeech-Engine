@@ -2,6 +2,7 @@
 
 import copy
 import re
+import shutil
 import threading
 import time
 from collections.abc import Sequence
@@ -15,6 +16,7 @@ import numpy as np
 import onnxruntime
 from fastapi import HTTPException
 from numpy.typing import NDArray
+from onnxruntime.capi.onnxruntime_pybind11_state import InvalidProtobuf, NoSuchFile
 from style_bert_vits2.constants import (
     DEFAULT_SDP_RATIO,
     DEFAULT_STYLE_WEIGHT,
@@ -164,19 +166,24 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         ## 明示的にコミットハッシュでリビジョンを指定している (こうすることで、オンライン環境でもロード時間が短縮されるメリットもある)
         start_time = time.time()
         logger.info("Loading BERT model and tokenizer...")
-        onnx_bert_models.load_model(
-            language=Languages.JP,
-            pretrained_model_name_or_path=self.BERT_MODEL_REPOSITORY,
-            onnx_providers=self.onnx_providers,
-            cache_dir=str(self.BERT_MODEL_CACHE_DIR),
-            revision=self.BERT_MODEL_REVISION,
-        )
-        onnx_bert_models.load_tokenizer(
-            language=Languages.JP,
-            pretrained_model_name_or_path=self.BERT_MODEL_REPOSITORY,
-            cache_dir=str(self.BERT_MODEL_CACHE_DIR),
-            revision=self.BERT_MODEL_REVISION,
-        )
+        try:
+            self._load_bert_model_and_tokenizer()
+        except (NoSuchFile, InvalidProtobuf) as ex:
+            # もし BERT モデルキャッシュが破損している or 正常にダウンロードできていない場合、
+            # 一度キャッシュを全て削除してから再ダウンロードを試みる
+            logger.warning(
+                "BERT model cache appears corrupted. Clearing cache and retrying...",
+                exc_info=ex,
+            )
+            self._reset_bert_model_cache()
+            try:
+                self._load_bert_model_and_tokenizer()
+            except (NoSuchFile, InvalidProtobuf) as ex:
+                logger.error(
+                    "Failed to load BERT model and tokenizer after cache reset.",
+                    exc_info=ex,
+                )
+                raise ex
         logger.info(
             f"BERT model and tokenizer loaded. ({time.time() - start_time:.2f}s)"
         )
@@ -191,6 +198,35 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         # VOICEVOX CORE の通常の CoreWrapper の代わりに MockCoreWrapper を利用する
         ## 継承元の TTSEngine は self._core に CoreWrapper を入れた CoreAdapter のインスタンスがないと動作しない
         self._core = CoreAdapter(MockCoreWrapper())
+
+    def _load_bert_model_and_tokenizer(self) -> None:
+        """BERT モデルとトークナイザーをロードし、ローカルキャッシュを更新する。"""
+        onnx_bert_models.load_model(
+            language=Languages.JP,
+            pretrained_model_name_or_path=self.BERT_MODEL_REPOSITORY,
+            onnx_providers=self.onnx_providers,
+            cache_dir=str(self.BERT_MODEL_CACHE_DIR),
+            revision=self.BERT_MODEL_REVISION,
+        )
+        onnx_bert_models.load_tokenizer(
+            language=Languages.JP,
+            pretrained_model_name_or_path=self.BERT_MODEL_REPOSITORY,
+            cache_dir=str(self.BERT_MODEL_CACHE_DIR),
+            revision=self.BERT_MODEL_REVISION,
+        )
+
+    def _reset_bert_model_cache(self) -> None:
+        """BERT モデルのキャッシュディレクトリを削除し、再ダウンロードが可能な状態に戻す。"""
+        if self.BERT_MODEL_CACHE_DIR.exists() is True:
+            try:
+                shutil.rmtree(self.BERT_MODEL_CACHE_DIR)
+                logger.info(f"BERT model cache cleared. ({self.BERT_MODEL_CACHE_DIR})")
+            except OSError as ex:
+                logger.error(
+                    "Failed to clear BERT model cache.",
+                    exc_info=ex,
+                )
+                raise ex
 
     @property
     def default_sampling_rate(self) -> int:
