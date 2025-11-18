@@ -23,6 +23,7 @@ from voicevox_engine.metas.Metas import Speaker, SpeakerInfo, StyleId
 from voicevox_engine.metas.MetasStore import Character
 from voicevox_engine.model import AivmInfo
 from voicevox_engine.utility.aivishub_client import AivisHubClient
+from voicevox_engine.utility.path_utility import ensure_directory_exists
 from voicevox_engine.utility.user_agent_utility import generate_user_agent
 
 __all__ = ["AivmManager"]
@@ -49,7 +50,7 @@ class AivmManager:
 
         # インストール先ディレクトリが存在しなければここで作成
         self.installed_models_dir = installed_models_dir
-        self.installed_models_dir.mkdir(parents=True, exist_ok=True)
+        ensure_directory_exists(self.installed_models_dir, create_parents=True)
         logger.info(f"Models directory: {self.installed_models_dir}")
 
         # リポジトリを初期化

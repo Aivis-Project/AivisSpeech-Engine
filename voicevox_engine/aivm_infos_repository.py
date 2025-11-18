@@ -27,7 +27,7 @@ from voicevox_engine.metas.Metas import (
 )
 from voicevox_engine.model import AivmInfo
 from voicevox_engine.utility.aivishub_client import AivisHubClient
-from voicevox_engine.utility.path_utility import get_save_dir
+from voicevox_engine.utility.path_utility import ensure_directory_exists, get_save_dir
 
 __all__ = ["AivmInfosRepository"]
 
@@ -448,7 +448,7 @@ class AivmInfosRepository:
             return
 
         # 万が一保存先ディレクトリが存在しない場合は作成
-        self.CACHE_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        ensure_directory_exists(self.CACHE_FILE_PATH.parent, create_parents=True)
 
         with self._cache_lock:
             try:

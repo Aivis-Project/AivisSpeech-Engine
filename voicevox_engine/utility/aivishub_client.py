@@ -11,7 +11,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from voicevox_engine.logging import logger
-from voicevox_engine.utility.path_utility import get_save_dir
+from voicevox_engine.utility.path_utility import ensure_directory_exists, get_save_dir
 from voicevox_engine.utility.user_agent_utility import (
     AivisSpeechRuntimeEnvironment,
     generate_user_agent,
@@ -493,7 +493,7 @@ class AivisHubClient:
 
         # インストール UUID をファイルに保存
         try:
-            get_save_dir().mkdir(parents=True, exist_ok=True)
+            ensure_directory_exists(get_save_dir(), create_parents=True)
             AivisHubClient.INSTALLATION_UUID_PATH.write_text(
                 str(installation_uuid), encoding="utf-8"
             )

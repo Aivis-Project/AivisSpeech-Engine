@@ -4,14 +4,14 @@ import logging
 import logging.config
 from typing import Any
 
-from voicevox_engine.utility.path_utility import get_save_dir
+from voicevox_engine.utility.path_utility import ensure_directory_exists, get_save_dir
 
 ENGINE_LOG_DIR = get_save_dir() / "Logs"
 ENGINE_LOG_PATH = ENGINE_LOG_DIR / "AivisSpeech-Engine.log"
 ENGINE_ACCESS_LOG_PATH = ENGINE_LOG_DIR / "AivisSpeech-Engine-Access.log"
 
 # ログディレクトリを作成
-ENGINE_LOG_DIR.mkdir(parents=True, exist_ok=True)
+ensure_directory_exists(ENGINE_LOG_DIR, create_parents=True)
 
 # 前回の起動時に作成したログファイルを削除
 for log_file in [ENGINE_LOG_PATH, ENGINE_ACCESS_LOG_PATH]:
