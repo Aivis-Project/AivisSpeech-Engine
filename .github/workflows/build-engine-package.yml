@@ -56,7 +56,7 @@ jobs:
           - os: windows-2022
             target: Windows-x64
           # macOS x64 (Intel Mac)
-          - os: macos-13
+          - os: macos-15-intel
             target: macOS-x64
           # macOS arm64 (Apple Silicon Mac)
           - os: macos-14
