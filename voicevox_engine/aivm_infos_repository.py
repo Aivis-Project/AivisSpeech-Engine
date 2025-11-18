@@ -128,7 +128,7 @@ class AivmInfosRepository:
             # この時点で確実にインストール済み音声合成モデルの情報が存在しているべき
             assert self._installed_aivm_infos is not None
 
-            return self._installed_aivm_infos
+            return self._installed_aivm_infos.copy()
 
     def upsert_model_from_metadata(
         self,
