@@ -56,6 +56,7 @@ class StyleBertVITS2TTSEngine(TTSEngine):
     AivisSpeech Engine におけるテキスト音声合成エンジンの実装。
 
     VOICEVOX ENGINE のテキスト音声合成エンジンの実装 (TTSEngine) と API 互換性があるが、中身はほぼ別物。
+    このクラスのインスタンスはプロセス中で一つしか存在しない想定。
     """
 
     # BERT モデルの取得元リポジトリ
@@ -66,9 +67,6 @@ class StyleBertVITS2TTSEngine(TTSEngine):
     BERT_MODEL_REVISION: Final[str] = "d701ec67708287b20d2063270f6b535e6eed09ab"
     # BERT モデルのキャッシュディレクトリ
     BERT_MODEL_CACHE_DIR: Final[Path] = get_save_dir() / "BertModelCaches"
-
-    # ONNX Runtime の推論処理を排他制御するためのロック
-    _inference_lock: Final[threading.Lock] = threading.Lock()
 
     def __init__(
         self,
@@ -82,6 +80,11 @@ class StyleBertVITS2TTSEngine(TTSEngine):
 
         # ロード済みモデルのキャッシュ
         self.tts_models: dict[str, TTSModel] = {}
+        # ロード済みモデルのキャッシュへのアクセスを排他制御するためのロック
+        self._tts_models_lock: threading.Lock = threading.Lock()
+
+        # ONNX Runtime の推論処理を排他制御するためのロック
+        self._inference_lock: Final[threading.Lock] = threading.Lock()
 
         # ONNX Runtime での推論に利用するデバイスを選択
         ## デフォルト: CPU 推論 (CPUExecutionProvider)
@@ -274,8 +277,9 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         """
 
         # 既に読み込まれている場合はそのまま返す
-        if aivm_model_uuid in self.tts_models:
-            return self.tts_models[aivm_model_uuid]
+        with self._tts_models_lock:
+            if aivm_model_uuid in self.tts_models:
+                return self.tts_models[aivm_model_uuid]
 
         # AIVM メタデータを読み込む
         aivm_info = self.aivm_manager.get_aivm_info(aivm_model_uuid)
@@ -314,7 +318,14 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         start_time = time.time()
         logger.info(f"Loading {aivm_info.manifest.name} ({aivm_model_uuid}) ...")
         tts_model.load()
-        self.tts_models[aivm_model_uuid] = tts_model
+        with self._tts_models_lock:
+            # ロード中に別スレッドが同一モデルを先にロードした場合は、そのインスタンスを優先して利用する
+            if aivm_model_uuid in self.tts_models:
+                logger.info(
+                    f"{aivm_info.manifest.name} ({aivm_model_uuid}) is already loaded in another thread. Using existing instance.",
+                )
+                return self.tts_models[aivm_model_uuid]
+            self.tts_models[aivm_model_uuid] = tts_model
         self.aivm_manager.update_model_load_state(aivm_model_uuid, is_loaded=True)
         logger.info(
             f"{aivm_info.manifest.name} ({aivm_model_uuid}) loaded. ({time.time() - start_time:.2f}s)"
@@ -333,16 +344,26 @@ class StyleBertVITS2TTSEngine(TTSEngine):
             AIVM マニフェスト記載の音声合成モデルの UUID
         """
 
-        # モデルがロードされていない場合は何もしない
-        if not self.is_model_loaded(aivm_model_uuid):
-            return
-
-        # モデルをアンロード
         aivm_info = self.aivm_manager.get_aivm_info(aivm_model_uuid)
         start_time = time.time()
         logger.info(f"Unloading {aivm_info.manifest.name} ({aivm_model_uuid}) ...")
-        self.tts_models[aivm_model_uuid].unload()
-        del self.tts_models[aivm_model_uuid]
+
+        with self._tts_models_lock:
+            # モデルがロードされていない場合は何もしない
+            if aivm_model_uuid not in self.tts_models:
+                logger.warning(
+                    f"TTS model {aivm_info.manifest.name} ({aivm_model_uuid}) is already unloaded. Skipping unload.",
+                )
+                self.aivm_manager.update_model_load_state(
+                    aivm_model_uuid,
+                    is_loaded=False,
+                )
+                return
+            tts_model = self.tts_models[aivm_model_uuid]
+            del self.tts_models[aivm_model_uuid]
+
+        # モデルをアンロード
+        tts_model.unload()
         self.aivm_manager.update_model_load_state(aivm_model_uuid, is_loaded=False)
         logger.info(
             f"{aivm_info.manifest.name} ({aivm_model_uuid}) unloaded. ({time.time() - start_time:.2f}s)"
@@ -364,7 +385,8 @@ class StyleBertVITS2TTSEngine(TTSEngine):
             モデルがロード済みかどうか
         """
 
-        return aivm_model_uuid in self.tts_models
+        with self._tts_models_lock:
+            return aivm_model_uuid in self.tts_models
 
     def create_accent_phrases(self, text: str, style_id: StyleId) -> list[AccentPhrase]:
         """
