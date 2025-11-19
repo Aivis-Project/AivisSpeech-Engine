@@ -1,12 +1,12 @@
 """パスに関する utility"""
 
+import logging
 import sys
 from datetime import datetime
 from pathlib import Path
 
 from platformdirs import user_data_dir
 
-from voicevox_engine.logging import logger
 from voicevox_engine.utility.runtime_utility import is_development
 
 
@@ -64,6 +64,9 @@ def ensure_directory_exists(directory: Path, *, create_parents: bool = False) ->
             )
             counter += 1
         return candidate
+
+    # 循環インポート回避のため、voicevox_engine.logging.logger と同じ uvicorn のロガーを別で取得する
+    logger = logging.getLogger("uvicorn")
 
     try:
         directory.mkdir(parents=create_parents, exist_ok=True)
