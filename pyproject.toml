@@ -96,8 +96,9 @@ sentry-sdk = {version = "^2.19.2", extras = ["fastapi"]}
 truststore = "^0.10.0"
 # aivmlib は AIVMX ファイルのメタデータ読み取りに必要
 aivmlib = "^1.2.1"
-# AivisSpeech-Engine にはカスタマイズされた Style-Bert-VITS2 が必要
-style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "1c24a199f20ce1dbf9fec477d8d4595233870d3f" }
+# AivisSpeech-Engine にはカスタマイズされた Style-Bert-VITS2 と e2k が必要
+style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "785a5caf2b155c75ed7ad12522c7814bb6d8204a" }
+e2k = { git = "https://github.com/tsukumijima/e2k", rev = "9920754e15d8c96404bef0bd81d424352fb7a48b" }
 # OS に応じて適切な ONNX Runtime プラグインをインストール
 # onnxruntime (CPU): onnxruntime-directml / onnxruntime-gpu 非対応の環境すべて
 onnxruntime = { version = "^1.21.0", markers = "(sys_platform != 'linux' or platform_machine != 'x86_64') and sys_platform != 'win32'" }
