@@ -4,6 +4,7 @@ import logging
 import os
 import platform
 from typing import Annotated, Literal, cast
+from urllib.parse import quote
 
 import GPUtil
 import psutil
@@ -298,7 +299,11 @@ def generate_user_agent(inference_type: Literal["CPU", "GPU"] = "CPU") -> str:
             f"Memory/{mem_info}; "
             f"Inference/{runtime_environment.inference_type})"
         )
-        return user_agent
+
+        # RFC 7231 に準拠した User-Agent 文字列にするため、問題のある文字のみを URL エンコードする
+        # safe パラメータで指定した文字（括弧、スラッシュ、セミコロン、等号、コロン、スペース、ハイフン、ピリオド）はそのまま残す
+        encoded_user_agent = quote(user_agent, safe="()/;=: -.")
+        return encoded_user_agent
 
     except Exception as ex:
         # 最悪の場合のフォールバック
