@@ -16,7 +16,7 @@
 #### [💠 AivisSpeech をダウンロード](https://aivis-project.com/speech/) ／ [💠 AivisSpeech Engine をダウンロード](https://github.com/Aivis-Project/AivisSpeech-Engine/releases)
 
 > [!TIP]
-> **🎉 [Aivis Cloud API]([https://.aivis-project.com/](https://hub.aivis-project.com/cloud-api/dashboard)) をリリースしました！**  
+> **🎉 [Aivis Cloud API](https://hub.aivis-project.com/cloud-api/dashboard) をリリースしました！**  
 > **LLM 連携に最適・最速 0.3 秒のリアルタイム音声合成 API を、ベータ期間中は無料でお試しいただけます！**  
 > 
 > AivisSpeech Engine は一般的な PC 上で1人で使うことを想定して設計されており、**多くのリクエストを高速に捌く必要のある API サーバー用途には最適化されていません。**  
