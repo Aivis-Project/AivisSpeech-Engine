@@ -171,17 +171,19 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         logger.info("Loading BERT model and tokenizer...")
         try:
             self._load_bert_model_and_tokenizer()
-        except (NoSuchFile, InvalidProtobuf) as ex:
-            # もし BERT モデルキャッシュが破損している or 正常にダウンロードできていない場合、
-            # 一度キャッシュを全て削除してから再ダウンロードを試みる
+        except (NoSuchFile, InvalidProtobuf, OSError) as ex:
+            # もし BERT モデルキャッシュが破損している、正常にダウンロードできていない、または
+            # ネットワークエラーにより不完全にダウンロードされた場合、一度キャッシュを全て削除してから再ダウンロードを試みる
+            # OSError は huggingface_hub がダウンロード時のファイルサイズ不整合を検出した際に発生する
+            ## 例: OSError: Consistency check failed: file should be of size 653075699 but has size 104856734 (model_fp16.onnx).
             logger.warning(
-                "BERT model cache appears corrupted. Clearing cache and retrying...",
+                "BERT model cache appears corrupted or download was incomplete. Clearing cache and retrying...",
                 exc_info=ex,
             )
             self._reset_bert_model_cache()
             try:
                 self._load_bert_model_and_tokenizer()
-            except (NoSuchFile, InvalidProtobuf) as ex:
+            except (NoSuchFile, InvalidProtobuf, OSError) as ex:
                 logger.error(
                     "Failed to load BERT model and tokenizer after cache reset.",
                     exc_info=ex,
