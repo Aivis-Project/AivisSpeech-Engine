@@ -8,7 +8,6 @@ from typing import BinaryIO
 
 import aivmlib
 import httpx
-import semver
 from aivmlib.schemas.aivm_manifest import (
     AivmManifest,
     AivmManifestSpeaker,
@@ -102,12 +101,12 @@ class AivmManager:
             # すべての条件を満たす場合のみ強制削除とみなす
             else:
                 try:
-                    ## semver.match() で各バージョン指定子と一致するか確認し、all() で全てのバージョン指定子と一致する場合のみ True
+                    ## Version.match() で各バージョン指定子と一致するか確認し、
+                    ## all() で全てのバージョン指定子と一致する場合のみ True
                     should_remove = all(
-                        semver.match(
-                            current_infos[target_model_uuid].manifest.version,
-                            specifier,
-                        )
+                        Version.parse(
+                            current_infos[target_model_uuid].manifest.version
+                        ).match(specifier)
                         for specifier in rule.version_specifiers
                     )
                 except ValueError as ex:
