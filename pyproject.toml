@@ -69,7 +69,7 @@ package-mode = false
 
 [tool.poetry.dependencies]
 python = "~3.11"
-numpy = "^1.26.4"
+numpy = "^2.3.0"
 fastapi = "^0.115.5"
 jinja2 = "^3.1.6" # NOTE: required by fastapi.templating.Jinja2Templates (fastapi-slim's unmanaged dependency)
 python-multipart = "^0.0.22" # NOTE: required by fastapi.Form (fastapi-slim's unmanaged dependency)
@@ -97,7 +97,7 @@ truststore = "^0.10.0"
 # aivmlib は AIVMX ファイルのメタデータ読み取りに必要
 aivmlib = "^1.2.1"
 # AivisSpeech-Engine にはカスタマイズされた Style-Bert-VITS2 と e2k が必要
-style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "785a5caf2b155c75ed7ad12522c7814bb6d8204a" }
+style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "cfddc642f958972a1f9d25fa7aa8ab35edf7b0aa" }
 e2k = { git = "https://github.com/tsukumijima/e2k", rev = "9920754e15d8c96404bef0bd81d424352fb7a48b" }
 # OS に応じて適切な ONNX Runtime プラグインをインストール
 # onnxruntime (CPU): onnxruntime-directml / onnxruntime-gpu 非対応の環境すべて
