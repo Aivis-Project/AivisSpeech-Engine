@@ -93,6 +93,7 @@ def _update_licenses(pip_licenses: list[_PipLicense]) -> list[_License]:
     """pip から取得したライセンス情報の抜けを補完する。"""
     package_to_license_url: dict[str, str] = {
         # "package_name": "https://license.adress.com/v0.0.0/LICENSE.txt",
+        "flatbuffers": "https://raw.githubusercontent.com/google/flatbuffers/refs/tags/v25.12.19/LICENSE",
         "gputil": "https://raw.githubusercontent.com/anderskm/gputil/refs/heads/master/LICENSE.txt",
         "jieba": "https://raw.githubusercontent.com/fxsjy/jieba/v0.42.1/LICENSE",
         "loguru": "https://raw.githubusercontent.com/Delgan/loguru/0.7.3/LICENSE",
