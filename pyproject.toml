@@ -101,7 +101,10 @@ style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", re
 e2k = { git = "https://github.com/tsukumijima/e2k", rev = "9920754e15d8c96404bef0bd81d424352fb7a48b" }
 # OS に応じて適切な ONNX Runtime プラグインをインストール
 # onnxruntime (CPU): onnxruntime-directml / onnxruntime-gpu 非対応の環境すべて
-onnxruntime = { version = "^1.21.0", markers = "(sys_platform != 'linux' or platform_machine != 'x86_64') and sys_platform != 'win32'" }
+onnxruntime = [
+  { version = "1.23.0", markers = "sys_platform == 'darwin' and platform_machine == 'x86_64'" },
+  { version = "^1.21.0", markers = "(sys_platform == 'darwin' and platform_machine != 'x86_64') or (sys_platform == 'linux' and platform_machine != 'x86_64')" },
+]
 # onnxruntime (DirectML): Windows のみ
 onnxruntime-directml = { version = "^1.21.0", markers = "sys_platform == 'win32'" }
 # onnxruntime (GPU): Linux x64 のみ
