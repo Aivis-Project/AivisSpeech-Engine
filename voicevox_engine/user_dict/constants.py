@@ -1,12 +1,12 @@
 """ユーザー辞書関連の定数とユーティリティ"""
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 import numpy as np
 
 
-class WordTypes(str, Enum):
+class WordTypes(StrEnum):
     """品詞を表す列挙型。"""
 
     PROPER_NOUN = "PROPER_NOUN"  # 固有名詞
