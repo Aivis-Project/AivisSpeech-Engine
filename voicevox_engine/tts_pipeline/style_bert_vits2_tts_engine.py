@@ -8,7 +8,7 @@ import time
 from collections.abc import Sequence
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Final, cast
+from typing import Any, Final
 
 import aivmlib
 import jaconv
@@ -656,7 +656,7 @@ class StyleBertVITS2TTSEngine(TTSEngine):
             ## ひらがなの方がまだ抑揚の棒読み度がマシになるため、カタカナをひらがなに変換する
             flatten_moras = to_flatten_moras(query.accent_phrases)
             text = "".join([mora.text for mora in flatten_moras])
-            text = cast(str, jaconv.kata2hira(text))
+            text = jaconv.kata2hira(text)
 
         # AudioQuery.accent_phrase をカタカナモーラと音高 (0 or 1) のリストに変換
         kata_tone_list: list[tuple[str, int]] = []
