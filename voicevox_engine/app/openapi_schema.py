@@ -56,9 +56,54 @@ def configure_openapi_schema(app: FastAPI, manage_library: bool | None) -> FastA
                 if "$defs" in schema:
                     del schema["$defs"]
                 openapi_schema["components"]["schemas"][schema["title"]] = schema
+
+        # FastAPI 0.129.0 以降のバージョンでは、UploadFile が OpenAPI 3.1 の
+        # contentMediaType 表現で出力されると、openapi-generator では
+        # ファイルアップロード用フォームとして認識できなくなるため、従来の表現に補正する
+        _restore_binary_format_for_compatibility(openapi_schema)
+
         app.openapi_schema = openapi_schema
         return openapi_schema
 
     app.openapi = custom_openapi  # type: ignore[method-assign]
 
     return app
+
+
+def _restore_binary_format_for_compatibility(openapi_schema: dict[str, Any]) -> None:
+    """
+    OpenAPI schema 内のバイナリ文字列定義を `format: binary` へ補正する。
+
+     FastAPI 0.129.0 以降のバージョンでは、`UploadFile` を含む schema が
+    `contentMediaType: application/octet-stream` として出力される場合があるが、
+    openapi-generator はこれをファイルアップロードと認識できず、`string` として扱ってしまう。
+    既存の openapi-generator でのクライアントコード生成との互換性を保つため、
+    `type: string` かつ `contentMediaType: application/octet-stream` の定義を従来の `format: binary` 表現へ戻す。
+
+    Args:
+        openapi_schema (dict[str, Any]): FastAPI が生成した OpenAPI schema
+    """
+
+    def visit_schema_node(node: Any) -> None:
+        """
+        OpenAPI schema ノードを再帰的に走査し、互換補正を適用する。
+
+        Args:
+            node (Any): 走査対象の schema ノード
+        """
+
+        if isinstance(node, dict):
+            if (
+                node.get("type") == "string"
+                and node.get("contentMediaType") == "application/octet-stream"
+            ):
+                del node["contentMediaType"]
+                node["format"] = "binary"
+
+            for value in node.values():
+                visit_schema_node(value)
+        elif isinstance(node, list):
+            for value in node:
+                visit_schema_node(value)
+
+    visit_schema_node(openapi_schema)
