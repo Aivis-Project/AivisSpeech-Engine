@@ -70,21 +70,21 @@ package-mode = false
 [tool.poetry.dependencies]
 python = "~3.11"
 numpy = "^2.3.0"
-fastapi = "^0.115.5"
+fastapi = ">=0.115.5,<1.0.0"
 jinja2 = "^3.1.6" # NOTE: required by fastapi.templating.Jinja2Templates (fastapi-slim's unmanaged dependency)
-python-multipart = "^0.0.22" # NOTE: required by fastapi.Form (fastapi-slim's unmanaged dependency)
-uvicorn = "^0.34.0"
-soundfile = "^0.13.1"
+python-multipart = ">=0.0.22,<1.0.0" # NOTE: required by fastapi.Form (fastapi-slim's unmanaged dependency)
+uvicorn = ">=0.34.0,<1.0.0"
+soundfile = ">=0.13.1,<1.0.0"
 pyyaml = "^6.0.1"
-pyworld-prebuilt = "^0.3.5.post2"
-pyopenjtalk-plus = "^0.4.1.post7"
+pyworld-prebuilt = ">=0.3.5.post2,<1.0.0"
+pyopenjtalk-plus = ">=0.4.1.post8,<1.0.0"
 semver = "^3.0.0"
 platformdirs = "^4.2.0"
-soxr = "^0.5.0"
+soxr = ">=0.5.0,<1.0.0"
 pydantic = "^2.7.3"
-starlette = "^0.45.3"
-jaconv = "^0.3.4"
-httpx = "^0.28.1"
+starlette = ">=0.45.3,<1.0.0"
+jaconv = ">=0.3.4,<1.0.0"
+httpx = ">=0.28.1,<1.0.0"
 gputil = "^1.4.0"
 psutil = "^6.1.1"
 py-cpuinfo = "^9.0.0"
@@ -93,11 +93,11 @@ sentry-sdk = {version = "^2.19.2", extras = ["fastapi"]}
 # truststore は HTTPS 通信時にシステムにインストールされた証明書ストアを使うために必要
 ## ref: https://github.com/psf/requests/issues/2966
 ## ref: https://truststore.readthedocs.io/en/latest/
-truststore = "^0.10.0"
+truststore = ">=0.10.0,<1.0.0"
 # aivmlib は AIVMX ファイルのメタデータ読み取りに必要
 aivmlib = "^1.2.1"
 # AivisSpeech-Engine にはカスタマイズされた Style-Bert-VITS2 と e2k が必要
-style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "83e4f0cef1ef33c2d84e3a80cbc98fdccf63f580" }
+style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "670e8531e1b16d4e31c532c96dfa20279de138d1" }
 e2k = { git = "https://github.com/tsukumijima/e2k", rev = "9920754e15d8c96404bef0bd81d424352fb7a48b" }
 # OS に応じて適切な ONNX Runtime プラグインをインストール
 # onnxruntime (CPU): onnxruntime-directml / onnxruntime-gpu 非対応の環境すべて
@@ -114,13 +114,13 @@ onnxruntime-gpu = { version = "^1.21.0", markers = "sys_platform == 'linux' and 
 mypy = "^1.10.0"
 pytest = "^8.2.0"
 coveralls = "^4.0.1"
-httpx = "^0.28.1" # NOTE: required by fastapi.testclient.TestClient (fastapi-slim's unmanaged dependency)
+httpx = ">=0.28.1,<1.0.0" # NOTE: required by fastapi.testclient.TestClient (fastapi-slim's unmanaged dependency)
 syrupy = "^4.6.1"
 types-pyyaml = "^6.0.12"
 pip-licenses = "5.0.0" # NOTE: must be specified exactly (c.f. #1281)
 pre-commit = "^4.0.1"
 pip-audit = "^2.7.3"
-ruff = "^0.11.1"
+ruff = ">=0.11.1,<1.0.0"
 typos = "^1.31.1"
 
 [tool.poetry.group.build.dependencies]
