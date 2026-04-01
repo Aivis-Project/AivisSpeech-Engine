@@ -1,12 +1,28 @@
 """AivisSpeech Engine の実行"""
 
 # truststore を適用し、HTTPS 通信時にシステムにインストールされた証明書ストアを使う
-# 企業内 LAN など HTTPS プロキシが導入されている環境で、システムにインストールされた自己署名証明書を信頼するために必要
-# requests からの HTTPS 通信には certifi が使われるため、HTTPS プロキシ導入環境では truststore を適用しない限り通信エラーが発生する
-# ref: https://github.com/psf/requests/issues/2966
-# ref: https://truststore.readthedocs.io/en/latest/
+## 企業内 LAN など HTTPS プロキシが導入されている環境で、システムにインストールされた自己署名証明書を信頼するために必要
+## requests からの HTTPS 通信には certifi が使われるため、HTTPS プロキシ導入環境では truststore を適用しない限り通信エラーが発生する
+## また、一部の非常に古い社内用 HTTPS プロキシ / TLS 中継装置では RFC 5746 非対応の legacy renegotiation を要求するため、
+## Python 3.11.5 以降に内蔵される OpenSSL 3.x 系では [SSL: UNSAFE_LEGACY_RENEGOTIATION_DISABLED] が発生することがある
+## そのため truststore の SSLContext を inject 前に差し替え、SSL_OP_LEGACY_SERVER_CONNECT 相当のオプションを常に有効化する
+## ref: https://github.com/psf/requests/issues/2966
+## ref: https://truststore.readthedocs.io/en/latest/
+## ref: https://docs.openssl.org/3.0/man3/SSL_CTX_set_options/
+## ref: https://yamori-jp.blogspot.com/2022/09/python-ssl-unsafelegacyrenegotiationdis.html
 # fmt: off
+import truststore._api as truststore_api  # isort: skip
 import truststore  # isort: skip
+class _PatchedTrustStoreSSLContext(truststore.SSLContext):
+    def __init__(self, protocol: int | None = None) -> None:
+        super().__init__(protocol)  # type: ignore
+        # TLS ハンドシェイク拒否を回避するため、SSL_OP_LEGACY_SERVER_CONNECT 相当のビットを常に有効化する
+        ## Python 3.11 では ssl.OP_LEGACY_SERVER_CONNECT が公開されていないため、
+        ## OpenSSL の定義値 (SSL_OP_BIT(2) == 1 << 2) を直接利用する
+        _SSL_OP_LEGACY_SERVER_CONNECT = 1 << 2
+        self.options |= _SSL_OP_LEGACY_SERVER_CONNECT
+truststore.SSLContext = _PatchedTrustStoreSSLContext  # type: ignore
+truststore_api.SSLContext = _PatchedTrustStoreSSLContext  # type: ignore
 truststore.inject_into_ssl()
 # fmt: on
 # flake8: noqa: E402
