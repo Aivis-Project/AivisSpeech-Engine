@@ -97,7 +97,7 @@ truststore = ">=0.10.0,<1.0.0"
 # aivmlib は AIVMX ファイルのメタデータ読み取りに必要
 aivmlib = "^1.2.1"
 # AivisSpeech-Engine にはカスタマイズされた Style-Bert-VITS2 と e2k が必要
-style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "670e8531e1b16d4e31c532c96dfa20279de138d1" }
+style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "1588a46595141a04652f9aae486f8a625c04ce55" }
 e2k = { git = "https://github.com/tsukumijima/e2k", rev = "9920754e15d8c96404bef0bd81d424352fb7a48b" }
 # OS に応じて適切な ONNX Runtime プラグインをインストール
 # onnxruntime (CPU): onnxruntime-directml / onnxruntime-gpu 非対応の環境すべて
