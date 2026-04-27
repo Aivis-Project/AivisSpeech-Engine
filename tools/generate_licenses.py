@@ -7,6 +7,7 @@ AivisSpeech Engine の実行に必要なライブラリのライセンス一覧�
 """
 
 import argparse
+import importlib.metadata
 import json
 import subprocess
 import sys
@@ -147,7 +148,7 @@ def _update_licenses(pip_licenses: list[_PipLicense]) -> list[_License]:
 def _add_licenses_manually(licenses: list[_License]) -> None:
     python_version = "3.11.9"
 
-    licenses = [
+    additional_licenses = [
         _License(
             package_name="VOICEVOX ENGINE",
             package_version=None,
@@ -185,19 +186,142 @@ def _add_licenses_manually(licenses: list[_License]) -> None:
             license_text_type="remote_address",
         ),
         _License(
+            package_name="PyTorch",
+            package_version="1.9.0",
+            license_name="BSD-style license",
+            license_text="https://raw.githubusercontent.com/pytorch/pytorch/master/LICENSE",
+            license_text_type="remote_address",
+        ),
+        _License(
+            package_name="ONNX Runtime",
+            package_version="1.17.3",
+            license_name="MIT license",
+            license_text="https://raw.githubusercontent.com/microsoft/onnxruntime/master/LICENSE",
+            license_text_type="remote_address",
+        ),
+        _License(
             package_name="Python",
             package_version=python_version,
             license_name="Python Software Foundation License",
             license_text=f"https://raw.githubusercontent.com/python/cpython/v{python_version}/LICENSE",
             license_text_type="remote_address",
         ),
-    ] + licenses  # 前方に追加
+        _License(
+            package_name="libsndfile-binaries",
+            package_version="1.2.2",
+            license_name="LGPL-2.1 license",
+            license_text="https://raw.githubusercontent.com/bastibe/libsndfile-binaries/refs/tags/1.2.2/COPYING",
+            license_text_type="remote_address",
+        ),
+        _License(
+            package_name="libogg",
+            package_version="1.3.5",
+            license_name="BSD 3-clause license",
+            license_text="https://raw.githubusercontent.com/xiph/ogg/v1.3.5/COPYING",
+            license_text_type="remote_address",
+        ),
+        _License(
+            package_name="libvorbis",
+            package_version="1.3.7",
+            license_name="BSD 3-clause license",
+            license_text="https://raw.githubusercontent.com/xiph/vorbis/v1.3.7/COPYING",
+            license_text_type="remote_address",
+        ),
+        # libflac
+        _License(
+            package_name="FLAC",
+            package_version="1.4.3",
+            license_name="Xiph.org's BSD-like license",
+            license_text="https://raw.githubusercontent.com/xiph/flac/1.4.3/COPYING.Xiph",
+            license_text_type="remote_address",
+        ),
+        # libopus
+        _License(
+            package_name="Opus",
+            package_version="1.4",
+            license_name="BSD 3-clause license",
+            license_text="https://raw.githubusercontent.com/xiph/opus/v1.4/COPYING",
+            license_text_type="remote_address",
+        ),
+        # https://sourceforge.net/projects/mpg123/files/mpg123/1.32.3/
+        _License(
+            package_name="mpg123",
+            package_version="1.32.3",
+            license_name="LGPL-2.1 license",
+            license_text="tools/licenses/mpg123/COPYING",
+            license_text_type="local_address",
+        ),
+        # liblame
+        # https://sourceforge.net/projects/lame/files/lame/3.100/
+        _License(
+            package_name="lame",
+            package_version="3.100",
+            license_name="LGPL-2.0 license",
+            license_text="https://svn.code.sf.net/p/lame/svn/tags/RELEASE__3_100/lame/COPYING",
+            license_text_type="remote_address",
+        ),
+        # license text from CUDA 12.8.1
+        # https://developer.nvidia.com/cuda-12-8-1-download-archive?target_os=Windows&target_arch=x86_64&target_version=10&target_type=exe_local
+        # https://developer.download.nvidia.com/compute/cuda/12.8.1/local_installers/cuda_12.8.1_572.61_windows.exe
+        # cuda_12.8.1_572.61_windows.exe (cuda_documentation/Doc/EULA.txt)
+        _License(
+            package_name="CUDA Toolkit",
+            package_version="12.8.1",
+            license_name=None,
+            license_text="tools/licenses/cuda/EULA.txt",
+            license_text_type="local_address",
+        ),
+        # license text from cuDNN v8.9.7 (December 5th, 2023), for CUDA 12.x, cuDNN Library for Windows
+        # https://developer.nvidia.com/rdp/cudnn-archive
+        # https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/windows-x86_64/cudnn-windows-x86_64-8.9.7.29_cuda12-archive.zip
+        # cudnn-windows-x86_64-8.9.7.29_cuda12-archive.zip (cudnn-windows-x86_64-8.9.7.29_cuda12-archive/LICENSE)
+        _License(
+            package_name="cuDNN",
+            package_version="8.9.7",
+            license_name=None,
+            license_text="tools/licenses/cudnn/LICENSE",
+            license_text_type="local_address",
+        ),
+        # Python-SoXR (`soxr`, https://github.com/dofuuz/python-soxr) が依存するライブラリ
+        _License(
+            package_name="libsoxr",
+            package_version=None,
+            license_name="LGPL-2.1 license",
+            license_text="https://raw.githubusercontent.com/dofuuz/soxr/master/LICENCE",
+            license_text_type="remote_address",
+        ),
+        _License(
+            package_name="PFFFT",
+            package_version=None,
+            license_name="BSD-like",
+            license_text="https://raw.githubusercontent.com/dofuuz/python-soxr/main/cmake/LICENSE-PFFFT.txt",
+            license_text_type="remote_address",
+        ),
+    ]
+
+    licenses[:0] = additional_licenses
+
+
+def _patch_licenses_manually(licenses: list[_License]) -> None:
+    """手動でライセンス情報を修正する。"""
+    for license in licenses:
+        if license.package_name == "kanalizer":
+            # kanalizerのwheelをビルドするときに使ったライブラリの情報を追加する
+            for p in importlib.metadata.files("kanalizer"):  # type: ignore
+                if p.name == "NOTICE.md":
+                    notice_md = Path(p.locate())
+                    break
+            else:
+                raise Exception("kanalizerのNOTICE.mdが見つかりませんでした。")
+            license.license_text += "\n\n"
+            license.license_text += notice_md.read_text(encoding="utf-8")
 
 
 def _generate_licenses() -> list[_License]:
     pip_licenses = _acquire_licenses_of_pip_managed_libraries()
     licenses = _update_licenses(pip_licenses)
     _add_licenses_manually(licenses)
+    _patch_licenses_manually(licenses)
 
     return licenses
 

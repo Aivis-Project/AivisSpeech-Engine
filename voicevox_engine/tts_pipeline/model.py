@@ -42,7 +42,7 @@ class Mora(BaseModel):
     pitch: float = Field(
         title="AivisSpeech Engine ではサポートされていないフィールドです (常に無視されます)",
         description="音高。\nAivisSpeech Engine の実装上算出できないため、ダミー値として常に 0.0 が返される。",
-    )  # デフォルト値をつけるとts側のOpenAPIで生成されたコードの型がOptionalになる
+    )  # デフォルト値をつけると ts 側の OpenAPI で生成されたコードの型が Optional になる
 
     def __hash__(self) -> int:
         """内容に対して一意なハッシュ値を返す。"""
@@ -60,7 +60,8 @@ class AccentPhrase(BaseModel):
     moras: list[Mora] = Field(description="モーラのリスト")
     accent: int = Field(description="アクセント箇所")
     pause_mora: Mora | SkipJsonSchema[None] = Field(
-        default=None, description="後ろに無音を付けるかどうか"
+        default=None,
+        description="アクセント句の末尾につく無音モーラ。null の場合は無音モーラを付けない。",
     )
     is_interrogative: bool = Field(default=False, description="疑問系かどうか")
 

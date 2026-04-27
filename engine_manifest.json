@@ -55,12 +55,12 @@
             "value": false,
             "name": "疑問文の自動調整"
         },
-        "synthesis_morphing" : {
+        "synthesis_morphing": {
             "type": "bool",
             "value": false,
             "name": "2種類のスタイルでモーフィングした音声を合成"
         },
-        "sing" : {
+        "sing": {
             "type": "bool",
             "value": false,
             "name": "歌唱音声合成"
@@ -74,6 +74,11 @@
             "type": "bool",
             "value": false,
             "name": "キャラクター情報のリソースを URL で返送"
+        },
+        "apply_katakana_english": {
+            "type": "bool",
+            "value": true,
+            "name": "未知の英単語をカタカナ読みに変換"
         }
     }
 }

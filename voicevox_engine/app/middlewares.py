@@ -23,7 +23,7 @@ def configure_middlewares(
         logger.error("Internal Server Error occurred.", exc_info=exc)
         return JSONResponse(
             status_code=500,
-            content="Internal Server Error",
+            content={"detail": "Internal Server Error"},
         )
 
     app.add_middleware(ServerErrorMiddleware, handler=global_exception_handler)

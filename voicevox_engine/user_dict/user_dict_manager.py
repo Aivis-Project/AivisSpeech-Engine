@@ -114,11 +114,10 @@ class UserDictionaryRepository:
                     # cost (MeCab 辞書上の生起コスト) を保存していたため、priority が
                     # 設定されていない場合は cost を元に priority を計算する
                     if "priority" not in raw_word or raw_word["priority"] is None:
-                        assert (
-                            "context_id" in raw_word
-                            and raw_word["context_id"] is not None
-                        )
-                        assert "cost" in raw_word and raw_word["cost"] is not None
+                        assert "context_id" in raw_word
+                        assert raw_word["context_id"] is not None
+                        assert "cost" in raw_word
+                        assert raw_word["cost"] is not None
                         raw_word["priority"] = cost2priority(
                             raw_word["context_id"], raw_word["cost"]
                         )
@@ -476,7 +475,7 @@ class UserDictionary:
                     f"Failed to apply user dictionary. ({time.time() - start_time:.2f}s)",
                     exc_info=ex,
                 )
-                raise ex
+                raise
 
             finally:
                 # 後処理

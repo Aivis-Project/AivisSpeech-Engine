@@ -7,14 +7,23 @@ from fastapi.responses import FileResponse
 from pydantic.json_schema import SkipJsonSchema
 
 from voicevox_engine.aivm_manager import AivmManager
-from voicevox_engine.metas.Metas import Speaker, SpeakerInfo
-from voicevox_engine.metas.MetasStore import Character, ResourceFormat
+from voicevox_engine.metas.metas import Speaker, SpeakerInfo
+from voicevox_engine.metas.metas_store import (
+    Character,
+    ResourceFormat,
+)
 from voicevox_engine.resource_manager import ResourceManager, ResourceManagerError
 
 RESOURCE_ENDPOINT = "_resources"
 
 
 async def _get_resource_baseurl(request: Request) -> str:
+    """
+    リソースのベースURLを生成する。
+
+    リクエストのスキームとホスト名を使用して、リソースのベースURLを生成する。
+    例: `http://localhost:50021/_resources`
+    """
     return f"{request.url.scheme}://{request.url.netloc}/{RESOURCE_ENDPOINT}"
 
 

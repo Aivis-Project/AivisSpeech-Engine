@@ -374,7 +374,6 @@ def test_post_sing_frame_f0_200(
         params={"speaker": 0},
         json={"score": score, "frame_audio_query": frame_audio_query},
     )
-    print(response.text)
     # AivisSpeech Engine では未実装 (501 Not Implemented を返す)
     assert response.status_code == 501
     return

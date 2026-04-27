@@ -5,34 +5,34 @@ repos:
     hooks:
       - id: check-linting
         name: check-linting
-        entry: poetry run ruff check
+        entry: uv run --frozen --group dev ruff check
         language: system
         types: [file, python]
         stages: [pre-push]
         pass_filenames: false
       - id: check-formatting
         name: check-formatting
-        entry: poetry run ruff format --check
+        entry: uv run --frozen --group dev ruff format --check
         language: system
         types: [file, python]
         stages: [pre-push]
         pass_filenames: false
       - id: check-typing
         name: check-typing
-        entry: poetry run mypy .
+        entry: uv run --frozen --group dev mypy .
         language: system
         types: [file, python]
         stages: [pre-push]
         pass_filenames: false
-      - id: poetry-check # `pyproject.toml` と `poetry.lock` が整合する
-        name: poetry-check
-        entry: poetry check
-        language: python
+      - id: uv-check # `pyproject.toml` と `uv.lock` が整合する
+        name: uv-check
+        entry: uv lock --check
+        language: system
         stages: [pre-push]
         pass_filenames: false
       - id: update-licenses
         name: update-licenses
-        entry: poetry run task update-licenses
+        entry: uv run --frozen --group dev task update-licenses
         language: system
         stages: [pre-push]
         pass_filenames: false

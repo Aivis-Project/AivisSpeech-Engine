@@ -1,19 +1,99 @@
+[project]
+name = "voicevox_engine"
+version = "0.24.0" # TODO: できれば version を自動管理する
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "fastapi>=0.115.5,<1.0.0",
+  "jinja2>=3.1.6,<4.0.0", # NOTE: required by fastapi.templating.Jinja2Templates (fastapi-slim's unmanaged dependency)
+  "kanalizer>=0.1.1",
+  "numpy>=2.3.0",
+  "platformdirs>=4.2.0",
+  "psutil>=6.1.1",
+  "pydantic>=2.7.3",
+  "pyopenjtalk-plus>=0.4.1.post8,<1.0.0",
+  "python-multipart>=0.0.22,<1.0.0", # NOTE: required by fastapi.Form (fastapi-slim's unmanaged dependency)
+  "pyworld-prebuilt>=0.3.5.post2,<1.0.0",
+  "pyyaml>=6.0.1",
+  "semver>=3.0.0",
+  "setuptools<82", # NOTE: pyworld が pkg_resources を使っているため
+  "soundfile>=0.13.1,<1.0.0",
+  "soxr>=0.5.0,<1.0.0",
+  "starlette>=0.45.3,<1.0.0",
+  "uvicorn>=0.34.0,<1.0.0",
+  # 以下は AivisSpeech Engine 独自の依存関係
+  "jaconv>=0.3.4,<1.0.0",
+  "httpx>=0.28.1,<1.0.0",
+  "gputil>=1.4.0",
+  "py-cpuinfo>=9.0.0",
+  "sentry-sdk[fastapi]>=2.19.2,<3.0.0",
+  "wmi>=1.5.1,<2.0.0; sys_platform == 'win32'",
+  # truststore は HTTPS 通信時にシステムにインストールされた証明書ストアを使うために必要
+  ## ref: https://github.com/psf/requests/issues/2966
+  ## ref: https://truststore.readthedocs.io/en/latest/
+  "truststore>=0.10.0,<1.0.0",
+  # aivmlib は AIVMX ファイルのメタデータ読み取りに必要
+  "aivmlib>=1.2.1,<2.0.0",
+  # AivisSpeech-Engine にはカスタマイズされた Style-Bert-VITS2 と e2k が必要
+  "style-bert-vits2",
+  "e2k",
+  # OS に応じて適切な ONNX Runtime プラグインをインストール
+  ## onnxruntime (CPU): onnxruntime-directml / onnxruntime-gpu 非対応の環境すべて
+  "onnxruntime==1.23.0; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+  "onnxruntime>=1.21.0,<2.0.0; (sys_platform == 'darwin' and platform_machine != 'x86_64') or (sys_platform == 'linux' and platform_machine != 'x86_64')",
+  ## onnxruntime (DirectML): Windows のみ
+  "onnxruntime-directml>=1.21.0,<2.0.0; sys_platform == 'win32'",
+  ## onnxruntime (GPU): Linux x64 のみ
+  "onnxruntime-gpu>=1.21.0,<2.0.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+
+[tool.uv]
+default-groups = []
+exclude-newer = "1 week"
+
+[tool.uv.sources]
+style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "1588a46595141a04652f9aae486f8a625c04ce55" }
+e2k = { git = "https://github.com/tsukumijima/e2k", rev = "9920754e15d8c96404bef0bd81d424352fb7a48b" }
+
+[dependency-groups]
+build = [
+  "pyinstaller>=6.19.0,<7.0.0",
+  "taskipy>=1.12.2",
+]
+dev = [
+  "coveralls>=4.0.1",
+  "httpx>=0.28.1", # NOTE: required by fastapi.testclient.TestClient (fastapi-slim's unmanaged dependency)
+  "mypy>=1.10.0",
+  "pip-audit>=2.7.3",
+  "pip-licenses==5.0.0",  # NOTE: must be specified exactly (c.f. #1281)
+  "pre-commit>=4.0.1",
+  "pytest>=8.2.0",
+  "ruff>=0.11.1,<1.0.0",
+  "syrupy>=4.6.1",
+  "types-pyyaml>=6.0.12",
+  "typos>=1.31.1",
+  "taskipy>=1.12.2",
+]
+licenses = [
+  "pip-licenses==5.0.0",  # NOTE: must be specified exactly (c.f. #1281)
+]
+
 [tool.taskipy.tasks]
-serve = "python run.py"
-lint = "ruff check --fix . ; poetry run mypy ."
-format = "ruff format ."
-mypy = "mypy ."
-typos = "typos"
-test = "pytest"
-update-snapshots = "pytest --snapshot-update"
-update-licenses = "bash tools/create_venv_and_generate_licenses.bash"
-build = "task update-licenses && pyinstaller --noconfirm run.spec"
+serve = "uv run python run.py"
+lint = "uv run ruff check --fix . && uv run mypy ."
+format = "uv run ruff format ."
+mypy = "uv run mypy ."
+typos = "uv run typos"
+test = "uv run pytest"
+update-snapshots = "uv run pytest --snapshot-update"
+update-licenses = "OUTPUT_LICENSE_JSON_PATH=resources/engine_manifest_assets/dependency_licenses.json bash tools/create_venv_and_generate_licenses.bash"
+check-licenses = "OUTPUT_LICENSE_JSON_PATH=/dev/null bash tools/create_venv_and_generate_licenses.bash"
+build = "task update-licenses && uv run pyinstaller --noconfirm run.spec"
 
 [tool.ruff]
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "B", "I", "W", "UP", "D", "D213"]
+select = ["E", "F", "B", "I", "W", "UP", "D", "D213", "PT", "NPY"]
 ignore = [
   "E501", # line-too-long
   "D200", # AivisSpeech Engine ではコーディングスタイルに合わないため運用しない
@@ -24,7 +104,7 @@ ignore = [
 ]
 unfixable = [
   "F401", # unused-import
-  "F841"  # unused-variable
+  "F841", # unused-variable
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -60,75 +140,7 @@ Collet = "Collet"  # CUDA EULA
 extend-exclude = [
   "resources",
   "test/e2e/single_api/engine_info/__snapshots__/test_engine_manifest/test_get_engine_manifest_200.json",
-  "poetry.*",
   "README.md",
+  "tools/licenses",
+  "uv.lock",
 ]
-
-[tool.poetry]
-package-mode = false
-
-[tool.poetry.dependencies]
-python = "~3.11"
-numpy = "^2.3.0"
-fastapi = ">=0.115.5,<1.0.0"
-jinja2 = "^3.1.6" # NOTE: required by fastapi.templating.Jinja2Templates (fastapi-slim's unmanaged dependency)
-python-multipart = ">=0.0.22,<1.0.0" # NOTE: required by fastapi.Form (fastapi-slim's unmanaged dependency)
-uvicorn = ">=0.34.0,<1.0.0"
-soundfile = ">=0.13.1,<1.0.0"
-pyyaml = "^6.0.1"
-pyworld-prebuilt = ">=0.3.5.post2,<1.0.0"
-pyopenjtalk-plus = ">=0.4.1.post8,<1.0.0"
-semver = "^3.0.0"
-platformdirs = "^4.2.0"
-soxr = ">=0.5.0,<1.0.0"
-pydantic = "^2.7.3"
-starlette = ">=0.45.3,<1.0.0"
-jaconv = ">=0.3.4,<1.0.0"
-httpx = ">=0.28.1,<1.0.0"
-gputil = "^1.4.0"
-psutil = "^6.1.1"
-py-cpuinfo = "^9.0.0"
-wmi = {version = "^1.5.1", platform = "win32"}
-sentry-sdk = {version = "^2.19.2", extras = ["fastapi"]}
-# truststore は HTTPS 通信時にシステムにインストールされた証明書ストアを使うために必要
-## ref: https://github.com/psf/requests/issues/2966
-## ref: https://truststore.readthedocs.io/en/latest/
-truststore = ">=0.10.0,<1.0.0"
-# aivmlib は AIVMX ファイルのメタデータ読み取りに必要
-aivmlib = "^1.2.1"
-# AivisSpeech-Engine にはカスタマイズされた Style-Bert-VITS2 と e2k が必要
-style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "1588a46595141a04652f9aae486f8a625c04ce55" }
-e2k = { git = "https://github.com/tsukumijima/e2k", rev = "9920754e15d8c96404bef0bd81d424352fb7a48b" }
-# OS に応じて適切な ONNX Runtime プラグインをインストール
-# onnxruntime (CPU): onnxruntime-directml / onnxruntime-gpu 非対応の環境すべて
-onnxruntime = [
-  { version = "1.23.0", markers = "sys_platform == 'darwin' and platform_machine == 'x86_64'" },
-  { version = "^1.21.0", markers = "(sys_platform == 'darwin' and platform_machine != 'x86_64') or (sys_platform == 'linux' and platform_machine != 'x86_64')" },
-]
-# onnxruntime (DirectML): Windows のみ
-onnxruntime-directml = { version = "^1.21.0", markers = "sys_platform == 'win32'" }
-# onnxruntime (GPU): Linux x64 のみ
-onnxruntime-gpu = { version = "^1.21.0", markers = "sys_platform == 'linux' and platform_machine == 'x86_64'" }
-
-[tool.poetry.group.dev.dependencies]
-mypy = "^1.10.0"
-pytest = "^8.2.0"
-coveralls = "^4.0.1"
-httpx = ">=0.28.1,<1.0.0" # NOTE: required by fastapi.testclient.TestClient (fastapi-slim's unmanaged dependency)
-syrupy = "^4.6.1"
-types-pyyaml = "^6.0.12"
-pip-licenses = "5.0.0" # NOTE: must be specified exactly (c.f. #1281)
-pre-commit = "^4.0.1"
-pip-audit = "^2.7.3"
-ruff = ">=0.11.1,<1.0.0"
-typos = "^1.31.1"
-
-[tool.poetry.group.build.dependencies]
-pyinstaller = "^6.19.0"
-setuptools = "<81" # NOTE: PyInstaller / runtime hooks compatibility is not yet verified with setuptools 81+
-pip-licenses = "5.0.0" # NOTE: must be specified exactly (c.f. #1281)
-taskipy = "^1.12.2"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"

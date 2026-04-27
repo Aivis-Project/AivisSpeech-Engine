@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic.json_schema import SkipJsonSchema
 
 from voicevox_engine.aivm_manager import AivmManager
-from voicevox_engine.metas.Metas import StyleId
+from voicevox_engine.metas.metas import StyleId
 from voicevox_engine.model import AudioQuery
 from voicevox_engine.morphing.model import MorphableTargetInfo
 from voicevox_engine.morphing.morphing import (
@@ -86,6 +86,12 @@ def generate_morphing_router(
         base_style_id: Annotated[StyleId, Query(alias="base_speaker")],
         target_style_id: Annotated[StyleId, Query(alias="target_speaker")],
         morph_rate: Annotated[float, Query(ge=0.0, le=1.0)],
+        enable_interrogative_upspeak: Annotated[
+            bool,
+            Query(
+                description="AivisSpeech Engine ではサポートされていないパラメータです (常に無視されます) 。"
+            ),
+        ] = True,  # fmt: skip # noqa
         core_version: Annotated[
             str | SkipJsonSchema[None],
             Query(
@@ -119,6 +125,7 @@ def generate_morphing_router(
             query=query,
             base_style_id=base_style_id,
             target_style_id=target_style_id,
+            enable_interrogative_upspeak=enable_interrogative_upspeak,
         )
 
         morph_wave = synthesize_morphed_wave(

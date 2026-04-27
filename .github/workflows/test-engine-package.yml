@@ -21,11 +21,9 @@ on:
         required: false
 
 env:
-  PYTHON_VERSION: "3.11.9"
-  REPO_URL:
-    |- # repo_url指定時はrepo_urlを、それ以外はgithubのリポジトリURLを使用
+  REPO_URL: |- # repo_url 指定時は repo_url を、それ以外は github のリポジトリ URL を使用
     ${{ (github.event.inputs || inputs).repo_url || format('{0}/{1}', github.server_url, github.repository) }}
-  VERSION: |- # version指定時はversionを、それ以外はタグ名を使用
+  VERSION: |- # version 指定時は version を、それ以外はタグ名を使用
     ${{ (github.event.inputs || inputs).version }}
 
 defaults:
@@ -50,6 +48,8 @@ jobs:
             target: Linux-arm64
 
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
 
     steps:
       - name: <Setup> Declare variables
@@ -59,24 +59,15 @@ jobs:
           echo "package_name=AivisSpeech-Engine-${{ matrix.target }}-${{ env.VERSION }}" >> "$GITHUB_OUTPUT"
 
       - name: <Setup> Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: <Setup> Prepare Python Runtime / Python Dependencies
         uses: ./.github/actions/prepare_python
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: <Setup> Install Poetry
-        run: python -m pip install poetry
-
-      - name: <Setup> Cache Poetry
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pypoetry
-          key: ${{ runner.os }}-${{ runner.arch }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          dependency-group: dev
 
       - name: <Setup> Cache Engine Data
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.local/share/AivisSpeech-Engine
           key: ${{ runner.os }}-${{ runner.arch }}-engine-data
@@ -98,8 +89,5 @@ jobs:
         if: startsWith(matrix.target, 'linux') || startsWith(matrix.target, 'macos')
         run: chmod +x dist/run
 
-      - name: <Setup> Install Python test dependencies
-        run: poetry install --with=dev
-
       - name: <Test> Test ENGINE package
-        run: poetry run python tools/check_release_build.py --dist_dir dist/
+        run: uv run tools/check_release_build.py --dist_dir dist/

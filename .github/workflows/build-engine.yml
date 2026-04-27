@@ -3,9 +3,6 @@ on:
   push:
     branches:
       - master
-  release:
-    types:
-      - created
   workflow_dispatch:
     inputs:
       version:
@@ -24,9 +21,6 @@ on:
         type: boolean
         default: false
 
-env:
-  PYTHON_VERSION: "3.11.9"
-
 defaults:
   run:
     shell: bash
@@ -41,10 +35,10 @@ jobs:
       - name: <Setup> Declare variables
         id: vars
         run: |
-          : # release タグ名, または workflow_dispatch でのバージョン名. リリースでない (push event) 場合は空文字列
-          echo "version=${{ github.event.release.tag_name || github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
-          : # release タグ名, または workflow_dispatch でのバージョン名, または 'latest'
-          echo "version_or_latest=${{ github.event.release.tag_name || github.event.inputs.version || 'latest' }}" >> "$GITHUB_OUTPUT"
+          : # workflow_dispatch でのバージョン名. リリースでない (push event) 場合は空文字列
+          echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          : # workflow_dispatch でのバージョン名, または 'latest'
+          echo "version_or_latest=${{ github.event.inputs.version || 'latest' }}" >> "$GITHUB_OUTPUT"
 
   build-and-upload:
     needs: [config]
@@ -83,7 +77,7 @@ jobs:
         run: echo "package_name=AivisSpeech-Engine-${{ matrix.target }}-${{ needs.config.outputs.version }}" >> "$GITHUB_OUTPUT"
 
       - name: <Setup> Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       # NOTE: The default 'sed' and 'split' of macOS is BSD 'sed' and 'split'.
       #       There is a difference in specification between BSD 'sed' and 'split' and GNU 'sed' and 'split',
@@ -94,24 +88,12 @@ jobs:
 
       - name: <Setup> Set up MSVC
         if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
 
       - name: <Setup> Prepare Python Runtime / Python Dependencies
         uses: ./.github/actions/prepare_python
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: <Setup> Install Poetry
-        run: python -m pip install poetry
-
-      - name: <Setup> Cache Poetry
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pypoetry
-          key: ${{ runner.os }}-${{ runner.arch }}-poetry-${{ hashFiles('**/poetry.lock') }}
-
-      - name: <Setup> Install Python dependencies
-        run: poetry install --with=build
+          dependency-group: build
 
       - name: <Setup> Prepare custom PyInstaller
         if: runner.os == 'Windows'
@@ -119,10 +101,6 @@ jobs:
 
       - name: <Setup> Create download directory
         run: mkdir -p download/
-
-      # Build
-      - name: <Build> Generate licenses.json
-        run: poetry run task update-licenses
 
       - name: <Build> Build AivisSpeech Engine run.py
         run: |
@@ -138,7 +116,7 @@ jobs:
           # Replace version & specify dynamic libraries
           $sed -i "s/__version__ = \"latest\"/__version__ = \"${{ needs.config.outputs.version_or_latest }}\"/" voicevox_engine/__init__.py
 
-          poetry run task build
+          uv run task build
 
       - name: <Build> Code signing
         if: github.event.inputs.code_signing == 'true' && runner.os == 'Windows'
@@ -163,7 +141,7 @@ jobs:
 
       - name: <Deploy> Upload 7z archives to artifact
         if: github.event.inputs.upload_artifact == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ steps.vars.outputs.package_name }}-7z
           path: |
@@ -171,7 +149,7 @@ jobs:
 
       - name: <Deploy> Upload 7z archives to Release assets
         if: needs.config.outputs.version != ''
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0
         with:
           allowUpdates: true
           prerelease: ${{ github.event.inputs.prerelease }}
@@ -208,7 +186,7 @@ jobs:
 
       # - name: <Deploy> Upload VVPP archives to artifact
       #   if: github.event.inputs.upload_artifact == 'true'
-      #   uses: actions/upload-artifact@v4
+      #   uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       #   with:
       #     name: ${{ steps.vars.outputs.package_name }}-vvpp
       #     path: |
@@ -218,7 +196,7 @@ jobs:
 
       # - name: <Deploy> Upload VVPP archives to Release assets
       #   if: needs.config.outputs.version != ''
-      #   uses: ncipollo/release-action@v1
+      #   uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0
       #   with:
       #     allowUpdates: true
       #     prerelease: ${{ github.event.inputs.prerelease }}
@@ -232,7 +210,7 @@ jobs:
 
       - name: <Deploy> Merge artifacts
         if: github.event.inputs.upload_artifact == 'true'
-        uses: actions/upload-artifact/merge@v4
+        uses: actions/upload-artifact/merge@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ steps.vars.outputs.package_name }}
           pattern: ${{ steps.vars.outputs.package_name }}-*
@@ -242,9 +220,11 @@ jobs:
     if: needs.config.outputs.version != ''
     needs: [config, build-and-upload]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: <Setup> Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: <Deploy> Change tag to this commit for refreshing the release # c.f. voicevox_engine#854
         run: |
@@ -258,3 +238,13 @@ jobs:
     with:
       version: ${{ needs.config.outputs.version }}
       repo_url: ${{ format('{0}/{1}', github.server_url, github.repository) }} # このリポジトリのURL
+
+  run-build-latest-engine-container-workflow:
+    if: needs.config.outputs.version != ''
+    needs: [config, run-release-test-workflow]
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build-latest-engine-container.yml
+    with:
+      version: ${{ needs.config.outputs.version }}

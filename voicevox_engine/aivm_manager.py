@@ -18,8 +18,8 @@ from semver.version import Version
 
 from voicevox_engine.aivm_infos_repository import AivmInfosRepository
 from voicevox_engine.logging import logger
-from voicevox_engine.metas.Metas import Speaker, SpeakerInfo, StyleId
-from voicevox_engine.metas.MetasStore import Character
+from voicevox_engine.metas.metas import Speaker, SpeakerInfo, StyleId
+from voicevox_engine.metas.metas_store import Character
 from voicevox_engine.model import AivmInfo
 from voicevox_engine.utility.aivishub_client import AivisHubClient
 from voicevox_engine.utility.path_utility import ensure_directory_exists

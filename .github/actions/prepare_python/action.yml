@@ -2,39 +2,35 @@ name: "Prepare Python"
 description: "Python ランタイムと依存パッケージをインストールし、Python バージョンを出力する"
 
 inputs:
-  only-export-python-version:
-    description: "Python バージョンの出力のみをおこなうか否か"
+  dependency-group:
+    description: "uv の依存パッケージインストール時に指定するグループ"
     required: false
-    default: "false"
-  requirements-suffix:
-    description: "依存パッケージインストール時に `requirements` へ付ける接尾語"
-    required: false
-    default: ""
-  python-version:
-    description: "インストールされる Python ランタイムのバージョン。デフォルト値はこのリポジトリが想定する Python バージョン。"
-    required: false
-    default: "3.11.9"
-outputs:
-  python-version:
-    description: "Python version"
-    value: ${{ steps.export-python-version.outputs.python-version }}
 
 runs:
   using: "composite"
   steps:
-    - name: <Setup> Set up Python
-      if: ${{ inputs.only-export-python-version == 'false' }}
-      uses: actions/setup-python@v5
+    # NOTE: アンドキュメントな環境変数を使用するので存在を確認する
+    - name: <Setup> Get ImageOS environment variable
+      id: image-os
+      run: |
+        if [[ -z "$ImageOS" ]]; then
+          echo "::error::ImageOS が未定義です"
+          exit 1
+        fi
+        echo "IMAGE_OS=$ImageOS" >> "$GITHUB_OUTPUT"
+      shell: bash
+
+    - name: <Setup> Install uv
+      uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
       with:
-        python-version: ${{ inputs.python-version }}
-        cache: pip
+        enable-cache: true
+        cache-suffix: ${{ steps.image-os.outputs.IMAGE_OS }}
 
-    # - name: <Setup> Install Python dependencies
-    #   if: ${{ inputs.only-export-python-version == 'false' }}
-    #   run: python -m pip install -r requirements${{ inputs.requirements-suffix }}.txt
-    #   shell: bash
-
-    - name: <Deploy> Export Python version
-      id: export-python-version
-      run: echo "python-version=${{ inputs.python-version }}" >> $GITHUB_OUTPUT
+    - name: <Setup> Install Python dependencies
+      run: |
+        if [[ -n "${{ inputs.dependency-group }}" ]]; then
+          uv sync --frozen --group "${{ inputs.dependency-group }}"
+        else
+          uv sync --frozen
+        fi
       shell: bash

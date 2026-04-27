@@ -1,21 +1,25 @@
 """VOICEVOX CORE インスタンスの生成"""
 
 import json
-import os
+import warnings
 from pathlib import Path
 
+import psutil
+
 from ..logging import logger
-from ..utility.core_version_utility import get_latest_version
+from ..utility.core_version_utility import MOCK_CORE_VERSION, get_latest_version
 from ..utility.path_utility import engine_root, get_save_dir
 from .core_adapter import CoreAdapter
 from .core_wrapper import CoreWrapper, load_runtime_lib
 
-MOCK_VER = "0.0.0"
 
-
-def _get_half_logical_cores() -> int:
-    logical_cores = os.cpu_count()
+def _determine_default_cpu_num_threads() -> int:
+    """論理コア数が不明な場合は0を返す。論理コア数と物理コア数が判明していて異なる場合は0を返す。それ以外は論理コア数の半分を返す。"""
+    logical_cores: int | None = psutil.cpu_count(logical=True)
     if logical_cores is None:
+        return 0
+    physical_cores: int | None = psutil.cpu_count(logical=False)
+    if physical_cores is not None and physical_cores != logical_cores:
         return 0
     return logical_cores // 2
 
@@ -84,17 +88,17 @@ def initialize_cores(
         None のとき、voicevox_dir、カレントディレクトリになる
     cpu_num_threads:
         音声ライブラリが、推論に用いるCPUスレッド数を設定する
-        Noneのとき、論理コア数の半分が指定される
+        Noneのとき、論理コア数が物理コア数と同じか物理コア数が不明な場合、論理コア数の半分が指定される
+        そうではない場合はランタイムによって自動的に決定される
     enable_mock:
         コア読み込みに失敗したとき、代わりにmockを使用するかどうか
     load_all_models:
         起動時に全てのモデルを読み込むかどうか
     """
     if cpu_num_threads == 0 or cpu_num_threads is None:
-        logger.warning(
-            "cpu_num_threads is set to 0. Setting it to half of the logical cores."
-        )
-        cpu_num_threads = _get_half_logical_cores()
+        msg = "cpu_num_threads is set to 0. Setting it to an appropriate value."
+        warnings.warn(msg, stacklevel=1)
+        cpu_num_threads = _determine_default_cpu_num_threads()
 
     root_dir = engine_root()
 
@@ -169,8 +173,8 @@ def initialize_cores(
         # モック追加
         from ..dev.core.mock import MockCoreWrapper
 
-        if not core_manager.has_core(MOCK_VER):
+        if not core_manager.has_core(MOCK_CORE_VERSION):
             core = MockCoreWrapper()
-            core_manager.register_core(CoreAdapter(core), MOCK_VER)
+            core_manager.register_core(CoreAdapter(core), MOCK_CORE_VERSION)
 
     return core_manager

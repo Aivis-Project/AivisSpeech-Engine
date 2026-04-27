@@ -17,7 +17,7 @@ from semver.version import Version
 
 from voicevox_engine.library.model import LibrarySpeaker
 from voicevox_engine.logging import logger
-from voicevox_engine.metas.Metas import (
+from voicevox_engine.metas.metas import (
     Speaker,
     SpeakerInfo,
     SpeakerStyle,

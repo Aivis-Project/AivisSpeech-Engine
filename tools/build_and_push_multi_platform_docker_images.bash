@@ -11,8 +11,8 @@ if [ ! -v IMAGE_NAME ]; then # Dockerイメージ名
     exit 1
 fi
 
-if [ ! -v VERSION_OR_LATEST ]; then # バージョンまたはlatest
-    echo "::error::VERSION_OR_LATESTが未定義です"
+if [ ! -v VERSION ]; then # バージョン
+    echo "::error::VERSIONが未定義です"
     exit 1
 fi
 
@@ -35,25 +35,25 @@ script_dir=$(dirname "${0}")
 
 # ビルドするマルチプラットフォームDockerイメージ名のリスト
 multi_platform_image_tags=$(
-    python3 "${script_dir}/generate_docker_image_names.py" \
+    uv run "${script_dir}/generate_docker_image_names.py" \
         --repository "${IMAGE_NAME}" \
-        --version "${VERSION_OR_LATEST}" \
+        --version "${VERSION}" \
         --prefix "${MULTI_PLATFORM_IMAGE_PREFIXES}"
 )
 
 # AMD64のDockerイメージ名
 amd64_image_tag=$(
-    python3 "${script_dir}/generate_docker_image_names.py" \
+    uv run "${script_dir}/generate_docker_image_names.py" \
         --repository "${IMAGE_NAME}" \
-        --version "${VERSION_OR_LATEST}" \
+        --version "${VERSION}" \
         --prefix "${AMD64_IMAGE_PREFIX}"
 )
 
 # ARM64のDockerイメージ名
 arm64_image_tag=$(
-    python3 "${script_dir}/generate_docker_image_names.py" \
+    uv run "${script_dir}/generate_docker_image_names.py" \
         --repository "${IMAGE_NAME}" \
-        --version "${VERSION_OR_LATEST}" \
+        --version "${VERSION}" \
         --prefix "${ARM64_IMAGE_PREFIX}"
 )
 

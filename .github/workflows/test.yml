@@ -9,83 +9,64 @@ defaults:
   run:
     shell: bash
 
-env:
-  PYTHON_VERSION: "3.11.9"
-
 jobs:
   test:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os:
-          - windows-2022
-          - macos-15-intel
-          - macos-14
-          - ubuntu-22.04
+        os: [windows-2022, macos-15-intel, macos-14, ubuntu-22.04]
 
     steps:
       - name: <Setup> Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: <Setup> Prepare Python Runtime / Python Dependencies
         uses: ./.github/actions/prepare_python
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: <Setup> Install Poetry
-        run: python -m pip install poetry
-
-      - name: <Setup> Cache Poetry
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pypoetry
-          key: ${{ runner.os }}-${{ runner.arch }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          dependency-group: dev
 
       - name: <Setup> Cache Engine Data
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.local/share/AivisSpeech-Engine
           key: ${{ runner.os }}-${{ runner.arch }}-engine-data
 
-      - name: <Setup> Install Python dependencies
-        run: poetry install --with=dev
-
-      # - name: <Test> Validate poetry.lock
-      #   run: |
-      #     poetry lock
-      #     git diff --exit-code
+      - name: <Test> Validate uv.lock
+        run: |
+          uv lock --check
+          git diff --exit-code
 
       - name: <Test> Check linting
-        run: PYTHONUTF8=1 poetry run ruff check
+        run: PYTHONUTF8=1 uv run ruff check
 
       - name: <Test> Check formatting
-        run: PYTHONUTF8=1 poetry run ruff format --check
+        run: PYTHONUTF8=1 uv run ruff format --check
 
       - name: <Test> Check typing
-        run: poetry run mypy .
+        run: uv run task mypy
 
       - name: <Test> Test codes and coverage
-        run: poetry run coverage run --omit=test/* -m pytest
+        run: uv run coverage run --omit=test/* -m pytest
 
       - name: <Deploy> Submit coverage results to Coveralls
         if: runner.os == 'Linux'
         # Coveralls へのアップロードが失敗しても CI は継続させる
-        run: coveralls --service=github || echo "::warning::Coveralls failed, but continuing"
+        run: uv run coveralls --service=github || echo "::warning::Coveralls failed, but continuing"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: <Test> Check licenses
-        run: poetry run task update-licenses
+        run: uv run task check-licenses
 
       - name: <Test> Test names by checking typo
         if: runner.os == 'Linux'
-        run: poetry run typos
+        run: uv run task typos
 
   lint-builders:
     runs-on: ubuntu-22.04
     steps:
       - name: <Setup> Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: <Setup> Install ShellCheck
         run: |
@@ -97,5 +78,11 @@ jobs:
 
       - name: <Test> Check workflow files
         run: |
-          bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          bash <(curl -f --retry 3 --retry-delay 5 https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
           ./actionlint
+
+      - name: <Test> Check pinact
+        uses: suzuki-shunsuke/pinact-action@28aeb220eb3252ad0d4422dd5d9368e925acbd8d # v1.3.0
+        with:
+          skip_push: "true"
+          min_age: "7"

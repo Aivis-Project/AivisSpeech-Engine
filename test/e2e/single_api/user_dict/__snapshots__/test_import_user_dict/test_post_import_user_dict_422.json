@@ -1,0 +1,327 @@
+{
+  "detail": [
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "function-after[_check_mora_count_and_accent_type(), function-after[_compute_word_type(), UserDictWord]]",
+        "surface"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "function-after[_check_mora_count_and_accent_type(), function-after[_compute_word_type(), UserDictWord]]",
+        "priority"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "function-after[_check_mora_count_and_accent_type(), function-after[_compute_word_type(), UserDictWord]]",
+        "part_of_speech"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "function-after[_check_mora_count_and_accent_type(), function-after[_compute_word_type(), UserDictWord]]",
+        "part_of_speech_detail_1"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "function-after[_check_mora_count_and_accent_type(), function-after[_compute_word_type(), UserDictWord]]",
+        "part_of_speech_detail_2"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "function-after[_check_mora_count_and_accent_type(), function-after[_compute_word_type(), UserDictWord]]",
+        "part_of_speech_detail_3"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "function-after[_check_mora_count_and_accent_type(), function-after[_compute_word_type(), UserDictWord]]",
+        "inflectional_type"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "function-after[_check_mora_count_and_accent_type(), function-after[_compute_word_type(), UserDictWord]]",
+        "inflectional_form"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "function-after[_check_mora_count_and_accent_type(), function-after[_compute_word_type(), UserDictWord]]",
+        "stem"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "function-after[_check_mora_count_and_accent_type(), function-after[_compute_word_type(), UserDictWord]]",
+        "yomi"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "function-after[_check_mora_count_and_accent_type(), function-after[_compute_word_type(), UserDictWord]]",
+        "pronunciation"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": 1,
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "function-after[_check_mora_count_and_accent_type(), function-after[_compute_word_type(), UserDictWord]]",
+        "accent_type"
+      ],
+      "msg": "Input should be a valid list",
+      "type": "list_type"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "function-after[_check_mora_count_and_accent_type(), function-after[_compute_word_type(), UserDictWord]]",
+        "accent_associative_rule"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "UserDictWordForCompat",
+        "surface"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "UserDictWordForCompat",
+        "priority"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "UserDictWordForCompat",
+        "part_of_speech"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "UserDictWordForCompat",
+        "part_of_speech_detail_1"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "UserDictWordForCompat",
+        "part_of_speech_detail_2"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "UserDictWordForCompat",
+        "part_of_speech_detail_3"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "UserDictWordForCompat",
+        "inflectional_type"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "UserDictWordForCompat",
+        "inflectional_form"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "UserDictWordForCompat",
+        "stem"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "UserDictWordForCompat",
+        "yomi"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "UserDictWordForCompat",
+        "pronunciation"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    },
+    {
+      "input": {
+        "accent_type": 1
+      },
+      "loc": [
+        "body",
+        "a11196ad-0000-4f4e-8eb3-3d2261c798fd",
+        "UserDictWordForCompat",
+        "accent_associative_rule"
+      ],
+      "msg": "Field required",
+      "type": "missing"
+    }
+  ]
+}

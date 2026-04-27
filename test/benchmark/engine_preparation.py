@@ -2,7 +2,7 @@
 
 import warnings
 from pathlib import Path
-from typing import Literal
+from typing import Literal, assert_never
 
 import httpx
 from fastapi.testclient import TestClient
@@ -69,11 +69,11 @@ def generate_client(
     """
     if server == "fake":
         if root_dir is None:
-            warn_msg = "root_dirが未指定であるため、自動的に `VOICEVOX/vv-engine` を `root_dir` に設定します。"
+            warn_msg = "root_dirが未指定であるため、自動的に `AivisSpeech/AivisSpeech-Engine` を `root_dir` に設定します。"
             warnings.warn(warn_msg, stacklevel=2)
-            root_dir = Path("VOICEVOX/vv-engine")
+            root_dir = Path("AivisSpeech/AivisSpeech-Engine")
         return _generate_engine_fake_server(root_dir)
     elif server == "localhost":
         return httpx.Client(base_url="http://localhost:10101")
     else:
-        raise Exception(f"{server} はサポートされていないサーバータイプです")
+        assert_never(server)

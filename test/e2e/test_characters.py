@@ -7,7 +7,7 @@ from pydantic import TypeAdapter
 from syrupy.assertion import SnapshotAssertion
 
 from test.utility import hash_long_string
-from voicevox_engine.metas.Metas import Speaker, SpeakerInfo
+from voicevox_engine.metas.metas import Speaker, SpeakerInfo
 
 _speaker_list_adapter = TypeAdapter(list[Speaker])
 
@@ -38,7 +38,7 @@ def test_喋れるキャラクター一覧が取得できる(
 def test_喋れるキャラクターの情報を取得できる(
     client: TestClient, snapshot_json: SnapshotAssertion
 ) -> None:
-    talkers = _speaker_list_adapter.validate_python(client.get("/speakers").json())
+    talkers = _speaker_list_adapter.validate_json(client.get("/speakers").content)
     for talker in talkers:
         response = client.get(
             "/speaker_info", params={"speaker_uuid": talker.speaker_uuid}
