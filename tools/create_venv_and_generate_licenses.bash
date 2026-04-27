@@ -7,7 +7,7 @@ if [[ -z "${OUTPUT_LICENSE_JSON_PATH+x}" ]]; then
   exit 1
 fi
 
-output_license_json_tmp_path="$(mktemp "${OUTPUT_LICENSE_JSON_PATH}.tmp.XXXXXX")"
+output_license_json_tmp_path="$(mktemp "${TMPDIR:-/tmp}/dependency_licenses.json.tmp.XXXXXX")"
 
 cleanup_tmp_file() {
   rm -f "$output_license_json_tmp_path"
@@ -19,7 +19,9 @@ uv venv 'licenses_venv'
 export VIRTUAL_ENV='licenses_venv'
 uv sync --active --group licenses
 uv run --active tools/generate_licenses.py > "$output_license_json_tmp_path"
-mv -f "$output_license_json_tmp_path" "$OUTPUT_LICENSE_JSON_PATH"
+if [[ "$OUTPUT_LICENSE_JSON_PATH" != '/dev/null' ]]; then
+  mv -f "$output_license_json_tmp_path" "$OUTPUT_LICENSE_JSON_PATH"
+fi
 
 rm -rf "$VIRTUAL_ENV"
 unset VIRTUAL_ENV
