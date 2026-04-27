@@ -102,6 +102,12 @@ jobs:
       - name: <Setup> Create download directory
         run: mkdir -p download/
 
+      # Build
+      - name: <Build> Generate licenses.json
+        run: |
+          OUTPUT_LICENSE_JSON_PATH=resources/engine_manifest_assets/dependency_licenses.json \
+          bash tools/create_venv_and_generate_licenses.bash
+
       - name: <Build> Build AivisSpeech Engine run.py
         run: |
           set -eux
@@ -116,7 +122,7 @@ jobs:
           # Replace version & specify dynamic libraries
           $sed -i "s/__version__ = \"latest\"/__version__ = \"${{ needs.config.outputs.version_or_latest }}\"/" voicevox_engine/__init__.py
 
-          uv run task build
+          uv run pyinstaller --noconfirm run.spec
 
       - name: <Build> Code signing
         if: github.event.inputs.code_signing == 'true' && runner.os == 'Windows'

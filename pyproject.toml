@@ -85,9 +85,9 @@ mypy = "uv run mypy ."
 typos = "uv run typos"
 test = "uv run pytest"
 update-snapshots = "uv run pytest --snapshot-update"
-update-licenses = "OUTPUT_LICENSE_JSON_PATH=resources/engine_manifest_assets/dependency_licenses.json bash tools/create_venv_and_generate_licenses.bash"
-check-licenses = "OUTPUT_LICENSE_JSON_PATH=/dev/null bash tools/create_venv_and_generate_licenses.bash"
-build = "task update-licenses && uv run pyinstaller --noconfirm run.spec"
+update-licenses = "bash -c \"OUTPUT_LICENSE_JSON_PATH=resources/engine_manifest_assets/dependency_licenses.json bash tools/create_venv_and_generate_licenses.bash\""
+check-licenses = "bash -c \"OUTPUT_LICENSE_JSON_PATH=/dev/null bash tools/create_venv_and_generate_licenses.bash\""
+build = "uv run pyinstaller --noconfirm run.spec"
 
 [tool.ruff]
 target-version = "py311"
