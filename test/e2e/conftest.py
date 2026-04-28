@@ -56,9 +56,12 @@ def app_params(tmp_path: Path) -> dict[str, Any]:
     preset_manager = PresetManager(preset_path)
 
     # テスト用に隔離されたユーザー辞書を生成する
+    # デフォルトユーザー辞書は Windows の pytest 実行時には適用されないため、
+    # E2E テストのアクセント句生成が OS ごとに変わらないよう空の辞書ディレクトリを使う
+    default_dict_dir_path = tmp_path / "default_dictionaries"
+    default_dict_dir_path.mkdir()
     user_dict = UserDictionary(
-        # デフォルト辞書が巨大なためローカル環境のファイルを直接読み込む
-        # default_dict_dir_path=_copy_under_dir(DEFAULT_DICT_DIR_PATH, tmp_path),
+        default_dict_dir_path=default_dict_dir_path,
         user_dict_path=_generate_user_dict(tmp_path),
     )
 
