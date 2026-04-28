@@ -52,6 +52,11 @@ jobs:
           path: ~/.local/share/AivisSpeech-Engine
           key: ${{ runner.os }}-${{ runner.arch }}-engine-data
 
+      - name: <Setup> Fix Engine Data permissions
+        run: |
+          mkdir -p ~/.local/share/AivisSpeech-Engine
+          sudo chown -R 1000:1000 ~/.local/share/AivisSpeech-Engine
+
       - name: <Setup> Declare variables
         id: docker_vars
         run: |
