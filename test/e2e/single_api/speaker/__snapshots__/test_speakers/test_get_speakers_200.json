@@ -1,0 +1,72 @@
+[
+  {
+    "name": "まお",
+    "speaker_uuid": "e756b8e4-b606-4e15-99b1-3f9c6a1b2317",
+    "styles": [
+      {
+        "id": 888753760,
+        "name": "ノーマル",
+        "type": "talk"
+      },
+      {
+        "id": 888753761,
+        "name": "ふつー",
+        "type": "talk"
+      },
+      {
+        "id": 888753762,
+        "name": "あまあま",
+        "type": "talk"
+      },
+      {
+        "id": 888753763,
+        "name": "おちつき",
+        "type": "talk"
+      },
+      {
+        "id": 888753764,
+        "name": "からかい",
+        "type": "talk"
+      },
+      {
+        "id": 888753765,
+        "name": "せつなめ",
+        "type": "talk"
+      }
+    ],
+    "supported_features": {
+      "permitted_synthesis_morphing": "NOTHING"
+    },
+    "version": "1.2.0"
+  },
+  {
+    "name": "コハク",
+    "speaker_uuid": "5680ac39-43c9-487a-bc3e-018c0d29cc38",
+    "styles": [
+      {
+        "id": 1878365376,
+        "name": "ノーマル",
+        "type": "talk"
+      },
+      {
+        "id": 1878365377,
+        "name": "あまあま",
+        "type": "talk"
+      },
+      {
+        "id": 1878365378,
+        "name": "せつなめ",
+        "type": "talk"
+      },
+      {
+        "id": 1878365379,
+        "name": "ねむたい",
+        "type": "talk"
+      }
+    ],
+    "supported_features": {
+      "permitted_synthesis_morphing": "NOTHING"
+    },
+    "version": "1.1.0"
+  }
+]

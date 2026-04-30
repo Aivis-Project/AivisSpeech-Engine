@@ -1,0 +1,3 @@
+{
+  "detail": "指定された AIVMX ファイルの形式が正しくありません。(Failed to decode AIVM metadata. This file is not an AIVMX (ONNX) file.)"
+}

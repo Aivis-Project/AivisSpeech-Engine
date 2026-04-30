@@ -14,6 +14,8 @@ from test.e2e.single_api.utils import gen_mora
 def test_post_multi_synthesis_200(
     client: TestClient, snapshot: SnapshotAssertion
 ) -> None:
+    """同じサンプリングレートの複数 AudioQuery をまとめて音声合成すると、zip が返ることを確認する。"""
+
     queries = [
         {
             "accent_phrases": [
@@ -80,3 +82,13 @@ def test_post_multi_synthesis_200(
     #     wav_files = (zip_file.read(name) for name in zip_file.namelist())
     #     for wav in wav_files:
     #         assert snapshot == hash_wave_floats_from_wav_bytes(wav)
+
+
+def test_post_multi_synthesis_empty_queries_422(
+    client: TestClient, snapshot_json: SnapshotAssertion
+) -> None:
+    """空配列の音声合成クエリで `/multi_synthesis` を呼ぶと、422 とエラー内容が返ることを確認する。"""
+
+    response = client.post("/multi_synthesis", params={"speaker": 888753760}, json=[])
+    assert response.status_code == 422
+    assert snapshot_json == response.json()

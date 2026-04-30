@@ -2942,14 +2942,7 @@
             "description": "Successful Response"
           },
           "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
+            "description": "クエリが空またはサンプリングレートが不一致"
           }
         },
         "summary": "複数まとめて音声合成する",

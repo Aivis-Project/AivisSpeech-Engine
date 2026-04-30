@@ -419,7 +419,10 @@ def generate_tts_pipeline_router(
                         "schema": {"type": "string", "format": "binary"}
                     }
                 },
-            }
+            },
+            422: {
+                "description": "クエリが空またはサンプリングレートが不一致",
+            },
         },
         tags=["音声合成"],
         summary="複数まとめて音声合成する",
@@ -442,6 +445,11 @@ def generate_tts_pipeline_router(
     ) -> Response:
         version = core_version or LATEST_VERSION
         engine = tts_engines.get_tts_engine(version)
+        if len(queries) == 0:
+            raise HTTPException(
+                status_code=422,
+                detail="音声合成クエリが空です",
+            )
         sampling_rate = queries[0].outputSamplingRate
 
         buffer = io.BytesIO()
