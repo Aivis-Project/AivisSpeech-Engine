@@ -3,7 +3,6 @@
 import asyncio
 import glob
 import hashlib
-import sys
 import threading
 import time
 import uuid
@@ -55,10 +54,13 @@ class AivmInfosRepository:
         ModelArchitecture.StyleBertVITS2JPExtra,
     ]
 
-    # エンジン起動の高速化に用いるキャッシュファイルの保存パス
-    CACHE_FILE_PATH: Final[Path] = get_save_dir() / "aivm_infos_cache.json"
-
-    def __init__(self, installed_models_dir: Path) -> None:
+    def __init__(
+        self,
+        installed_models_dir: Path,
+        aivishub_client: AivisHubClient | None = None,
+        cache_file_path: Path | None = None,
+        is_background_scan_enabled: bool = True,
+    ) -> None:
         """
         AivmInfosRepository のコンストラクタ。
 
@@ -66,14 +68,27 @@ class AivmInfosRepository:
         ----------
         installed_models_dir : Path
             AIVMX ファイルのインストール先ディレクトリ
+        aivishub_client : AivisHubClient | None
+            AivisHub API クライアント。None の場合はデフォルトの AivisHubClient() が使われる。
+        cache_file_path : Path | None
+            キャッシュファイルの保存パス。None の場合は get_save_dir() / "aivm_infos_cache.json" が使われる。
+        is_background_scan_enabled : bool
+            バックグラウンドでの音声合成モデルの再スキャンを有効にするかどうか。
+            E2E テスト時はスキャンに時間がかかりすぎるため、False にすることで無効化できる。
         """
 
         self.installed_models_dir = installed_models_dir
+        self._aivishub_client = (
+            aivishub_client if aivishub_client is not None else AivisHubClient()
+        )
+        self._cache_file_path = (
+            cache_file_path
+            if cache_file_path is not None
+            else get_save_dir() / "aivm_infos_cache.json"
+        )
+        self._is_background_scan_enabled = is_background_scan_enabled
         self._cache_lock = threading.Lock()
         self._state_lock = threading.Lock()
-
-        # pytest から実行されているかどうか
-        self._is_pytest = "pytest" in sys.argv[0] or "py.test" in sys.argv[0]
 
         # すべてのインストール済み音声合成モデルの情報を保持するマップ
         self._installed_aivm_infos: dict[str, AivmInfo] | None = None
@@ -88,8 +103,8 @@ class AivmInfosRepository:
         if result is True:
             # キャッシュ情報が存在する際は、バックグラウンドでスキャンを開始
             def update_repository_in_background() -> None:
-                # E2E テスト実行時に毎回スキャンするとあまりに時間がかかりすぎるため無効化
-                if self._is_pytest:
+                # バックグラウンドスキャンが無効化されている場合はスキップ
+                if self._is_background_scan_enabled is False:
                     return
                 # BERT モデルのロードと並行させるため、少し待ってから実行
                 ## aivmlib.read_aivmx_metadata() はモデルファイルをロードする関係で若干 CPU-bound だが、
@@ -390,14 +405,14 @@ class AivmInfosRepository:
         """
 
         # キャッシュファイルが存在しない（初回起動時など）
-        if not self.CACHE_FILE_PATH.exists():
+        if not self._cache_file_path.exists():
             logger.info("Cache file not found, will load models directly.")
             return False
 
         try:
             with self._cache_lock:
                 # キャッシュファイルからインストール済みの音声合成モデルの情報を読み込む
-                with open(self.CACHE_FILE_PATH, encoding="utf-8") as f:
+                with open(self._cache_file_path, encoding="utf-8") as f:
                     cache_json = f.read()
         except Exception as ex:
             logger.warning("Failed to load cache file:", exc_info=ex)
@@ -448,7 +463,7 @@ class AivmInfosRepository:
             return
 
         # 万が一保存先ディレクトリが存在しない場合は作成
-        ensure_directory_exists(self.CACHE_FILE_PATH.parent, create_parents=True)
+        ensure_directory_exists(self._cache_file_path.parent, create_parents=True)
 
         with self._cache_lock:
             try:
@@ -460,11 +475,11 @@ class AivmInfosRepository:
 
                 # 一時ファイルに書き込んでから名前変更することで、
                 # 書き込み中にクラッシュしてもキャッシュファイルが壊れないようにする
-                temp_path = self.CACHE_FILE_PATH.with_suffix(".tmp")
+                temp_path = self._cache_file_path.with_suffix(".tmp")
                 with open(temp_path, mode="w", encoding="utf-8") as f:
                     f.write(cache_data.model_dump_json(indent=4))
                 # ファイル名を変更（既存のファイルは上書き）
-                temp_path.replace(self.CACHE_FILE_PATH)
+                temp_path.replace(self._cache_file_path)
             except Exception as ex:
                 logger.warning("Failed to save cache file:", exc_info=ex)
 
@@ -741,9 +756,8 @@ class AivmInfosRepository:
 
         return aivm_model_uuid, aivm_info
 
-    @classmethod
     async def _update_latest_version_info(
-        cls, aivm_infos: dict[str, AivmInfo]
+        self, aivm_infos: dict[str, AivmInfo]
     ) -> dict[str, AivmInfo]:
         """
         指定された音声合成モデルの AivisHub 上でのアップデート情報を取得し、AivmInfo の latest_version と is_update_available を更新した上で返す。
@@ -763,7 +777,7 @@ class AivmInfosRepository:
         async def fetch_latest_version(aivm_info: AivmInfo) -> None:
             try:
                 # AivisHub 上に同じ UUID で公開されている音声合成モデルがあれば情報を取得
-                model_info = await AivisHubClient.fetch_model_detail(
+                model_info = await self._aivishub_client.fetch_model_detail(
                     aivm_model_uuid=aivm_info.manifest.uuid,
                 )
 

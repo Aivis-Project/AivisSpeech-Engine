@@ -6,16 +6,17 @@
 from fastapi.testclient import TestClient
 from syrupy.assertion import SnapshotAssertion
 
-from test.e2e.single_api.utils import gen_mora
+from test.e2e.single_api.utils import gen_mora, get_first_style_id
 
 # from test.utility import hash_wave_floats_from_wav_bytes
 
 
 def test_post_multi_synthesis_200(
-    client: TestClient, snapshot: SnapshotAssertion
+    client_with_default_model: TestClient, snapshot: SnapshotAssertion
 ) -> None:
     """同じサンプリングレートの複数 AudioQuery をまとめて音声合成すると、zip が返ることを確認する。"""
 
+    style_id = get_first_style_id(client_with_default_model)
     queries = [
         {
             "accent_phrases": [
@@ -69,8 +70,8 @@ def test_post_multi_synthesis_200(
             "kana": "テストト",
         },
     ]
-    response = client.post(
-        "/multi_synthesis", params={"speaker": 888753760}, json=queries
+    response = client_with_default_model.post(
+        "/multi_synthesis", params={"speaker": style_id}, json=queries
     )
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/zip"
@@ -89,6 +90,7 @@ def test_post_multi_synthesis_empty_queries_422(
 ) -> None:
     """空配列の音声合成クエリで `/multi_synthesis` を呼ぶと、422 とエラー内容が返ることを確認する。"""
 
-    response = client.post("/multi_synthesis", params={"speaker": 888753760}, json=[])
+    # 空クエリのバリデーションはスタイル参照より前に行われるため、存在しないスタイル ID でもテスト可能
+    response = client.post("/multi_synthesis", params={"speaker": 0}, json=[])
     assert response.status_code == 422
     assert snapshot_json == response.json()

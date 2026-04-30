@@ -37,7 +37,13 @@ class AivmManager:
     ref: https://github.com/Aivis-Project/aivmlib#aivm-specification
     """
 
-    def __init__(self, installed_models_dir: Path):
+    def __init__(
+        self,
+        installed_models_dir: Path,
+        aivishub_client: AivisHubClient | None = None,
+        cache_file_path: Path | None = None,
+        is_background_scan_enabled: bool = True,
+    ):
         """
         AivmManager のコンストラクタ。
 
@@ -45,10 +51,19 @@ class AivmManager:
         ----------
         installed_models_dir : Path
             AIVMX ファイルのインストール先ディレクトリ
+        aivishub_client : AivisHubClient | None
+            AivisHub API クライアント。None の場合はデフォルトの AivisHubClient() が使われる。
+        cache_file_path : Path | None
+            キャッシュファイルの保存パス。None の場合は get_save_dir() のデフォルトパスが使われる。
+        is_background_scan_enabled : bool
+            バックグラウンドでの音声合成モデルの再スキャンを有効にするかどうか。
         """
 
         # インストール先ディレクトリが存在しなければここで作成
         self.installed_models_dir = installed_models_dir
+        self._aivishub_client = (
+            aivishub_client if aivishub_client is not None else AivisHubClient()
+        )
         ensure_directory_exists(self.installed_models_dir, create_parents=True)
         logger.info(f"Models directory: {self.installed_models_dir}")
 
@@ -56,7 +71,12 @@ class AivmManager:
         ## この時点で前回起動時に作成したキャッシュがあればそこから即座に情報が読み込まれる
         ## キャッシュがない場合はコンストラクタで同期的にスキャンを行い、スキャン完了次第リポジトリの初期化が完了する
         ## コンストラクタの実行が完了した時点で、確実にインストール済み音声合成モデルの情報が存在している
-        self._repository = AivmInfosRepository(self.installed_models_dir)
+        self._repository = AivmInfosRepository(
+            self.installed_models_dir,
+            aivishub_client=self._aivishub_client,
+            cache_file_path=cache_file_path,
+            is_background_scan_enabled=is_background_scan_enabled,
+        )
 
         # 強制削除ルールに基づいて、該当する音声合成モデルを自動的に削除する
         self._apply_forced_removal_rules()
@@ -80,7 +100,7 @@ class AivmManager:
 
         # AivisHub から強制削除ルールを取得
         # ネットワークエラーなどで取得できなかった場合、フォールバックとしてハードコードされた値が返される
-        forced_removal_rules = AivisHubClient.fetch_forced_removal_rules()
+        forced_removal_rules = self._aivishub_client.fetch_forced_removal_rules()
 
         # ルールごとに該当するモデルがないかをチェック
         for rule in forced_removal_rules:
@@ -135,7 +155,7 @@ class AivmManager:
 
         # AivisHub からデフォルトモデル構成を取得
         # ネットワークエラーなどで取得できなかった場合、フォールバックとしてハードコードされた値が返される
-        default_model_properties = AivisHubClient.fetch_default_models()
+        default_model_properties = self._aivishub_client.fetch_default_models()
 
         # 指定されたデフォルトモデルごとにインストールまたは更新を行う
         for model_property in default_model_properties:
@@ -153,7 +173,7 @@ class AivmManager:
                 )
                 try:
                     # AivisHub API のダウンロード URL を構築して install_model_from_url() に渡す
-                    download_url = f"{AivisHubClient.BASE_URL}/aivm-models/{model_uuid_str}/download?model_type=AIVMX"
+                    download_url = f"{self._aivishub_client.BASE_URL}/aivm-models/{model_uuid_str}/download?model_type=AIVMX"
                     self.install_model_from_url(download_url)
                 except Exception as ex:
                     logger.error(
@@ -181,7 +201,7 @@ class AivmManager:
                 )
                 try:
                     # AivisHub API のダウンロード URL を構築して install_model_from_url() に渡す
-                    download_url = f"{AivisHubClient.BASE_URL}/aivm-models/{model_uuid_str}/download?model_type=AIVMX"
+                    download_url = f"{self._aivishub_client.BASE_URL}/aivm-models/{model_uuid_str}/download?model_type=AIVMX"
                     self.install_model_from_url(download_url)
                 except Exception as ex:
                     logger.error("Failed to update default model.", exc_info=ex)
@@ -484,7 +504,7 @@ class AivmManager:
             # group(0) は一致した文字列全体なので、group(1) で UUID 部分のみを取得
             aivm_model_uuid = uuid_match.group(1)
             # AIVMX ダウンロード用の API の URL に置き換え
-            download_url = f"{AivisHubClient.BASE_URL}/aivm-models/{aivm_model_uuid}/download?model_type=AIVMX"
+            download_url = f"{self._aivishub_client.BASE_URL}/aivm-models/{aivm_model_uuid}/download?model_type=AIVMX"
             logger.info(
                 f"Detected AivisHub model page URL. Using download API URL: {download_url}"
             )
@@ -580,7 +600,7 @@ class AivmManager:
 
         ## AivisHub API のダウンロード URL を構築して install_model_from_url() に渡す
         ## install_model_from_url() により既存のモデルファイルが AivisHub からダウンロードした新しいモデルファイルに上書き更新される
-        download_url = f"{AivisHubClient.BASE_URL}/aivm-models/{aivm_model_uuid}/download?model_type=AIVMX"
+        download_url = f"{self._aivishub_client.BASE_URL}/aivm-models/{aivm_model_uuid}/download?model_type=AIVMX"
         logger.info(
             f"Updating model {aivm_model_uuid} to version {aivm_info.latest_version}..."
         )

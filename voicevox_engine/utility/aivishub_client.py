@@ -5,6 +5,7 @@ AivisHub API との通信を行うクライアントと、API スキーマを表
 from __future__ import annotations
 
 import uuid
+from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import httpx
@@ -219,11 +220,27 @@ class AivisHubClient:
     # API ベース URL
     BASE_URL = "https://api.aivis-project.com/v1"
 
-    # インストール UUID の保存先パス
-    INSTALLATION_UUID_PATH = get_save_dir() / "installation_uuid.dat"
+    def __init__(
+        self,
+        installation_uuid_path: Path | None = None,
+    ) -> None:
+        """
+        AivisHubClient を初期化する。
 
-    @staticmethod
+        Parameters
+        ----------
+        installation_uuid_path : Path | None
+            インストール UUID の保存先パス。
+            None の場合は get_save_dir() / "installation_uuid.dat" が使われる。
+        """
+
+        if installation_uuid_path is not None:
+            self._installation_uuid_path = installation_uuid_path
+        else:
+            self._installation_uuid_path = get_save_dir() / "installation_uuid.dat"
+
     def _request(
+        self,
         method: str,
         path: str,
         request_body: BaseModel | None = None,
@@ -253,7 +270,7 @@ class AivisHubClient:
 
         return httpx.request(
             method=method,
-            url=f"{AivisHubClient.BASE_URL}/{path.lstrip('/')}",
+            url=f"{self.BASE_URL}/{path.lstrip('/')}",
             # 環境情報から生成したユーザーエージェントを設定
             headers={"User-Agent": generate_user_agent()},
             # リクエストボディが指定されていればシリアライズ化して設定
@@ -269,8 +286,7 @@ class AivisHubClient:
             follow_redirects=True,
         )
 
-    @staticmethod
-    def fetch_default_models() -> list[AivisSpeechDefaultModelProperty]:
+    def fetch_default_models(self) -> list[AivisSpeechDefaultModelProperty]:
         """
         AivisSpeech Engine が起動時に自動的にインストールする音声合成モデルの一覧を取得する。
         ネットワークエラーなどで取得できなかった場合、フォールバックとしてハードコードされた値が返される。
@@ -296,7 +312,7 @@ class AivisHubClient:
         ]
 
         try:
-            response = AivisHubClient._request(
+            response = self._request(
                 method="GET",
                 path="/aivisspeech/default-models",
             )
@@ -329,8 +345,7 @@ class AivisHubClient:
             )
             return DEFAULT_MODEL_PROPERTIES.copy()
 
-    @staticmethod
-    def fetch_forced_removal_rules() -> list[AivisSpeechForcedRemovalRule]:
+    def fetch_forced_removal_rules(self) -> list[AivisSpeechForcedRemovalRule]:
         """
         AivisSpeech Engine が強制削除対象とする音声合成モデルとバージョン条件のルールの一覧を取得する。
         ネットワークエラーなどで取得できなかった場合、フォールバックとしてハードコードされた値が返される。
@@ -360,7 +375,7 @@ class AivisHubClient:
         ]
 
         try:
-            response = AivisHubClient._request(
+            response = self._request(
                 method="GET",
                 path="/aivisspeech/forced-removal-rules",
             )
@@ -393,8 +408,8 @@ class AivisHubClient:
             )
             return FORCED_REMOVAL_RULES.copy()
 
-    @staticmethod
     async def fetch_model_detail(
+        self,
         aivm_model_uuid: uuid.UUID,
     ) -> AivmModelResponse | None:
         """
@@ -417,7 +432,7 @@ class AivisHubClient:
             async with httpx.AsyncClient() as client:
                 response = await client.request(
                     method="GET",
-                    url=f"{AivisHubClient.BASE_URL}/aivm-models/{aivm_model_uuid}",
+                    url=f"{self.BASE_URL}/aivm-models/{aivm_model_uuid}",
                     # 環境情報から生成したユーザーエージェントを設定
                     headers={"User-Agent": generate_user_agent()},
                     # API が死んでる時に接続を待ち続けないようにタイムアウトを設定
@@ -456,8 +471,7 @@ class AivisHubClient:
             )
             return None
 
-    @staticmethod
-    def _ensure_installation_uuid() -> uuid.UUID:
+    def _ensure_installation_uuid(self) -> uuid.UUID:
         """
         installation_uuid.dat を読み込み、存在しなければ新しく生成して保存する。
 
@@ -473,10 +487,10 @@ class AivisHubClient:
         """
 
         # インストール UUID を保存するファイルが存在するか確認
-        if AivisHubClient.INSTALLATION_UUID_PATH.exists():
+        if self._installation_uuid_path.exists():
             try:
                 # 正常に読み込めればそれをそのまま返す
-                content = AivisHubClient.INSTALLATION_UUID_PATH.read_text(
+                content = self._installation_uuid_path.read_text(
                     encoding="utf-8"
                 ).strip()
                 parsed = uuid.UUID(content)
@@ -494,7 +508,7 @@ class AivisHubClient:
         # インストール UUID をファイルに保存
         try:
             ensure_directory_exists(get_save_dir(), create_parents=True)
-            AivisHubClient.INSTALLATION_UUID_PATH.write_text(
+            self._installation_uuid_path.write_text(
                 str(installation_uuid), encoding="utf-8"
             )
         except OSError as ex:
@@ -504,8 +518,8 @@ class AivisHubClient:
             raise ex
         return installation_uuid
 
-    @staticmethod
     def send_event(
+        self,
         event_type: Literal["Startup", "StartupFailed"],
         runtime_environment: AivisSpeechRuntimeEnvironment,
         stack_trace: str | None = None,
@@ -525,11 +539,11 @@ class AivisHubClient:
         """
 
         # ファイル保存先ディレクトリ内にある installation_uuid.dat を読み込み、存在しなければ新しく生成して保存
-        installation_uuid = AivisHubClient._ensure_installation_uuid()
+        installation_uuid = self._ensure_installation_uuid()
 
         # イベントを送信
         try:
-            response = AivisHubClient._request(
+            response = self._request(
                 method="POST",
                 path="/aivisspeech/events",
                 request_body=AivisSpeechEventRequest(

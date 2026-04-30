@@ -131,6 +131,8 @@ warn_unused_ignores = false
 
 [tool.pytest.ini_options]
 filterwarnings = ["ignore::pydantic.warnings.PydanticDeprecatedSince20"]
+# テスト完了後に一時ディレクトリを即座に削除し、ディスク使用量の蓄積を防ぐ
+tmp_path_retention_policy = "none"
 
 [tool.typos.default.extend-words]
 datas = "datas" # PyInstaller's argument

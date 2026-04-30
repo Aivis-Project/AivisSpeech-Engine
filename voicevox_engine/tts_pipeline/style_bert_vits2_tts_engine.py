@@ -65,18 +65,24 @@ class StyleBertVITS2TTSEngine(TTSEngine):
     )
     # BERT モデルの固定リビジョン
     BERT_MODEL_REVISION: Final[str] = "d701ec67708287b20d2063270f6b535e6eed09ab"
-    # BERT モデルのキャッシュディレクトリ
-    BERT_MODEL_CACHE_DIR: Final[Path] = get_save_dir() / "BertModelCaches"
 
     def __init__(
         self,
         aivm_manager: AivmManager,
         use_gpu: bool = False,
         load_all_models: bool = False,
+        bert_model_cache_dir: Path | None = None,
     ) -> None:
         self.aivm_manager = aivm_manager
         self.use_gpu = use_gpu
         self.load_all_models = load_all_models
+
+        # BERT モデルのキャッシュディレクトリ
+        self._bert_model_cache_dir = (
+            bert_model_cache_dir
+            if bert_model_cache_dir is not None
+            else get_save_dir() / "BertModelCaches"
+        )
 
         # ロード済みモデルのキャッシュ
         self.tts_models: dict[str, TTSModel] = {}
@@ -153,7 +159,7 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         ## これにより、BERT モデルのファイルサイズとメモリ使用量が半分に削減される
         ## ref: https://huggingface.co/tsukumijima/deberta-v2-large-japanese-char-wwm-onnx
         OLD_BERT_MODEL_CACHE_PATH = (
-            self.BERT_MODEL_CACHE_DIR
+            self._bert_model_cache_dir
             / "models--tsukumijima--deberta-v2-large-japanese-char-wwm-onnx"
             / "blobs"
             / "c5c880ef4bd0d3308ec6503a8728efae920bc5c5a984de4f76fc3d0ad518a2ec"
@@ -210,22 +216,22 @@ class StyleBertVITS2TTSEngine(TTSEngine):
             language=Languages.JP,
             pretrained_model_name_or_path=self.BERT_MODEL_REPOSITORY,
             onnx_providers=self.onnx_providers,
-            cache_dir=str(self.BERT_MODEL_CACHE_DIR),
+            cache_dir=str(self._bert_model_cache_dir),
             revision=self.BERT_MODEL_REVISION,
         )
         onnx_bert_models.load_tokenizer(
             language=Languages.JP,
             pretrained_model_name_or_path=self.BERT_MODEL_REPOSITORY,
-            cache_dir=str(self.BERT_MODEL_CACHE_DIR),
+            cache_dir=str(self._bert_model_cache_dir),
             revision=self.BERT_MODEL_REVISION,
         )
 
     def _reset_bert_model_cache(self) -> None:
         """BERT モデルのキャッシュディレクトリを削除し、再ダウンロードが可能な状態に戻す。"""
-        if self.BERT_MODEL_CACHE_DIR.exists() is True:
+        if self._bert_model_cache_dir.exists() is True:
             try:
-                shutil.rmtree(self.BERT_MODEL_CACHE_DIR)
-                logger.info(f"BERT model cache cleared. ({self.BERT_MODEL_CACHE_DIR})")
+                shutil.rmtree(self._bert_model_cache_dir)
+                logger.info(f"BERT model cache cleared. ({self._bert_model_cache_dir})")
             except OSError as ex:
                 logger.error(
                     "Failed to clear BERT model cache.",

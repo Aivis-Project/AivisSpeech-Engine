@@ -12,8 +12,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from syrupy.assertion import SnapshotAssertion
 
+from test.e2e.conftest import _DefaultModelAivisHubClient, _NoopAivisHubClient
 from test.utility import hash_long_string
-from voicevox_engine.aivm_infos_repository import AivmInfosRepository
 from voicevox_engine.aivm_manager import AivmManager
 from voicevox_engine.app.routers.aivm_models import generate_aivm_models_router
 from voicevox_engine.tts_pipeline.style_bert_vits2_tts_engine import (
@@ -49,7 +49,6 @@ class _AivmModelsRouterStyleBertVITS2TTSEngine(StyleBertVITS2TTSEngine):
 @pytest.fixture
 def isolated_aivm_models_client(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> TestClient:
     """
     実ユーザーのモデル保存先に触れない `/aivm_models` 専用クライアントを生成する。
@@ -58,8 +57,6 @@ def isolated_aivm_models_client(
     ----------
     tmp_path : Path
         pytest が生成するテスト専用一時ディレクトリ。
-    monkeypatch : pytest.MonkeyPatch
-        AivisHub の起動時処理とキャッシュパスを隔離するための monkeypatch fixture。
 
     Returns
     -------
@@ -67,32 +64,71 @@ def isolated_aivm_models_client(
         `/aivm_models` API Router だけを持つテストクライアント。
     """
 
-    monkeypatch.setattr(
-        AivmInfosRepository,
-        "CACHE_FILE_PATH",
-        tmp_path / "aivm_infos_cache.json",
+    # DI でネットワーク呼び出しと実データディレクトリへのアクセスを防止する
+    noop_aivishub_client = _NoopAivisHubClient(
+        installation_uuid_path=tmp_path / "installation_uuid.dat",
     )
-    monkeypatch.setattr(
-        AivisHubClient,
-        "fetch_default_models",
-        staticmethod(lambda: []),
+    aivm_manager = AivmManager(
+        tmp_path / "Models",
+        aivishub_client=noop_aivishub_client,
+        cache_file_path=tmp_path / "aivm_infos_cache.json",
+        is_background_scan_enabled=False,
     )
-    monkeypatch.setattr(
-        AivisHubClient,
-        "fetch_forced_removal_rules",
-        staticmethod(lambda: []),
+    tts_engines = TTSEngineManager()
+    tts_engines.register_engine(
+        _AivmModelsRouterStyleBertVITS2TTSEngine(aivm_manager),
+        MOCK_CORE_VERSION,
     )
 
-    async def fetch_model_detail(aivm_model_uuid: uuid.UUID) -> None:
+    app = FastAPI()
+
+    async def verify_mutability() -> None:
         return None
 
-    monkeypatch.setattr(
-        AivisHubClient,
-        "fetch_model_detail",
-        staticmethod(fetch_model_detail),
+    app.include_router(
+        generate_aivm_models_router(
+            aivm_manager=aivm_manager,
+            tts_engines=tts_engines,
+            verify_mutability=verify_mutability,
+        )
     )
+    return TestClient(app)
 
-    aivm_manager = AivmManager(tmp_path / "Models")
+
+@pytest.fixture
+def isolated_aivm_models_client_with_default_model(
+    tmp_path: Path,
+    _shared_default_models_dir: Path,
+) -> TestClient:
+    """
+    デフォルトモデルがインストール済みの `/aivm_models` 専用クライアントを生成する。
+    セッションで共有されたモデルディレクトリを直接参照するため、テストごとのコピーは行わない。
+
+    Parameters
+    ----------
+    tmp_path : Path
+        pytest が生成するテスト専用一時ディレクトリ。
+    _shared_default_models_dir : Path
+        セッションで共有されたデフォルトモデルの AIVMX ファイルが配置されたディレクトリ。
+
+    Returns
+    -------
+    TestClient
+        デフォルトモデルがインストール済みの `/aivm_models` API Router だけを持つテストクライアント。
+    """
+
+    # セッションで共有されたモデルディレクトリを直接参照する（テストごとのコピーは行わない）
+    # デフォルトモデルの UUID を返す AivisHubClient を利用し、モデルをデフォルトとしてマークさせる
+    ## AIVMX は既に配置済みなので再 DL は発生しない（latest_version が "0.0.0" のため）
+    aivishub_client = _DefaultModelAivisHubClient(
+        installation_uuid_path=tmp_path / "installation_uuid.dat",
+    )
+    aivm_manager = AivmManager(
+        _shared_default_models_dir,
+        aivishub_client=aivishub_client,
+        cache_file_path=tmp_path / "aivm_infos_cache.json",
+        is_background_scan_enabled=False,
+    )
     tts_engines = TTSEngineManager()
     tts_engines.register_engine(
         _AivmModelsRouterStyleBertVITS2TTSEngine(aivm_manager),
@@ -225,11 +261,12 @@ def _build_aivmx_file_install_variant(
 
 
 def test_get_aivm_models_200(
-    client: TestClient, snapshot_json: SnapshotAssertion
+    isolated_aivm_models_client_with_default_model: TestClient,
+    snapshot_json: SnapshotAssertion,
 ) -> None:
     """デフォルトモデルがインストール済み一覧に含まれ、AIVM 情報が API 互換形式で返ることを確認する。"""
 
-    response = client.get("/aivm_models")
+    response = isolated_aivm_models_client_with_default_model.get("/aivm_models")
     assert response.status_code == 200
 
     aivm_infos = response.json()
@@ -239,10 +276,12 @@ def test_get_aivm_models_200(
 
 
 def test_get_aivm_model_200(
-    client: TestClient, snapshot_json: SnapshotAssertion
+    isolated_aivm_models_client_with_default_model: TestClient,
+    snapshot_json: SnapshotAssertion,
 ) -> None:
     """インストール済みデフォルトモデルの UUID を指定すると、単一の AIVM 情報を取得できることを確認する。"""
 
+    client = isolated_aivm_models_client_with_default_model
     aivm_model_uuid, _ = _get_first_default_aivm_info(client)
 
     response = client.get(f"/aivm_models/{aivm_model_uuid}")
@@ -270,9 +309,12 @@ def test_post_install_aivm_model_without_file_or_url_422(
     assert snapshot_json == response.json()
 
 
-def test_post_load_and_unload_aivm_model_204(client: TestClient) -> None:
+def test_post_load_and_unload_aivm_model_204(
+    isolated_aivm_models_client_with_default_model: TestClient,
+) -> None:
     """インストール済みデフォルトモデルの load / unload で `is_loaded` が切り替わることを確認する。"""
 
+    client = isolated_aivm_models_client_with_default_model
     aivm_model_uuid, _ = _get_first_default_aivm_info(client)
 
     load_response = client.post(f"/aivm_models/{aivm_model_uuid}/load")
@@ -301,10 +343,12 @@ def test_post_load_aivm_model_404(
 
 
 def test_post_update_aivm_model_without_update_422(
-    client: TestClient, snapshot_json: SnapshotAssertion
+    isolated_aivm_models_client_with_default_model: TestClient,
+    snapshot_json: SnapshotAssertion,
 ) -> None:
     """更新可能フラグが立っていないデフォルトモデルを update しようとすると、422 になることを確認する。"""
 
+    client = isolated_aivm_models_client_with_default_model
     aivm_model_uuid, aivm_info = _get_first_default_aivm_info(client)
     assert aivm_info["is_update_available"] is False
 
@@ -314,11 +358,12 @@ def test_post_update_aivm_model_without_update_422(
 
 
 def test_delete_default_aivm_model_400(
-    client: TestClient, snapshot_json: SnapshotAssertion
+    isolated_aivm_models_client_with_default_model: TestClient,
+    snapshot_json: SnapshotAssertion,
 ) -> None:
     """デフォルトモデルを uninstall しようとすると、保護されて 400 になることを確認する。"""
 
-    response = client.get("/aivm_models")
+    response = isolated_aivm_models_client_with_default_model.get("/aivm_models")
     assert response.status_code == 200
 
     default_aivm_model_uuid = next(
@@ -327,7 +372,9 @@ def test_delete_default_aivm_model_400(
         if aivm_info["is_default_model"] is True
     )
 
-    response = client.delete(f"/aivm_models/{default_aivm_model_uuid}/uninstall")
+    response = isolated_aivm_models_client_with_default_model.delete(
+        f"/aivm_models/{default_aivm_model_uuid}/uninstall"
+    )
     assert response.status_code == 400
     assert snapshot_json == response.json()
 

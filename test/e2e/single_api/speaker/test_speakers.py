@@ -61,14 +61,16 @@ def _filter_default_speakers(
     ]
 
 
-def test_get_speakers_200(client: TestClient, snapshot_json: SnapshotAssertion) -> None:
+def test_get_speakers_200(
+    client_with_default_model: TestClient, snapshot_json: SnapshotAssertion
+) -> None:
     """デフォルトモデル由来の話者一覧が Speaker API 互換形式で返ることを確認する。"""
 
-    response = client.get("/speakers", params={})
+    response = client_with_default_model.get("/speakers", params={})
     assert response.status_code == 200
 
     # デフォルトモデル由来の話者のみにフィルタしてスナップショット比較する
-    default_speaker_uuids = _get_default_speaker_uuids(client)
+    default_speaker_uuids = _get_default_speaker_uuids(client_with_default_model)
     default_speakers = _filter_default_speakers(response.json(), default_speaker_uuids)
     assert len(default_speakers) > 0
     assert snapshot_json == hash_long_string(default_speakers)

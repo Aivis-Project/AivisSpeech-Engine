@@ -416,6 +416,10 @@ def main() -> None:
         inference_type="GPU" if use_gpu is True else "CPU"
     )
 
+    # AivisHub API クライアントを初期化
+    ## except ブロックからも参照されるため、try の外で生成する
+    aivishub_client = AivisHubClient()
+
     try:
         # Sentry によるエラートラッキングを開始 (production 環境のみ有効)
         # ref: https://docs.sentry.io/platforms/python/integrations/fastapi/
@@ -442,7 +446,10 @@ def main() -> None:
         logger.info(f"User data directory: {get_save_dir()}")
 
         # AivmManager を初期化
-        aivm_manager = AivmManager(get_save_dir() / "Models")
+        aivm_manager = AivmManager(
+            get_save_dir() / "Models",
+            aivishub_client=aivishub_client,
+        )
 
         # ごく稀に style_bert_vits2_tts_engine.py (が依存する onnxruntime) のインポート自体に失敗し
         # 例外が発生する環境があるようなので、例外をキャッチしてエラーログに出力できるよう、敢えてルーター初期化時にインポートする
@@ -558,7 +565,7 @@ def main() -> None:
         # エンジンが正常に起動したことを AivisHub へ通知する
         # イベント送信時にいかなるエラーが発生してもエラーはメソッド内で吸収されるため、起動処理には影響を与えない
         if runtime_environment is not None:
-            AivisHubClient.send_event(
+            aivishub_client.send_event(
                 event_type="Startup",
                 runtime_environment=runtime_environment,
             )
@@ -569,7 +576,7 @@ def main() -> None:
 
     except Exception as ex:
         # 起動時にエラーが発生した場合、スタックトレースを取得した上で起動失敗イベントを AivisHub へ通知する
-        AivisHubClient.send_event(
+        aivishub_client.send_event(
             event_type="StartupFailed",
             runtime_environment=runtime_environment,
             stack_trace=traceback.format_exc(),

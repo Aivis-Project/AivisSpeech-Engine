@@ -3,12 +3,16 @@
 from fastapi.testclient import TestClient
 from syrupy.assertion import SnapshotAssertion
 
-from test.e2e.single_api.utils import gen_mora
+from test.e2e.single_api.utils import gen_mora, get_first_style_id
 
 # from test.utility import hash_wave_floats_from_wav_bytes
 
 
-def test_post_synthesis_200(client: TestClient, snapshot: SnapshotAssertion) -> None:
+def test_post_synthesis_200(
+    client_with_default_model: TestClient, snapshot: SnapshotAssertion
+) -> None:
+    client = client_with_default_model
+    style_id = get_first_style_id(client)
     query = {
         "accent_phrases": [
             {
@@ -34,7 +38,7 @@ def test_post_synthesis_200(client: TestClient, snapshot: SnapshotAssertion) -> 
         "outputStereo": False,
         "kana": "テスト",
     }
-    response = client.post("/synthesis", params={"speaker": 888753760}, json=query)
+    response = client.post("/synthesis", params={"speaker": style_id}, json=query)
     assert response.status_code == 200
 
     # 音声波形が一致する
@@ -44,9 +48,12 @@ def test_post_synthesis_200(client: TestClient, snapshot: SnapshotAssertion) -> 
 
 
 def test_post_synthesis_old_audio_query_200(
-    client: TestClient, snapshot: SnapshotAssertion
+    client_with_default_model: TestClient, snapshot: SnapshotAssertion
 ) -> None:
     """古いバージョンの audio_query でもエラーなく合成できる"""
+
+    client = client_with_default_model
+    style_id = get_first_style_id(client)
     query = {
         "accent_phrases": [
             {
@@ -69,7 +76,7 @@ def test_post_synthesis_old_audio_query_200(
         "outputSamplingRate": 44100,
         "outputStereo": False,
     }
-    response = client.post("/synthesis", params={"speaker": 888753760}, json=query)
+    response = client.post("/synthesis", params={"speaker": style_id}, json=query)
     assert response.status_code == 200
 
     # 音声波形が一致する
