@@ -1,6 +1,6 @@
 [project]
-name = "voicevox_engine"
-version = "1.1.0" # TODO: できれば version を自動管理する
+name = "AivisSpeech-Engine"
+version = "1.2.0" # TODO: できれば version を自動管理する
 requires-python = ">=3.11,<3.12"
 dependencies = [
   "fastapi>=0.115.5,<1.0.0",

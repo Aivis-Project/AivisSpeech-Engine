@@ -10,8 +10,124 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-04-23T12:38:50.25354Z"
+exclude-newer = "2026-04-23T18:13:19.380099Z"
 exclude-newer-span = "P1W"
+
+[[package]]
+name = "aivisspeech-engine"
+version = "1.2.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "aivmlib" },
+    { name = "e2k" },
+    { name = "fastapi" },
+    { name = "gputil" },
+    { name = "httpx" },
+    { name = "jaconv" },
+    { name = "jinja2" },
+    { name = "kanalizer" },
+    { name = "numpy" },
+    { name = "onnxruntime", marker = "(platform_machine != 'x86_64' and sys_platform == 'linux') or sys_platform == 'darwin'" },
+    { name = "onnxruntime-directml", marker = "sys_platform == 'win32'" },
+    { name = "onnxruntime-gpu", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "platformdirs" },
+    { name = "psutil" },
+    { name = "py-cpuinfo" },
+    { name = "pydantic" },
+    { name = "pyopenjtalk-plus" },
+    { name = "python-multipart" },
+    { name = "pyworld-prebuilt" },
+    { name = "pyyaml" },
+    { name = "semver" },
+    { name = "sentry-sdk", extra = ["fastapi"] },
+    { name = "setuptools" },
+    { name = "soundfile" },
+    { name = "soxr" },
+    { name = "starlette" },
+    { name = "style-bert-vits2" },
+    { name = "truststore" },
+    { name = "uvicorn" },
+    { name = "wmi", marker = "sys_platform == 'win32'" },
+]
+
+[package.dev-dependencies]
+build = [
+    { name = "pyinstaller" },
+    { name = "taskipy" },
+]
+dev = [
+    { name = "coveralls" },
+    { name = "httpx" },
+    { name = "mypy" },
+    { name = "pip-audit" },
+    { name = "pip-licenses" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "ruff" },
+    { name = "syrupy" },
+    { name = "taskipy" },
+    { name = "types-pyyaml" },
+    { name = "typos" },
+]
+licenses = [
+    { name = "pip-licenses" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aivmlib", specifier = ">=1.2.1,<2.0.0" },
+    { name = "e2k", git = "https://github.com/tsukumijima/e2k?rev=9920754e15d8c96404bef0bd81d424352fb7a48b" },
+    { name = "fastapi", specifier = ">=0.115.5,<1.0.0" },
+    { name = "gputil", specifier = ">=1.4.0" },
+    { name = "httpx", specifier = ">=0.28.1,<1.0.0" },
+    { name = "jaconv", specifier = ">=0.3.4,<1.0.0" },
+    { name = "jinja2", specifier = ">=3.1.6,<4.0.0" },
+    { name = "kanalizer", specifier = ">=0.1.1" },
+    { name = "numpy", specifier = ">=2.3.0" },
+    { name = "onnxruntime", marker = "(platform_machine != 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and sys_platform == 'linux')", specifier = ">=1.21.0,<2.0.0" },
+    { name = "onnxruntime", marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'", specifier = "==1.23.0" },
+    { name = "onnxruntime-directml", marker = "sys_platform == 'win32'", specifier = ">=1.21.0,<2.0.0" },
+    { name = "onnxruntime-gpu", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = ">=1.21.0,<2.0.0" },
+    { name = "platformdirs", specifier = ">=4.2.0" },
+    { name = "psutil", specifier = ">=6.1.1" },
+    { name = "py-cpuinfo", specifier = ">=9.0.0" },
+    { name = "pydantic", specifier = ">=2.7.3" },
+    { name = "pyopenjtalk-plus", specifier = ">=0.4.1.post8,<1.0.0" },
+    { name = "python-multipart", specifier = ">=0.0.22,<1.0.0" },
+    { name = "pyworld-prebuilt", specifier = ">=0.3.5.post2,<1.0.0" },
+    { name = "pyyaml", specifier = ">=6.0.1" },
+    { name = "semver", specifier = ">=3.0.0" },
+    { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.19.2,<3.0.0" },
+    { name = "setuptools", specifier = "<82" },
+    { name = "soundfile", specifier = ">=0.13.1,<1.0.0" },
+    { name = "soxr", specifier = ">=0.5.0,<1.0.0" },
+    { name = "starlette", specifier = ">=0.45.3,<1.0.0" },
+    { name = "style-bert-vits2", git = "https://github.com/tsukumijima/Style-Bert-VITS2?rev=1588a46595141a04652f9aae486f8a625c04ce55" },
+    { name = "truststore", specifier = ">=0.10.0,<1.0.0" },
+    { name = "uvicorn", specifier = ">=0.34.0,<1.0.0" },
+    { name = "wmi", marker = "sys_platform == 'win32'", specifier = ">=1.5.1,<2.0.0" },
+]
+
+[package.metadata.requires-dev]
+build = [
+    { name = "pyinstaller", specifier = ">=6.19.0,<7.0.0" },
+    { name = "taskipy", specifier = ">=1.12.2" },
+]
+dev = [
+    { name = "coveralls", specifier = ">=4.0.1" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "mypy", specifier = ">=1.10.0" },
+    { name = "pip-audit", specifier = ">=2.7.3" },
+    { name = "pip-licenses", specifier = "==5.0.0" },
+    { name = "pre-commit", specifier = ">=4.0.1" },
+    { name = "pytest", specifier = ">=8.2.0" },
+    { name = "ruff", specifier = ">=0.11.1,<1.0.0" },
+    { name = "syrupy", specifier = ">=4.6.1" },
+    { name = "taskipy", specifier = ">=1.12.2" },
+    { name = "types-pyyaml", specifier = ">=6.0.12" },
+    { name = "typos", specifier = ">=1.31.1" },
+]
+licenses = [{ name = "pip-licenses", specifier = "==5.0.0" }]
 
 [[package]]
 name = "aivmlib"
@@ -887,10 +1003,10 @@ name = "onnxruntime-gpu"
 version = "1.25.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "flatbuffers", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
-    { name = "numpy", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
-    { name = "packaging", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
-    { name = "protobuf", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
+    { name = "flatbuffers", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 's390x' and sys_platform != 'darwin' and sys_platform != 'linux')" },
+    { name = "numpy", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 's390x' and sys_platform != 'darwin' and sys_platform != 'linux')" },
+    { name = "packaging", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 's390x' and sys_platform != 'darwin' and sys_platform != 'linux')" },
+    { name = "protobuf", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 's390x' and sys_platform != 'darwin' and sys_platform != 'linux')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2d/7e/f58f8fc505a876b31fd2a34c1eb8f9863b75bf1589c3297c8efd48b93151/onnxruntime_gpu-1.25.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:e8625bb31ee2d88524414e7458cc604f4f958f323ef8832cc00882f6cd42b9a1", size = 270337732, upload-time = "2026-04-22T17:27:59.993Z" },
@@ -1845,122 +1961,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/0c/98/3a7e644e19cb26133
 wheels = [
     { url = "https://files.pythonhosted.org/packages/27/8d/edd0bd910ff803c308ee9a6b7778621af0d10252219ad9f19ef4d4982a61/virtualenv-21.2.4-py3-none-any.whl", hash = "sha256:29d21e941795206138d0f22f4e45ff7050e5da6c6472299fb7103318763861ac", size = 5831232, upload-time = "2026-04-14T22:15:29.342Z" },
 ]
-
-[[package]]
-name = "voicevox-engine"
-version = "1.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "aivmlib" },
-    { name = "e2k" },
-    { name = "fastapi" },
-    { name = "gputil" },
-    { name = "httpx" },
-    { name = "jaconv" },
-    { name = "jinja2" },
-    { name = "kanalizer" },
-    { name = "numpy" },
-    { name = "onnxruntime", marker = "(platform_machine != 'x86_64' and sys_platform == 'linux') or sys_platform == 'darwin'" },
-    { name = "onnxruntime-directml", marker = "sys_platform == 'win32'" },
-    { name = "onnxruntime-gpu", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
-    { name = "platformdirs" },
-    { name = "psutil" },
-    { name = "py-cpuinfo" },
-    { name = "pydantic" },
-    { name = "pyopenjtalk-plus" },
-    { name = "python-multipart" },
-    { name = "pyworld-prebuilt" },
-    { name = "pyyaml" },
-    { name = "semver" },
-    { name = "sentry-sdk", extra = ["fastapi"] },
-    { name = "setuptools" },
-    { name = "soundfile" },
-    { name = "soxr" },
-    { name = "starlette" },
-    { name = "style-bert-vits2" },
-    { name = "truststore" },
-    { name = "uvicorn" },
-    { name = "wmi", marker = "sys_platform == 'win32'" },
-]
-
-[package.dev-dependencies]
-build = [
-    { name = "pyinstaller" },
-    { name = "taskipy" },
-]
-dev = [
-    { name = "coveralls" },
-    { name = "httpx" },
-    { name = "mypy" },
-    { name = "pip-audit" },
-    { name = "pip-licenses" },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "ruff" },
-    { name = "syrupy" },
-    { name = "taskipy" },
-    { name = "types-pyyaml" },
-    { name = "typos" },
-]
-licenses = [
-    { name = "pip-licenses" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aivmlib", specifier = ">=1.2.1,<2.0.0" },
-    { name = "e2k", git = "https://github.com/tsukumijima/e2k?rev=9920754e15d8c96404bef0bd81d424352fb7a48b" },
-    { name = "fastapi", specifier = ">=0.115.5,<1.0.0" },
-    { name = "gputil", specifier = ">=1.4.0" },
-    { name = "httpx", specifier = ">=0.28.1,<1.0.0" },
-    { name = "jaconv", specifier = ">=0.3.4,<1.0.0" },
-    { name = "jinja2", specifier = ">=3.1.6,<4.0.0" },
-    { name = "kanalizer", specifier = ">=0.1.1" },
-    { name = "numpy", specifier = ">=2.3.0" },
-    { name = "onnxruntime", marker = "(platform_machine != 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and sys_platform == 'linux')", specifier = ">=1.21.0,<2.0.0" },
-    { name = "onnxruntime", marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'", specifier = "==1.23.0" },
-    { name = "onnxruntime-directml", marker = "sys_platform == 'win32'", specifier = ">=1.21.0,<2.0.0" },
-    { name = "onnxruntime-gpu", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = ">=1.21.0,<2.0.0" },
-    { name = "platformdirs", specifier = ">=4.2.0" },
-    { name = "psutil", specifier = ">=6.1.1" },
-    { name = "py-cpuinfo", specifier = ">=9.0.0" },
-    { name = "pydantic", specifier = ">=2.7.3" },
-    { name = "pyopenjtalk-plus", specifier = ">=0.4.1.post8,<1.0.0" },
-    { name = "python-multipart", specifier = ">=0.0.22,<1.0.0" },
-    { name = "pyworld-prebuilt", specifier = ">=0.3.5.post2,<1.0.0" },
-    { name = "pyyaml", specifier = ">=6.0.1" },
-    { name = "semver", specifier = ">=3.0.0" },
-    { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.19.2,<3.0.0" },
-    { name = "setuptools", specifier = "<82" },
-    { name = "soundfile", specifier = ">=0.13.1,<1.0.0" },
-    { name = "soxr", specifier = ">=0.5.0,<1.0.0" },
-    { name = "starlette", specifier = ">=0.45.3,<1.0.0" },
-    { name = "style-bert-vits2", git = "https://github.com/tsukumijima/Style-Bert-VITS2?rev=1588a46595141a04652f9aae486f8a625c04ce55" },
-    { name = "truststore", specifier = ">=0.10.0,<1.0.0" },
-    { name = "uvicorn", specifier = ">=0.34.0,<1.0.0" },
-    { name = "wmi", marker = "sys_platform == 'win32'", specifier = ">=1.5.1,<2.0.0" },
-]
-
-[package.metadata.requires-dev]
-build = [
-    { name = "pyinstaller", specifier = ">=6.19.0,<7.0.0" },
-    { name = "taskipy", specifier = ">=1.12.2" },
-]
-dev = [
-    { name = "coveralls", specifier = ">=4.0.1" },
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "mypy", specifier = ">=1.10.0" },
-    { name = "pip-audit", specifier = ">=2.7.3" },
-    { name = "pip-licenses", specifier = "==5.0.0" },
-    { name = "pre-commit", specifier = ">=4.0.1" },
-    { name = "pytest", specifier = ">=8.2.0" },
-    { name = "ruff", specifier = ">=0.11.1,<1.0.0" },
-    { name = "syrupy", specifier = ">=4.6.1" },
-    { name = "taskipy", specifier = ">=1.12.2" },
-    { name = "types-pyyaml", specifier = ">=6.0.12" },
-    { name = "typos", specifier = ">=1.31.1" },
-]
-licenses = [{ name = "pip-licenses", specifier = "==5.0.0" }]
 
 [[package]]
 name = "wcwidth"
