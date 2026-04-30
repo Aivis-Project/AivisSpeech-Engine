@@ -10,7 +10,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-04-16T03:59:45.916848Z"
+exclude-newer = "2026-04-23T08:09:09.978936Z"
 exclude-newer-span = "P1W"
 
 [[package]]
@@ -1849,7 +1849,7 @@ wheels = [
 
 [[package]]
 name = "voicevox-engine"
-version = "0.24.0"
+version = "1.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "aivmlib" },
