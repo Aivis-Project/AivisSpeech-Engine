@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from syrupy.assertion import SnapshotAssertion
 
-from test.e2e.conftest import _DefaultModelAivisHubClient, _NoopAivisHubClient
+from test.e2e.conftest import _TestAivisHubClient, _TestDefaultModelAivisHubClient
 from test.utility import hash_long_string
 from voicevox_engine.aivm_manager import AivmManager
 from voicevox_engine.app.routers.aivm_models import generate_aivm_models_router
@@ -65,7 +65,7 @@ def isolated_aivm_models_client(
     """
 
     # DI でネットワーク呼び出しと実データディレクトリへのアクセスを防止する
-    noop_aivishub_client = _NoopAivisHubClient(
+    noop_aivishub_client = _TestAivisHubClient(
         installation_uuid_path=tmp_path / "installation_uuid.dat",
     )
     aivm_manager = AivmManager(
@@ -120,7 +120,7 @@ def isolated_aivm_models_client_with_default_model(
     # セッションで共有されたモデルディレクトリを直接参照する（テストごとのコピーは行わない）
     # デフォルトモデルの UUID を返す AivisHubClient を利用し、モデルをデフォルトとしてマークさせる
     ## AIVMX は既に配置済みなので再 DL は発生しない（latest_version が "0.0.0" のため）
-    aivishub_client = _DefaultModelAivisHubClient(
+    aivishub_client = _TestDefaultModelAivisHubClient(
         installation_uuid_path=tmp_path / "installation_uuid.dat",
     )
     aivm_manager = AivmManager(

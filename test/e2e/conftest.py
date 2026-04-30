@@ -28,8 +28,6 @@ from voicevox_engine.user_dict.user_dict_manager import UserDictionary
 from voicevox_engine.utility.aivishub_client import (
     AivisHubClient,
     AivisSpeechDefaultModelProperty,
-    AivisSpeechForcedRemovalRule,
-    AivmModelResponse,
 )
 from voicevox_engine.utility.core_version_utility import MOCK_CORE_VERSION
 from voicevox_engine.utility.path_utility import engine_manifest_path
@@ -42,49 +40,44 @@ _DEFAULT_MODEL_UUIDS = [
 ]
 
 
-class _NoopAivisHubClient(AivisHubClient):
-    """ネットワーク呼び出しを一切行わないテスト用 AivisHubClient。"""
-
-    def __init__(self, installation_uuid_path: Path | None = None) -> None:
-        """
-        テスト用 AivisHubClient を初期化する。
-
-        Parameters
-        ----------
-        installation_uuid_path : Path | None
-            インストール UUID の保存先パス（テスト用一時ディレクトリ下を推奨）。
-        """
-
-        super().__init__(installation_uuid_path=installation_uuid_path)
+class _TestAivisHubClient(AivisHubClient):
+    """
+    DL トリガーとイベント送信のみ遮断し、他の API は実際に叩くテスト用 AivisHubClient 。
+    fetch_forced_removal_rules() と fetch_model_detail() は実 API を叩くため、
+    AivisHub API との統合テストとしても機能する。
+    """
 
     def fetch_default_models(self) -> list[AivisSpeechDefaultModelProperty]:
+        # 空リストを返すことで _install_or_update_default_models() での AIVMX DL を防ぐ
+        ## 実 API を叩くと未インストールモデルの DL がトリガーされ、ダウンロードカウント増加が発生するため遮断する
         return []
-
-    def fetch_forced_removal_rules(self) -> list[AivisSpeechForcedRemovalRule]:
-        return []
-
-    async def fetch_model_detail(
-        self,
-        aivm_model_uuid: uuid.UUID,
-    ) -> AivmModelResponse | None:
-        return None
 
     def send_event(self, *args: Any, **kwargs: Any) -> None:
+        # テスト実行がノイズとしてイベント記録されるのを防ぐ
         pass
 
 
-class _DefaultModelAivisHubClient(_NoopAivisHubClient):
-    """デフォルトモデルの UUID のみを返すテスト用 AivisHubClient。"""
+class _TestDefaultModelAivisHubClient(AivisHubClient):
+    """
+    デフォルトモデルをマークしつつ DL はトリガーしないテスト用 AivisHubClient 。
+    fetch_forced_removal_rules() と fetch_model_detail() は実 API を叩くため、
+    AivisHub API との統合テストとしても機能する。
+    """
 
     def fetch_default_models(self) -> list[AivisSpeechDefaultModelProperty]:
+        # latest_version を "0.0.0" にすることで、既にインストール済みのモデルの
+        # バージョンアップ DL をトリガーしないようにする
         return [
             AivisSpeechDefaultModelProperty(
                 model_uuid=uuid.UUID(model_uuid),
-                # 既にインストール済みの AIVMX を利用するため、バージョンは低く設定して再 DL を防ぐ
                 latest_version="0.0.0",
             )
             for model_uuid in _DEFAULT_MODEL_UUIDS
         ]
+
+    def send_event(self, *args: Any, **kwargs: Any) -> None:
+        # テスト実行がノイズとしてイベント記録されるのを防ぐ
+        pass
 
 
 @pytest.fixture(scope="session")
@@ -135,7 +128,7 @@ def _build_app_params(
         テスト用一時ディレクトリ。
     aivishub_client : AivisHubClient | None
         テスト用の AivisHubClient インスタンス。
-        None の場合はネットワーク呼び出しを行わない _NoopAivisHubClient が使われる。
+        None の場合はネットワーク呼び出しを行わない _TestAivisHubClient が使われる。
     models_dir : Path | None
         AIVMX ファイルのインストール先ディレクトリ。None の場合は tmp_path / "Models" が使われる。
 
@@ -146,7 +139,7 @@ def _build_app_params(
     """
 
     if aivishub_client is None:
-        aivishub_client = _NoopAivisHubClient(
+        aivishub_client = _TestAivisHubClient(
             installation_uuid_path=tmp_path / "installation_uuid.dat",
         )
     if models_dir is None:
@@ -240,7 +233,7 @@ def client_with_default_model(
     # セッションで共有されたモデルディレクトリを直接参照する（テストごとのコピーは行わない）
     # デフォルトモデルの UUID を返す AivisHubClient を利用し、モデルをデフォルトとしてマークさせる
     ## latest_version が "0.0.0" なので再 DL は発生しない
-    aivishub_client = _DefaultModelAivisHubClient(
+    aivishub_client = _TestDefaultModelAivisHubClient(
         installation_uuid_path=tmp_path / "installation_uuid.dat",
     )
     return TestClient(
