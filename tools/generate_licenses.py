@@ -28,7 +28,7 @@ def _get_license_text(text_url: str) -> str:
 
 @dataclass
 class _PipLicense:
-    """`pip-license` により得られる依存ライブラリの情報"""
+    """`pip-licenses` により得られる依存ライブラリの情報"""
 
     License: str
     Name: str
@@ -86,12 +86,12 @@ class _License:
                 self.license_text = Path(license_text).read_text(encoding="utf8")
             case "remote_address":
                 self.license_text = _get_license_text(license_text)
-            case unreachable:
-                assert_never(unreachable)
+            case _:
+                assert_never(license_text_type)
 
 
 def _update_licenses(pip_licenses: list[_PipLicense]) -> list[_License]:
-    """pip から取得したライセンス情報の抜けを補完する。"""
+    """pip-licenses から取得したライセンス情報の抜けを補完する。"""
     package_to_license_url: dict[str, str] = {
         # "package_name": "https://license.adress.com/v0.0.0/LICENSE.txt",
         "flatbuffers": "https://raw.githubusercontent.com/google/flatbuffers/refs/tags/v25.12.19/LICENSE",
@@ -149,6 +149,7 @@ def _add_licenses_manually(licenses: list[_License]) -> None:
     python_version = "3.11.9"
 
     additional_licenses = [
+        # AivisSpeech Engine のフォーク元である VOICEVOX ENGINE のライセンス表記を一番上に置く
         _License(
             package_name="VOICEVOX ENGINE",
             package_version=None,
@@ -156,6 +157,7 @@ def _add_licenses_manually(licenses: list[_License]) -> None:
             license_text="https://raw.githubusercontent.com/VOICEVOX/voicevox_engine/master/LGPL_LICENSE",
             license_text_type="remote_address",
         ),
+        # Open JTalk 関連のライセンス表記
         # https://sourceforge.net/projects/open-jtalk/files/Open%20JTalk/open_jtalk-1.11/
         _License(
             package_name="Open JTalk",
@@ -178,27 +180,51 @@ def _add_licenses_manually(licenses: list[_License]) -> None:
             license_text="tools/licenses/open_jtalk/mecab-naist-jdic/COPYING",
             license_text_type="local_address",
         ),
-        _License(
-            package_name="World",
-            package_version=None,
-            license_name="Modified BSD license",
-            license_text="https://raw.githubusercontent.com/mmorise/World/master/LICENSE.txt",
-            license_text_type="remote_address",
-        ),
-        _License(
-            package_name="PyTorch",
-            package_version="1.9.0",
-            license_name="BSD-style license",
-            license_text="https://raw.githubusercontent.com/pytorch/pytorch/master/LICENSE",
-            license_text_type="remote_address",
-        ),
-        _License(
-            package_name="ONNX Runtime",
-            package_version="1.17.3",
-            license_name="MIT license",
-            license_text="https://raw.githubusercontent.com/microsoft/onnxruntime/master/LICENSE",
-            license_text_type="remote_address",
-        ),
+        # 以下は AivisSpeech Engine では依存関係に含まれない or pip-licenses で
+        # 自動的にライセンス情報が取得されるライブラリのためコメントアウト
+        # _License(
+        #     package_name='HTS Voice "Mei"',
+        #     package_version=None,
+        #     license_name="Creative Commons Attribution 3.0 license",
+        #     license_text="https://raw.githubusercontent.com/r9y9/pyopenjtalk/master/pyopenjtalk/htsvoice/LICENSE_mei_normal.htsvoice",
+        #     license_text_type="remote_address",
+        # ),
+        # _License(
+        #     package_name="VOICEVOX CORE",
+        #     package_version=None,
+        #     license_name="MIT license",
+        #     license_text="https://raw.githubusercontent.com/VOICEVOX/voicevox_core/main/LICENSE",
+        #     license_text_type="remote_address",
+        # ),
+        # _License(
+        #     package_name="VOICEVOX ENGINE",
+        #     package_version=None,
+        #     license_name="LGPL license",
+        #     license_text="https://raw.githubusercontent.com/VOICEVOX/voicevox_engine/master/LGPL_LICENSE",
+        #     license_text_type="remote_address",
+        # ),
+        # _License(
+        #     package_name="world",
+        #     package_version=None,
+        #     license_name="Modified BSD license",
+        #     license_text="https://raw.githubusercontent.com/mmorise/World/master/LICENSE.txt",
+        #     license_text_type="remote_address",
+        # ),
+        # _License(
+        #     package_name="PyTorch",
+        #     package_version="1.9.0",
+        #     license_name="BSD-style license",
+        #     license_text="https://raw.githubusercontent.com/pytorch/pytorch/master/LICENSE",
+        #     license_text_type="remote_address",
+        # ),
+        # _License(
+        #     package_name="ONNX Runtime",
+        #     package_version="1.17.3",
+        #     license_name="MIT license",
+        #     license_text="https://raw.githubusercontent.com/microsoft/onnxruntime/master/LICENSE",
+        #     license_text_type="remote_address",
+        # ),
+        # CPython インタプリタ本体
         _License(
             package_name="Python",
             package_version=python_version,
@@ -206,6 +232,7 @@ def _add_licenses_manually(licenses: list[_License]) -> None:
             license_text=f"https://raw.githubusercontent.com/python/cpython/v{python_version}/LICENSE",
             license_text_type="remote_address",
         ),
+        # Soundfile 関連
         _License(
             package_name="libsndfile-binaries",
             package_version="1.2.2",
@@ -227,7 +254,7 @@ def _add_licenses_manually(licenses: list[_License]) -> None:
             license_text="https://raw.githubusercontent.com/xiph/vorbis/v1.3.7/COPYING",
             license_text_type="remote_address",
         ),
-        # libflac
+        ## libflac
         _License(
             package_name="FLAC",
             package_version="1.4.3",
@@ -235,7 +262,7 @@ def _add_licenses_manually(licenses: list[_License]) -> None:
             license_text="https://raw.githubusercontent.com/xiph/flac/1.4.3/COPYING.Xiph",
             license_text_type="remote_address",
         ),
-        # libopus
+        ## libopus
         _License(
             package_name="Opus",
             package_version="1.4",
@@ -243,7 +270,8 @@ def _add_licenses_manually(licenses: list[_License]) -> None:
             license_text="https://raw.githubusercontent.com/xiph/opus/v1.4/COPYING",
             license_text_type="remote_address",
         ),
-        # https://sourceforge.net/projects/mpg123/files/mpg123/1.32.3/
+        ## mpg123
+        ## https://sourceforge.net/projects/mpg123/files/mpg123/1.32.3/
         _License(
             package_name="mpg123",
             package_version="1.32.3",
@@ -251,8 +279,8 @@ def _add_licenses_manually(licenses: list[_License]) -> None:
             license_text="tools/licenses/mpg123/COPYING",
             license_text_type="local_address",
         ),
-        # liblame
-        # https://sourceforge.net/projects/lame/files/lame/3.100/
+        ## liblame
+        ## https://sourceforge.net/projects/lame/files/lame/3.100/
         _License(
             package_name="lame",
             package_version="3.100",
@@ -260,28 +288,29 @@ def _add_licenses_manually(licenses: list[_License]) -> None:
             license_text="https://svn.code.sf.net/p/lame/svn/tags/RELEASE__3_100/lame/COPYING",
             license_text_type="remote_address",
         ),
-        # license text from CUDA 12.8.1
-        # https://developer.nvidia.com/cuda-12-8-1-download-archive?target_os=Windows&target_arch=x86_64&target_version=10&target_type=exe_local
-        # https://developer.download.nvidia.com/compute/cuda/12.8.1/local_installers/cuda_12.8.1_572.61_windows.exe
-        # cuda_12.8.1_572.61_windows.exe (cuda_documentation/Doc/EULA.txt)
-        _License(
-            package_name="CUDA Toolkit",
-            package_version="12.8.1",
-            license_name=None,
-            license_text="tools/licenses/cuda/EULA.txt",
-            license_text_type="local_address",
-        ),
-        # license text from cuDNN v8.9.7 (December 5th, 2023), for CUDA 12.x, cuDNN Library for Windows
-        # https://developer.nvidia.com/rdp/cudnn-archive
-        # https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/windows-x86_64/cudnn-windows-x86_64-8.9.7.29_cuda12-archive.zip
-        # cudnn-windows-x86_64-8.9.7.29_cuda12-archive.zip (cudnn-windows-x86_64-8.9.7.29_cuda12-archive/LICENSE)
-        _License(
-            package_name="cuDNN",
-            package_version="8.9.7",
-            license_name=None,
-            license_text="tools/licenses/cudnn/LICENSE",
-            license_text_type="local_address",
-        ),
+        # AivisSpeech Engine では配布物に CUDA / cuDNN ランタイムを含まないためコメントアウト
+        # # license text from CUDA 12.8.1
+        # # https://developer.nvidia.com/cuda-12-8-1-download-archive?target_os=Windows&target_arch=x86_64&target_version=10&target_type=exe_local
+        # # https://developer.download.nvidia.com/compute/cuda/12.8.1/local_installers/cuda_12.8.1_572.61_windows.exe
+        # # cuda_12.8.1_572.61_windows.exe (cuda_documentation/Doc/EULA.txt)
+        # _License(
+        #     package_name="CUDA Toolkit",
+        #     package_version="12.8.1",
+        #     license_name=None,
+        #     license_text="tools/licenses/cuda/EULA.txt",
+        #     license_text_type="local_address",
+        # ),
+        # # license text from cuDNN v8.9.7 (December 5th, 2023), for CUDA 12.x, cuDNN Library for Windows
+        # # https://developer.nvidia.com/rdp/cudnn-archive
+        # # https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/windows-x86_64/cudnn-windows-x86_64-8.9.7.29_cuda12-archive.zip
+        # # cudnn-windows-x86_64-8.9.7.29_cuda12-archive.zip (cudnn-windows-x86_64-8.9.7.29_cuda12-archive/LICENSE)
+        # _License(
+        #     package_name="cuDNN",
+        #     package_version="8.9.7",
+        #     license_name=None,
+        #     license_text="tools/licenses/cudnn/LICENSE",
+        #     license_text_type="local_address",
+        # ),
         # Python-SoXR (`soxr`, https://github.com/dofuuz/python-soxr) が依存するライブラリ
         _License(
             package_name="libsoxr",
