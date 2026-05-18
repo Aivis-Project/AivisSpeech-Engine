@@ -64,7 +64,7 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         "tsukumijima/deberta-v2-large-japanese-char-wwm-onnx"
     )
     # BERT モデルの固定リビジョン
-    BERT_MODEL_REVISION: Final[str] = "d701ec67708287b20d2063270f6b535e6eed09ab"
+    BERT_MODEL_REVISION: Final[str] = "5e5cc2b628d083d0a815c4d4a4c3fe84a414f8ed"
 
     def __init__(
         self,
