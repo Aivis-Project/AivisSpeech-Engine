@@ -99,6 +99,7 @@ def _update_licenses(pip_licenses: list[_PipLicense]) -> list[_License]:
         "jieba": "https://raw.githubusercontent.com/fxsjy/jieba/v0.42.1/LICENSE",
         "loguru": "https://raw.githubusercontent.com/Delgan/loguru/0.7.3/LICENSE",
         "safetensors": "https://raw.githubusercontent.com/huggingface/safetensors/v0.4.3/LICENSE",
+        "sentencepiece": "https://raw.githubusercontent.com/google/sentencepiece/v0.2.1/LICENSE",
         "sudachipy": "https://raw.githubusercontent.com/WorksApplications/sudachi.rs/v0.6.8/LICENSE",
         "tokenizers": "https://raw.githubusercontent.com/huggingface/tokenizers/v0.19.1/LICENSE",
     }
