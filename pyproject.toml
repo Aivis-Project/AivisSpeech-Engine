@@ -18,7 +18,7 @@ dependencies = [
   "setuptools<82", # NOTE: pyworld が pkg_resources を使っているため
   "soundfile>=0.13.1,<1.0.0",
   "soxr>=0.5.0,<1.0.0",
-  "starlette>=0.45.3,<1.0.0",
+  "starlette>=1.0.1,<2.0.0",
   "uvicorn>=0.34.0,<1.0.0",
   # 以下は AivisSpeech Engine 独自の依存関係
   "jaconv>=0.3.4,<1.0.0",
