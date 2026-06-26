@@ -35,6 +35,9 @@ dependencies = [
   "aivmlib>=1.2.1,<2.0.0",
   # gguf は ONNX GGML Plugin EP 用の AIVMX -> GGUF キャッシュ生成に必要
   "gguf>=0.17.1",
+  "onnx>=1.16.0,<2.0.0",
+  "onnxruntime-ep-aivis-ggml[convert]",
+  "safetensors>=0.4.0,<1.0.0",
   # AivisSpeech-Engine にはカスタマイズされた Style-Bert-VITS2 と e2k が必要
   "style-bert-vits2",
   "e2k",
@@ -55,6 +58,7 @@ exclude-newer = "1 week"
 [tool.uv.sources]
 style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "171f796f37651346bb5435afd75f2f6f3b335bb1" }
 e2k = { git = "https://github.com/tsukumijima/e2k", rev = "9920754e15d8c96404bef0bd81d424352fb7a48b" }
+onnxruntime-ep-aivis-ggml = { path = "experimental/onnxruntime-ep-aivis-ggml", editable = true }
 
 [dependency-groups]
 build = [

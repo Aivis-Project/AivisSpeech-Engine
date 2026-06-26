@@ -10,7 +10,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-06-19T05:21:42.787586037Z"
+exclude-newer = "2026-06-19T12:27:23.213876251Z"
 exclude-newer-span = "P1W"
 
 [[package]]
@@ -28,8 +28,10 @@ dependencies = [
     { name = "jinja2" },
     { name = "kanalizer" },
     { name = "numpy" },
+    { name = "onnx" },
     { name = "onnxruntime", marker = "(platform_machine != 'x86_64' and sys_platform == 'linux') or sys_platform == 'darwin'" },
     { name = "onnxruntime-directml", marker = "sys_platform == 'win32'" },
+    { name = "onnxruntime-ep-aivis-ggml", extra = ["convert"] },
     { name = "onnxruntime-gpu", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "platformdirs" },
     { name = "psutil" },
@@ -39,6 +41,7 @@ dependencies = [
     { name = "python-multipart" },
     { name = "pyworld-prebuilt" },
     { name = "pyyaml" },
+    { name = "safetensors" },
     { name = "semver" },
     { name = "sentry-sdk", extra = ["fastapi"] },
     { name = "setuptools" },
@@ -86,9 +89,11 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6,<4.0.0" },
     { name = "kanalizer", specifier = ">=0.1.1" },
     { name = "numpy", specifier = ">=2.3.0" },
+    { name = "onnx", specifier = ">=1.16.0,<2.0.0" },
     { name = "onnxruntime", marker = "(platform_machine != 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and sys_platform == 'linux')", specifier = ">=1.21.0,<2.0.0" },
     { name = "onnxruntime", marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'", specifier = "==1.23.0" },
     { name = "onnxruntime-directml", marker = "sys_platform == 'win32'", specifier = ">=1.21.0,<2.0.0" },
+    { name = "onnxruntime-ep-aivis-ggml", extras = ["convert"], editable = "experimental/onnxruntime-ep-aivis-ggml" },
     { name = "onnxruntime-gpu", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = ">=1.21.0,<2.0.0" },
     { name = "platformdirs", specifier = ">=4.2.0" },
     { name = "psutil", specifier = ">=6.1.1" },
@@ -98,6 +103,7 @@ requires-dist = [
     { name = "python-multipart", specifier = ">=0.0.31,<1.0.0" },
     { name = "pyworld-prebuilt", specifier = ">=0.3.5.post2,<1.0.0" },
     { name = "pyyaml", specifier = ">=6.0.1" },
+    { name = "safetensors", specifier = ">=0.4.0,<1.0.0" },
     { name = "semver", specifier = ">=3.0.0" },
     { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.19.2,<3.0.0" },
     { name = "setuptools", specifier = "<82" },
@@ -1039,6 +1045,29 @@ dependencies = [
 wheels = [
     { url = "https://files.pythonhosted.org/packages/be/90/99566dc6398028e7691a5b12720fd85f757a0901818b84599d28abb3f085/onnxruntime_directml-1.24.4-cp311-cp311-win_amd64.whl", hash = "sha256:96642a787e5a6f33bf043521c0f06eb1eb663f6b830e5862a2026d03f9c90543", size = 25106000, upload-time = "2026-03-17T21:47:15.438Z" },
 ]
+
+[[package]]
+name = "onnxruntime-ep-aivis-ggml"
+version = "0.1.0"
+source = { editable = "experimental/onnxruntime-ep-aivis-ggml" }
+
+[package.optional-dependencies]
+convert = [
+    { name = "gguf" },
+    { name = "numpy" },
+    { name = "onnx" },
+    { name = "safetensors" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "gguf", marker = "extra == 'convert'" },
+    { name = "numpy", marker = "extra == 'convert'" },
+    { name = "onnx", marker = "extra == 'convert'" },
+    { name = "safetensors", marker = "extra == 'convert'" },
+    { name = "torch", marker = "extra == 'convert-pytorch'" },
+]
+provides-extras = ["convert", "convert-pytorch"]
 
 [[package]]
 name = "onnxruntime-gpu"

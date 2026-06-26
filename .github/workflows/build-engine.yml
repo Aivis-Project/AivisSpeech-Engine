@@ -70,6 +70,9 @@ jobs:
       # GNUコマンド
       sed: ${{ startsWith(matrix.os, 'macos-') && 'gsed' || 'sed' }}
       split: ${{ startsWith(matrix.os, 'macos-') && 'gsplit' || 'split' }}
+      AIVIS_ONNX_GGML_ORT_VERSION: "1.26.0"
+      AIVIS_ONNX_GGML_TTS_CPP_REPOSITORY: "https://github.com/clawd20130/TTS.cpp.git"
+      AIVIS_ONNX_GGML_TTS_CPP_REF: "95126d83f48acedfc425868aae8536f64fde2d1c"
 
     steps:
       - name: <Setup> Declare variables
@@ -94,6 +97,100 @@ jobs:
         uses: ./.github/actions/prepare_python
         with:
           dependency-group: build
+
+      - name: <Setup> Install ONNX GGML native build dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y glslc libvulkan-dev patchelf
+
+      - name: <Setup> Install ONNX GGML native build dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: choco install vulkan-sdk -y --no-progress
+
+      - name: <Setup> Prepare ONNX Runtime Plugin EP headers
+        run: |
+          set -eux
+          mkdir -p download/
+          ORT_ARCHIVE="onnxruntime-linux-x64-${AIVIS_ONNX_GGML_ORT_VERSION}.tgz"
+          ORT_DIR="${{ runner.temp }}/onnxruntime-${AIVIS_ONNX_GGML_ORT_VERSION}"
+          curl -sSL \
+            "https://github.com/microsoft/onnxruntime/releases/download/v${AIVIS_ONNX_GGML_ORT_VERSION}/${ORT_ARCHIVE}" \
+            -o "download/${ORT_ARCHIVE}"
+          mkdir -p "${ORT_DIR}"
+          tar -xzf "download/${ORT_ARCHIVE}" -C "${ORT_DIR}" --strip-components=1
+          echo "ORT_INCLUDE_DIR=${ORT_DIR}/include/onnxruntime/core/session" >> "$GITHUB_ENV"
+
+      - name: <Build> Build ONNX GGML Plugin EP
+        run: |
+          set -eux
+          cmake \
+            -S experimental/onnxruntime-ep-aivis-ggml/native \
+            -B build/onnx-ggml-native \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DORT_INCLUDE_DIR="$ORT_INCLUDE_DIR"
+          cmake --build build/onnx-ggml-native --config Release --parallel
+          cmake --install build/onnx-ggml-native --config Release \
+            --prefix experimental/onnxruntime-ep-aivis-ggml/src
+
+      - name: <Build> Build TTS.cpp runtime
+        run: |
+          set -eux
+          TTS_CPP_DIR="${{ runner.temp }}/TTS.cpp"
+          TTS_CPP_BUILD_DIR="${{ runner.temp }}/TTS.cpp-build"
+          rm -rf "$TTS_CPP_DIR" "$TTS_CPP_BUILD_DIR"
+          git clone --recursive "$AIVIS_ONNX_GGML_TTS_CPP_REPOSITORY" "$TTS_CPP_DIR"
+          git -C "$TTS_CPP_DIR" checkout "$AIVIS_ONNX_GGML_TTS_CPP_REF"
+          git -C "$TTS_CPP_DIR" submodule update --init --recursive
+
+          cmake_args=(
+            -DCMAKE_BUILD_TYPE=Release
+            -DBUILD_SHARED_LIBS=ON
+            -DTTS_BUILD_EXAMPLES=OFF
+            -DCMAKE_BUILD_RPATH_USE_ORIGIN=ON
+            "-DCMAKE_BUILD_RPATH=\$ORIGIN"
+            "-DCMAKE_INSTALL_RPATH=\$ORIGIN"
+          )
+          if [[ "${{ runner.os }}" == "macOS" ]]; then
+            cmake_args+=(-DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON)
+          else
+            cmake_args+=(-DGGML_VULKAN=ON)
+          fi
+
+          cmake -S "$TTS_CPP_DIR" -B "$TTS_CPP_BUILD_DIR" "${cmake_args[@]}"
+          cmake --build "$TTS_CPP_BUILD_DIR" --config Release --target tts --parallel
+
+          TTS_CPP_BUILD_DIR="$TTS_CPP_BUILD_DIR" python - <<'PY'
+          import os
+          import sys
+          from pathlib import Path
+
+          build_dir = Path(os.environ["TTS_CPP_BUILD_DIR"])
+          if sys.platform == "win32":
+              tts_patterns = ("tts.dll", "libtts.dll")
+              dependency_patterns = ("ggml*.dll", "libggml*.dll")
+          elif sys.platform == "darwin":
+              tts_patterns = ("libtts.dylib",)
+              dependency_patterns = ("libggml*.dylib",)
+          else:
+              tts_patterns = ("libtts.so", "libtts.so.*")
+              dependency_patterns = ("libggml*.so", "libggml*.so.*")
+
+          def collect(patterns):
+              results = []
+              for pattern in patterns:
+                  results.extend(sorted(path for path in build_dir.rglob(pattern) if path.is_file()))
+              return results
+
+          tts_libraries = collect(tts_patterns)
+          if not tts_libraries:
+              raise RuntimeError(f"TTS.cpp library was not found under {build_dir}")
+
+          library_dirs = {str(path.parent) for path in [*tts_libraries, *collect(dependency_patterns)]}
+          with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as env_file:
+              env_file.write(f"AIVIS_TTS_CPP_LIBRARY_PATH={tts_libraries[0]}\n")
+              env_file.write(f"AIVIS_TTS_CPP_LIBRARY_DIRS={os.pathsep.join(sorted(library_dirs))}\n")
+              env_file.write("AIVIS_ONNX_GGML_REQUIRED=1\n")
+          PY
 
       - name: <Setup> Prepare custom PyInstaller
         if: runner.os == 'Windows'

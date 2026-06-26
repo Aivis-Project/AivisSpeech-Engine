@@ -291,9 +291,15 @@ def _add_local_onnx_ep_package_src_to_path() -> None:
         sys.path.insert(0, package_src_text)
 
 
+def _resolve_engine_root_relative_path(path: Path) -> Path:
+    if path.is_absolute():
+        return path
+    return (engine_root() / path).resolve()
+
+
 def _resolve_default_onnx_ep_library_path(explicit_path: Path | None) -> Path:
     if explicit_path is not None:
-        return explicit_path
+        return _resolve_engine_root_relative_path(explicit_path)
 
     package_error: Exception | None = None
     try:
@@ -332,7 +338,12 @@ def _build_ggml_onnx_ep_options(args: _CLIArgs) -> dict[str, str]:
     if args.ggml_native_library_path is not None:
         provider_options.setdefault(
             "tts_cpp_library_path",
-            str(args.ggml_native_library_path),
+            str(_resolve_engine_root_relative_path(args.ggml_native_library_path)),
+        )
+    tts_cpp_library_path = provider_options.get("tts_cpp_library_path")
+    if tts_cpp_library_path not in {None, ""}:
+        provider_options["tts_cpp_library_path"] = str(
+            _resolve_engine_root_relative_path(Path(tts_cpp_library_path))
         )
     if args.ggml_vulkan_device is not None and provider_options.get("backend") != "cpu":
         provider_options.setdefault("device", args.ggml_vulkan_device)
