@@ -2,6 +2,7 @@
 
 import threading
 import uuid
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -17,12 +18,15 @@ from aivmlib.schemas.aivm_manifest import (
 from numpy.typing import NDArray
 from style_bert_vits2.constants import DEFAULT_SDP_RATIO, DEFAULT_STYLE_WEIGHT
 
+import voicevox_engine.tts_pipeline.style_bert_vits2_tts_engine as style_bert_vits2_tts_engine
 from voicevox_engine.aivm_manager import AivmManager
 from voicevox_engine.metas.metas import StyleId
 from voicevox_engine.model import AudioQuery
 from voicevox_engine.tts_pipeline.model import AccentPhrase, Mora
 from voicevox_engine.tts_pipeline.style_bert_vits2_tts_engine import (
+    OnnxPluginExecutionProviderConfig,
     StyleBertVITS2TTSEngine,
+    _configure_onnx_plugin_execution_provider,
 )
 
 
@@ -215,6 +219,204 @@ def _synthesize_and_get_infer_kwargs(
 
     assert recording_tts_model.infer_kwargs is not None
     return recording_tts_model.infer_kwargs
+
+
+def test_configure_onnx_plugin_execution_provider_registers_and_prepends(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Configured Plugin EP is registered and tried before ordinary providers."""
+
+    available_providers = ["CPUExecutionProvider"]
+    register_calls: list[tuple[str, str]] = []
+
+    def fake_register_execution_provider_library(
+        registration_name: str,
+        library_path: str,
+    ) -> None:
+        register_calls.append((registration_name, library_path))
+        available_providers.insert(0, "AivisGgmlExecutionProvider")
+
+    monkeypatch.setattr(
+        style_bert_vits2_tts_engine.onnxruntime,
+        "register_execution_provider_library",
+        fake_register_execution_provider_library,
+    )
+    monkeypatch.setattr(
+        style_bert_vits2_tts_engine.onnxruntime,
+        "get_available_providers",
+        lambda: list(available_providers),
+    )
+
+    providers = _configure_onnx_plugin_execution_provider(
+        base_providers=[
+            ("CUDAExecutionProvider", {"device_id": 0}),
+            ("CPUExecutionProvider", {"arena_extend_strategy": "kSameAsRequested"}),
+        ],
+        config=OnnxPluginExecutionProviderConfig(
+            provider_name="AivisGgmlExecutionProvider",
+            provider_options={"backend": "vulkan", "device": "0"},
+            library_path=tmp_path / "libaivis_ggml_ep.so",
+            registration_name="aivis-ggml",
+            strict=True,
+        ),
+    )
+
+    assert register_calls == [("aivis-ggml", str(tmp_path / "libaivis_ggml_ep.so"))]
+    assert providers[0] == (
+        "AivisGgmlExecutionProvider",
+        {"backend": "vulkan", "device": "0"},
+    )
+    assert providers[1:] == [
+        ("CUDAExecutionProvider", {"device_id": 0}),
+        ("CPUExecutionProvider", {"arena_extend_strategy": "kSameAsRequested"}),
+    ]
+
+
+def test_configure_onnx_plugin_execution_provider_raises_when_strict(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Strict Plugin EP setup fails startup instead of silently falling back."""
+
+    monkeypatch.setattr(
+        style_bert_vits2_tts_engine.onnxruntime,
+        "register_execution_provider_library",
+        lambda _registration_name, _library_path: None,
+    )
+    monkeypatch.setattr(
+        style_bert_vits2_tts_engine.onnxruntime,
+        "get_available_providers",
+        lambda: ["CPUExecutionProvider"],
+    )
+
+    with pytest.raises(RuntimeError) as exc_info:
+        _configure_onnx_plugin_execution_provider(
+            base_providers=["CPUExecutionProvider"],
+            config=OnnxPluginExecutionProviderConfig(
+                provider_name="AivisGgmlExecutionProvider",
+                provider_options={},
+                library_path=tmp_path / "libaivis_ggml_ep.so",
+                strict=True,
+            ),
+        )
+
+    assert "AivisGgmlExecutionProvider" in str(exc_info.value)
+    assert "Available providers" in str(exc_info.value)
+
+
+def test_validate_strict_session_provider_rejects_silent_cpu_fallback() -> None:
+    """Strict provider mode fails if ONNX Runtime creates a CPU session."""
+
+    session = SimpleNamespace(get_providers=lambda: ["CPUExecutionProvider"])
+
+    with pytest.raises(RuntimeError, match="AivisGgmlExecutionProvider"):
+        StyleBertVITS2TTSEngine._validate_strict_session_provider(  # noqa: SLF001
+            session=session,
+            required_provider_name="AivisGgmlExecutionProvider",
+            context="test session",
+        )
+
+
+def test_prepare_onnx_plugin_jp_bert_provider_options_fills_cache_path(
+    tmp_path: Path,
+) -> None:
+    """JP-BERT GGUF path is prepared before the global BERT ONNX session opens."""
+
+    engine = cast(StyleBertVITS2TTSEngine, object.__new__(StyleBertVITS2TTSEngine))
+    engine.onnx_providers = [
+        (
+            "AivisGgmlExecutionProvider",
+            {
+                "backend": "vulkan",
+                "claim_jp_bert_graph": "1",
+                "claim_synthesis_graph": "1",
+            },
+        ),
+        "CPUExecutionProvider",
+    ]
+    jp_bert_onnx_path = tmp_path / "model_fp16.onnx"
+    engine._resolve_jp_bert_onnx_path = lambda: jp_bert_onnx_path  # noqa: SLF001
+    jp_bert_gguf_path = tmp_path / "jp-bert.gguf"
+
+    class FakeJpBertGgufCache:
+        def ensure(self, *, onnx_path: Path) -> Any:
+            assert onnx_path == jp_bert_onnx_path
+            return SimpleNamespace(gguf_path=jp_bert_gguf_path)
+
+    config = OnnxPluginExecutionProviderConfig(
+        provider_name="AivisGgmlExecutionProvider",
+        provider_options={
+            "backend": "vulkan",
+            "claim_jp_bert_graph": "1",
+            "claim_synthesis_graph": "1",
+        },
+        strict=True,
+    )
+
+    engine._prepare_onnx_plugin_jp_bert_provider_options(  # noqa: SLF001
+        config=config,
+        jp_bert_gguf_cache=cast(Any, FakeJpBertGgufCache()),
+    )
+
+    assert config.provider_options["jp_bert_gguf_path"] == str(jp_bert_gguf_path)
+    assert config.provider_options["claim_synthesis_graph"] == "1"
+    assert engine.onnx_providers[0] == (
+        "AivisGgmlExecutionProvider",
+        {
+            "backend": "vulkan",
+            "claim_jp_bert_graph": "1",
+            "claim_synthesis_graph": "0",
+            "jp_bert_gguf_path": str(jp_bert_gguf_path),
+        },
+    )
+
+
+def test_model_specific_onnx_providers_fills_synthesis_gguf_path(
+    tmp_path: Path,
+) -> None:
+    """Synthesis GGUF is prepared per installed AIVMX model before session load."""
+
+    engine = cast(StyleBertVITS2TTSEngine, object.__new__(StyleBertVITS2TTSEngine))
+    config = OnnxPluginExecutionProviderConfig(
+        provider_name="AivisGgmlExecutionProvider",
+        provider_options={
+            "backend": "vulkan",
+            "claim_jp_bert_graph": "0",
+            "claim_synthesis_graph": "1",
+        },
+        strict=True,
+    )
+    engine._onnx_plugin_ep = config  # noqa: SLF001
+    engine.onnx_providers = [
+        ("AivisGgmlExecutionProvider", dict(config.provider_options)),
+        "CPUExecutionProvider",
+    ]
+    gguf_path = tmp_path / "model.gguf"
+
+    class FakeAivmGgufCache:
+        def ensure(self, *, aivm_file_path: Path, aivm_metadata: Any) -> Any:
+            assert aivm_file_path == tmp_path / "model.aivmx"
+            assert aivm_metadata is not None
+            return SimpleNamespace(gguf_path=gguf_path)
+
+    engine._onnx_plugin_gguf_cache = cast(Any, FakeAivmGgufCache())  # noqa: SLF001
+    engine._onnx_plugin_jp_bert_gguf_cache = None  # noqa: SLF001
+
+    providers = engine._model_specific_onnx_providers(  # noqa: SLF001
+        onnx_source_path=tmp_path / "model.aivmx",
+        aivm_metadata=cast(Any, object()),
+    )
+
+    assert providers[0] == (
+        "AivisGgmlExecutionProvider",
+        {
+            "backend": "vulkan",
+            "claim_jp_bert_graph": "0",
+            "claim_synthesis_graph": "1",
+            "gguf_path": str(gguf_path),
+        },
+    )
 
 
 def test_synthesize_wave_uses_trimmed_kana_as_inference_text() -> None:

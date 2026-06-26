@@ -6,6 +6,7 @@ import shutil
 import threading
 import time
 from collections.abc import Sequence
+from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Final
@@ -14,7 +15,9 @@ import aivmlib
 import jaconv
 import numpy as np
 import onnxruntime
+from aivmlib.schemas.aivm_manifest import AivmMetadata
 from fastapi import HTTPException
+from huggingface_hub import hf_hub_download
 from numpy.typing import NDArray
 from onnxruntime.capi.onnxruntime_pybind11_state import InvalidProtobuf, NoSuchFile
 from style_bert_vits2.constants import (
@@ -36,6 +39,7 @@ from style_bert_vits2.nlp.japanese.normalizer import normalize_text
 from style_bert_vits2.nlp.symbols import PUNCTUATIONS
 from style_bert_vits2.tts_model import TTSModel
 
+from ..aivm_gguf_cache import AivmGgufCache, JpBertGgufCache
 from ..aivm_manager import AivmManager
 from ..core.core_adapter import CoreAdapter, DeviceSupport
 from ..dev.core.mock import MockCoreWrapper
@@ -49,6 +53,125 @@ from ..tts_pipeline.tts_engine import (
     to_flatten_moras,
 )
 from ..utility.path_utility import get_save_dir
+
+
+@dataclass(frozen=True)
+class OnnxPluginExecutionProviderConfig:
+    """External ONNX Runtime Plugin EP registration and selection settings."""
+
+    provider_name: str
+    provider_options: dict[str, str]
+    library_path: Path | None = None
+    registration_name: str = "aivis_onnx_plugin_ep"
+    strict: bool = False
+
+
+def _configure_onnx_plugin_execution_provider(
+    *,
+    base_providers: Sequence[str | tuple[str, dict[str, Any]]],
+    config: OnnxPluginExecutionProviderConfig | None,
+) -> list[str | tuple[str, dict[str, Any]]]:
+    """Register and prepend an external ONNX Runtime Plugin EP when configured."""
+
+    providers = list(base_providers)
+    if config is None:
+        return providers
+
+    registration_error: Exception | None = None
+    if config.library_path is not None:
+        try:
+            onnxruntime.register_execution_provider_library(
+                config.registration_name,
+                str(config.library_path),
+            )
+            logger.info(
+                "Registered ONNX Runtime Plugin EP library %s from %s.",
+                config.registration_name,
+                config.library_path,
+            )
+        except Exception as ex:
+            registration_error = ex
+
+    available_providers = onnxruntime.get_available_providers()
+    if config.provider_name not in available_providers:
+        detail = (
+            f"ONNX Runtime Plugin EP '{config.provider_name}' is not available. "
+            f"Available providers: {available_providers}"
+        )
+        if registration_error is not None:
+            detail += f" Registration failed: {registration_error}"
+        if config.strict:
+            raise RuntimeError(detail) from registration_error
+        logger.warning(detail)
+        return providers
+
+    if registration_error is not None:
+        logger.warning(
+            "ONNX Runtime Plugin EP library registration reported an error, "
+            "but provider %s is already available; continuing.",
+            config.provider_name,
+            exc_info=registration_error,
+        )
+
+    providers = [
+        provider
+        for provider in providers
+        if _onnx_provider_name(provider) != config.provider_name
+    ]
+    providers.insert(0, (config.provider_name, dict(config.provider_options)))
+    logger.info(
+        "Using external ONNX Runtime Plugin EP %s before fallback providers %s.",
+        config.provider_name,
+        [_onnx_provider_name(provider) for provider in providers[1:]],
+    )
+    return providers
+
+
+def _onnx_provider_name(provider: str | tuple[str, dict[str, Any]]) -> str:
+    """Return the ONNX Runtime provider name from string or option tuple forms."""
+
+    return provider if isinstance(provider, str) else provider[0]
+
+
+def _provider_names(providers: Sequence[str | tuple[str, dict[str, Any]]]) -> list[str]:
+    """Return only ONNX Runtime provider names."""
+
+    return [_onnx_provider_name(provider) for provider in providers]
+
+
+def _replace_provider_options(
+    *,
+    providers: Sequence[str | tuple[str, dict[str, Any]]],
+    provider_name: str,
+    provider_options: dict[str, str],
+) -> list[str | tuple[str, dict[str, Any]]]:
+    """Replace one configured provider tuple while preserving provider order."""
+
+    replaced: list[str | tuple[str, dict[str, Any]]] = []
+    found = False
+    for provider in providers:
+        if _onnx_provider_name(provider) == provider_name:
+            replaced.append((provider_name, dict(provider_options)))
+            found = True
+        else:
+            replaced.append(provider)
+    if not found:
+        replaced.insert(0, (provider_name, dict(provider_options)))
+    return replaced
+
+
+def _remove_provider(
+    *,
+    providers: Sequence[str | tuple[str, dict[str, Any]]],
+    provider_name: str,
+) -> list[str | tuple[str, dict[str, Any]]]:
+    """Remove one configured provider while preserving fallback provider order."""
+
+    return [
+        provider
+        for provider in providers
+        if _onnx_provider_name(provider) != provider_name
+    ]
 
 
 class StyleBertVITS2TTSEngine(TTSEngine):
@@ -72,10 +195,30 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         use_gpu: bool = False,
         load_all_models: bool = False,
         bert_model_cache_dir: Path | None = None,
+        onnx_plugin_ep: OnnxPluginExecutionProviderConfig | None = None,
+        ggml_model_cache_dir: Path | None = None,
     ) -> None:
         self.aivm_manager = aivm_manager
         self.use_gpu = use_gpu
         self.load_all_models = load_all_models
+        self._onnx_plugin_ep = onnx_plugin_ep
+        self._strict_onnx_provider_name = (
+            onnx_plugin_ep.provider_name
+            if onnx_plugin_ep is not None
+            and onnx_plugin_ep.strict
+            and onnx_plugin_ep.provider_options.get("claim_synthesis_graph") == "1"
+            else None
+        )
+        self._onnx_plugin_gguf_cache = (
+            AivmGgufCache(cache_dir=ggml_model_cache_dir)
+            if onnx_plugin_ep is not None
+            else None
+        )
+        self._onnx_plugin_jp_bert_gguf_cache = (
+            JpBertGgufCache(cache_dir=ggml_model_cache_dir)
+            if onnx_plugin_ep is not None
+            else None
+        )
 
         # BERT モデルのキャッシュディレクトリ
         self._bert_model_cache_dir = (
@@ -152,6 +295,24 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         else:
             logger.info("Using CPU for inference.")
 
+        self.onnx_providers = _configure_onnx_plugin_execution_provider(
+            base_providers=self.onnx_providers,
+            config=onnx_plugin_ep,
+        )
+        self.available_onnx_providers = onnxruntime.get_available_providers()
+        strict_bert_provider_name = (
+            onnx_plugin_ep.provider_name
+            if onnx_plugin_ep is not None
+            and onnx_plugin_ep.strict
+            and onnx_plugin_ep.provider_options.get("claim_jp_bert_graph") == "1"
+            else None
+        )
+        if onnx_plugin_ep is not None:
+            self._prepare_onnx_plugin_jp_bert_provider_options(
+                config=onnx_plugin_ep,
+                jp_bert_gguf_cache=self._onnx_plugin_jp_bert_gguf_cache,
+            )
+
         # Style-Bert-VITS2 本体のロガーを抑制
         style_bert_vits2_logger.remove()
 
@@ -176,7 +337,7 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         start_time = time.time()
         logger.info("Loading BERT model and tokenizer...")
         try:
-            self._load_bert_model_and_tokenizer()
+            bert_session = self._load_bert_model_and_tokenizer()
         except (NoSuchFile, InvalidProtobuf, OSError) as ex:
             # もし BERT モデルキャッシュが破損している、正常にダウンロードできていない、または
             # ネットワークエラーにより不完全にダウンロードされた場合、一度キャッシュを全て削除してから再ダウンロードを試みる
@@ -188,13 +349,18 @@ class StyleBertVITS2TTSEngine(TTSEngine):
             )
             self._reset_bert_model_cache()
             try:
-                self._load_bert_model_and_tokenizer()
+                bert_session = self._load_bert_model_and_tokenizer()
             except (NoSuchFile, InvalidProtobuf, OSError) as ex:
                 logger.error(
                     "Failed to load BERT model and tokenizer after cache reset.",
                     exc_info=ex,
                 )
                 raise ex
+        self._validate_strict_session_provider(
+            session=bert_session,
+            required_provider_name=strict_bert_provider_name,
+            context="JP-BERT ONNX session",
+        )
         logger.info(
             f"BERT model and tokenizer loaded. ({time.time() - start_time:.2f}s)"
         )
@@ -210,9 +376,77 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         ## 継承元の TTSEngine は self._core に CoreWrapper を入れた CoreAdapter のインスタンスがないと動作しない
         self._core = CoreAdapter(MockCoreWrapper())
 
-    def _load_bert_model_and_tokenizer(self) -> None:
+    def _prepare_onnx_plugin_jp_bert_provider_options(
+        self,
+        *,
+        config: OnnxPluginExecutionProviderConfig,
+        jp_bert_gguf_cache: JpBertGgufCache | None,
+    ) -> None:
+        """Prepare BERT-only Plugin EP options before style-bert-vits2 opens BERT."""
+
+        if config.provider_name not in _provider_names(self.onnx_providers):
+            return
+        if config.provider_options.get("claim_jp_bert_graph") != "1":
+            self.onnx_providers = _remove_provider(
+                providers=self.onnx_providers,
+                provider_name=config.provider_name,
+            )
+            return
+
+        provider_options = dict(config.provider_options)
+        provider_options["claim_synthesis_graph"] = "0"
+        provider_options.pop("gguf_path", None)
+        if config.provider_options.get("jp_bert_gguf_path"):
+            self.onnx_providers = _replace_provider_options(
+                providers=self.onnx_providers,
+                provider_name=config.provider_name,
+                provider_options=provider_options,
+            )
+            return
+        if jp_bert_gguf_cache is None:
+            raise RuntimeError(
+                "ONNX Plugin EP requires a JP-BERT GGUF cache when "
+                "claim_jp_bert_graph=1."
+            )
+
+        jp_bert_onnx_path = self._resolve_jp_bert_onnx_path()
+        jp_bert_gguf_entry = jp_bert_gguf_cache.ensure(onnx_path=jp_bert_onnx_path)
+        config.provider_options["jp_bert_gguf_path"] = str(jp_bert_gguf_entry.gguf_path)
+        provider_options["jp_bert_gguf_path"] = str(jp_bert_gguf_entry.gguf_path)
+        self.onnx_providers = _replace_provider_options(
+            providers=self.onnx_providers,
+            provider_name=config.provider_name,
+            provider_options=provider_options,
+        )
+
+    def _resolve_jp_bert_onnx_path(self) -> Path:
+        """Resolve the JP-BERT ONNX file and required GGUF metadata files."""
+
+        model_path: Path | None = None
+        for filename in ("model_fp16.onnx", "config.json", "vocab.txt"):
+            resolved_path = hf_hub_download(
+                repo_id=self.BERT_MODEL_REPOSITORY,
+                filename=filename,
+                cache_dir=str(self._bert_model_cache_dir),
+                revision=self.BERT_MODEL_REVISION,
+            )
+            if filename == "model_fp16.onnx":
+                model_path = Path(resolved_path)
+        try:
+            hf_hub_download(
+                repo_id=self.BERT_MODEL_REPOSITORY,
+                filename="tokenizer_config.json",
+                cache_dir=str(self._bert_model_cache_dir),
+                revision=self.BERT_MODEL_REVISION,
+            )
+        except Exception:
+            logger.debug("JP-BERT tokenizer_config.json was not downloaded.")
+        assert model_path is not None
+        return model_path
+
+    def _load_bert_model_and_tokenizer(self) -> Any:
         """BERT モデルとトークナイザーをロードし、ローカルキャッシュを更新する。"""
-        onnx_bert_models.load_model(
+        bert_session = onnx_bert_models.load_model(
             language=Languages.JP,
             pretrained_model_name_or_path=self.BERT_MODEL_REPOSITORY,
             onnx_providers=self.onnx_providers,
@@ -225,6 +459,30 @@ class StyleBertVITS2TTSEngine(TTSEngine):
             cache_dir=str(self._bert_model_cache_dir),
             revision=self.BERT_MODEL_REVISION,
         )
+        return bert_session
+
+    @staticmethod
+    def _validate_strict_session_provider(
+        *,
+        session: Any,
+        required_provider_name: str | None,
+        context: str,
+    ) -> None:
+        """Ensure an explicit ONNX provider selection did not silently fall back."""
+
+        if required_provider_name is None:
+            return
+        get_providers = getattr(session, "get_providers", None)
+        if not callable(get_providers):
+            return
+        actual_providers = list(get_providers())
+        actual_provider = actual_providers[0] if actual_providers else None
+        if actual_provider != required_provider_name:
+            raise RuntimeError(
+                f"Strict ONNX provider mode expected {context} to use "
+                f"{required_provider_name!r}, but ONNX Runtime selected "
+                f"{actual_provider!r}. Full provider list: {actual_providers}"
+            )
 
     def _reset_bert_model_cache(self) -> None:
         """BERT モデルのキャッシュディレクトリを削除し、再ダウンロードが可能な状態に戻す。"""
@@ -291,12 +549,16 @@ class StyleBertVITS2TTSEngine(TTSEngine):
 
         # AIVM メタデータを読み込む
         aivm_info = self.aivm_manager.get_aivm_info(aivm_model_uuid)
+        onnx_source_path = self._resolve_onnx_source_path(
+            installed_file_path=aivm_info.file_path,
+            aivm_model_uuid=aivm_model_uuid,
+        )
         try:
-            with open(aivm_info.file_path, mode="rb") as f:
+            with open(onnx_source_path, mode="rb") as f:
                 aivm_metadata = aivmlib.read_aivmx_metadata(f)
         except aivmlib.AivmValidationError as ex:
             logger.error(
-                f"{aivm_info.file_path}: Failed to read AIVM metadata:", exc_info=ex
+                f"{onnx_source_path}: Failed to read AIVM metadata:", exc_info=ex
             )
             raise HTTPException(
                 status_code=500,
@@ -311,21 +573,26 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         # スタイルベクトルを読み込む
         assert aivm_metadata.style_vectors is not None
         style_vectors = np.load(BytesIO(aivm_metadata.style_vectors))
+        onnx_providers = self._model_specific_onnx_providers(
+            onnx_source_path=onnx_source_path,
+            aivm_metadata=aivm_metadata,
+        )
 
         # 音声合成モデルをロード
         tts_model = TTSModel(
             # 音声合成モデルのパスとして、AIVMX ファイル (ONNX 互換) のパスを指定
-            model_path=aivm_info.file_path,
+            model_path=onnx_source_path,
             # config_path とあるが、HyperParameters の Pydantic モデルを直接指定できる
             config_path=hyper_parameters,
             # style_vec_path とあるが、style_vectors の NDArray を直接指定できる
             style_vec_path=style_vectors,
             # ONNX 推論で利用する ExecutionProvider を指定
-            onnx_providers=self.onnx_providers,
+            onnx_providers=onnx_providers,
         )  # fmt: skip
         start_time = time.time()
         logger.info(f"Loading {aivm_info.manifest.name} ({aivm_model_uuid}) ...")
         tts_model.load()
+        self._validate_strict_provider(tts_model)
         with self._tts_models_lock:
             # ロード中に別スレッドが同一モデルを先にロードした場合は、そのインスタンスを優先して利用する
             if aivm_model_uuid in self.tts_models:
@@ -340,6 +607,106 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         )
 
         return tts_model
+
+    def _model_specific_onnx_providers(
+        self,
+        *,
+        onnx_source_path: Path,
+        aivm_metadata: AivmMetadata,
+    ) -> Sequence[str | tuple[str, dict[str, Any]]]:
+        if self._onnx_plugin_ep is None:
+            return self.onnx_providers
+
+        provider_options = dict(self._onnx_plugin_ep.provider_options)
+        if provider_options.get(
+            "claim_synthesis_graph"
+        ) == "1" and not provider_options.get("gguf_path"):
+            if self._onnx_plugin_gguf_cache is None:
+                raise HTTPException(
+                    status_code=500,
+                    detail="ONNX Plugin EP requires a GGUF cache to prepare synthesis artifacts.",
+                )
+            try:
+                gguf_entry = self._onnx_plugin_gguf_cache.ensure(
+                    aivm_file_path=onnx_source_path,
+                    aivm_metadata=aivm_metadata,
+                )
+            except Exception as ex:
+                logger.error(
+                    "%s: Failed to prepare ONNX Plugin EP GGUF cache.",
+                    onnx_source_path,
+                    exc_info=ex,
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to prepare ONNX Plugin EP GGUF cache.",
+                ) from ex
+            provider_options["gguf_path"] = str(gguf_entry.gguf_path)
+
+        if provider_options.get(
+            "claim_jp_bert_graph"
+        ) == "1" and not provider_options.get("jp_bert_gguf_path"):
+            if self._onnx_plugin_jp_bert_gguf_cache is None:
+                raise HTTPException(
+                    status_code=500,
+                    detail="ONNX Plugin EP requires a GGUF cache to prepare JP-BERT artifacts.",
+                )
+            try:
+                jp_bert_onnx_path = self._resolve_jp_bert_onnx_path()
+                jp_bert_gguf_entry = self._onnx_plugin_jp_bert_gguf_cache.ensure(
+                    onnx_path=jp_bert_onnx_path,
+                )
+            except Exception as ex:
+                logger.error(
+                    "Failed to prepare ONNX Plugin EP JP-BERT GGUF cache.",
+                    exc_info=ex,
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to prepare ONNX Plugin EP JP-BERT GGUF cache.",
+                ) from ex
+            provider_options["jp_bert_gguf_path"] = str(jp_bert_gguf_entry.gguf_path)
+
+        return _replace_provider_options(
+            providers=self.onnx_providers,
+            provider_name=self._onnx_plugin_ep.provider_name,
+            provider_options=provider_options,
+        )
+
+    def _validate_strict_provider(self, tts_model: TTSModel) -> None:
+        """Ensure ONNX Runtime did not silently fall back from a strict provider."""
+
+        if self._strict_onnx_provider_name is None:
+            return
+        if tts_model.onnx_session is None:
+            raise RuntimeError(
+                "Strict ONNX provider mode expected an ONNX Runtime session, "
+                "but the loaded model did not expose one."
+            )
+
+        actual_providers = tts_model.onnx_session.get_providers()
+        actual_provider = actual_providers[0] if actual_providers else None
+        if actual_provider != self._strict_onnx_provider_name:
+            raise RuntimeError(
+                "Strict ONNX provider mode expected provider "
+                f"{self._strict_onnx_provider_name!r}, but ONNX Runtime selected "
+                f"{actual_provider!r}. Full provider list: {actual_providers}"
+            )
+
+    def _resolve_onnx_source_path(
+        self,
+        *,
+        installed_file_path: Path,
+        aivm_model_uuid: str,
+    ) -> Path:
+        """Prefer same-UUID AIVMX/ONNX files as ONNX Runtime sources."""
+
+        if installed_file_path.suffix == ".aivmx":
+            return installed_file_path
+        aivmx_source_path = installed_file_path.with_name(f"{aivm_model_uuid}.aivmx")
+        if aivmx_source_path.exists() and aivmx_source_path.is_file():
+            return aivmx_source_path
+        return installed_file_path
 
     def unload_model(self, aivm_model_uuid: str) -> None:
         """

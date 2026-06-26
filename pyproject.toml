@@ -33,6 +33,8 @@ dependencies = [
   "truststore>=0.10.0,<1.0.0",
   # aivmlib は AIVMX ファイルのメタデータ読み取りに必要
   "aivmlib>=1.2.1,<2.0.0",
+  # gguf は ONNX GGML Plugin EP 用の AIVMX -> GGUF キャッシュ生成に必要
+  "gguf>=0.17.1",
   # AivisSpeech-Engine にはカスタマイズされた Style-Bert-VITS2 と e2k が必要
   "style-bert-vits2",
   "e2k",

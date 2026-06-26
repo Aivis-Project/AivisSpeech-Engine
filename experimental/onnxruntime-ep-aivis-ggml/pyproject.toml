@@ -1,0 +1,36 @@
+[project]
+name = "onnxruntime-ep-aivis-ggml"
+version = "0.1.0"
+description = "Aivis Style-Bert-VITS2 ggml ONNX Runtime Plugin Execution Provider"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+convert = [
+  "gguf",
+  "numpy",
+  "onnx",
+  "safetensors",
+]
+convert-pytorch = [
+  "torch",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/onnxruntime_ep_aivis_ggml"]
+artifacts = [
+  "src/onnxruntime_ep_aivis_ggml/lib/*",
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/README.md",
+  "/pyproject.toml",
+  "/src",
+  "/native",
+]
