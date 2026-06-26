@@ -38,7 +38,7 @@ import warnings
 from dataclasses import asdict, dataclass
 from io import TextIOWrapper
 from pathlib import Path
-from typing import TextIO, TypeVar
+from typing import Literal, TextIO, TypeVar
 
 import sentry_sdk
 import uvicorn
@@ -73,7 +73,7 @@ from voicevox_engine.utility.user_agent_utility import collect_runtime_environme
 _DEFAULT_HOST = "localhost"
 _DEFAULT_PORT = 10101
 _DEFAULT_ONNX_PLUGIN_EP_NAME = "AivisGgmlExecutionProvider"
-_ONNX_PROVIDER_CHOICES = ("auto", "ggml")
+_ONNX_PROVIDER_CHOICES = ("auto", "cuda", "directml", "ggml")
 _ONNX_EP_LIBRARY_BASENAMES = (
     "libaivis_ggml_onnx_ep.so",
     "libaivis_ggml_onnx_ep.dylib",
@@ -347,7 +347,7 @@ def _build_ggml_onnx_ep_options(args: _CLIArgs) -> dict[str, str]:
             str(_resolve_engine_root_relative_path(args.ggml_native_library_path)),
         )
     tts_cpp_library_path = provider_options.get("tts_cpp_library_path")
-    if tts_cpp_library_path not in {None, ""}:
+    if tts_cpp_library_path is not None and tts_cpp_library_path != "":
         provider_options["tts_cpp_library_path"] = str(
             _resolve_engine_root_relative_path(Path(tts_cpp_library_path))
         )
@@ -396,7 +396,8 @@ def read_cli_arguments(envs: Envs) -> _CLIArgs:
         default=None,
         help=(
             "Style-Bert-VITS2 の ONNX 推論で使う provider を指定します。"
-            "auto は既存の --use_gpu に従い、ggml は外部 ONNX Runtime Plugin EP を使います。"
+            "auto は既存の --use_gpu に従い、cuda / directml は組み込み Execution Provider を明示的に使い、"
+            "ggml は外部 ONNX Runtime Plugin EP を使います。"
             "指定しない場合、代わりに環境変数 VV_ONNX_PROVIDER の値が使われます。"
         ),
     )
@@ -622,11 +623,18 @@ def main() -> None:
         select_first_not_none_or_none([args.onnx_provider, envs.onnx_provider])
         or "auto"
     )
+    builtin_onnx_provider: Literal["cuda", "directml"] | None = None
+    if onnx_provider == "cuda":
+        builtin_onnx_provider = "cuda"
+    elif onnx_provider == "directml":
+        builtin_onnx_provider = "directml"
+    if onnx_provider in {"cuda", "directml", "ggml"}:
+        use_gpu = True
 
     # この PC の動作環境情報を取得
     # 起動時の可能な限り早い段階で実行結果をキャッシュしておくのが重要
     runtime_environment = collect_runtime_environment(
-        inference_type="GPU" if (use_gpu is True or onnx_provider == "ggml") else "CPU"
+        inference_type="GPU" if use_gpu is True else "CPU"
     )
 
     # AivisHub API クライアントを初期化
@@ -690,6 +698,7 @@ def main() -> None:
                 aivm_manager,
                 use_gpu,
                 args.load_all_models,
+                preferred_onnx_provider=builtin_onnx_provider,
                 onnx_plugin_ep=onnx_plugin_ep,
                 ggml_model_cache_dir=args.ggml_model_cache_dir,
             ),

@@ -30,6 +30,7 @@ from voicevox_engine.tts_pipeline.style_bert_vits2_tts_engine import (
     StyleBertVITS2TTSEngine,
     _configure_onnx_plugin_execution_provider,
     _onnx_plugin_inference_session_scope,
+    _select_onnx_providers,
 )
 
 
@@ -222,6 +223,72 @@ def _synthesize_and_get_infer_kwargs(
 
     assert recording_tts_model.infer_kwargs is not None
     return recording_tts_model.infer_kwargs
+
+
+def test_select_onnx_providers_can_force_directml() -> None:
+    """Explicit DirectML selection uses DmlExecutionProvider before CPU fallback."""
+
+    providers = _select_onnx_providers(
+        use_gpu=True,
+        available_onnx_providers=["CPUExecutionProvider", "DmlExecutionProvider"],
+        preferred_onnx_provider="directml",
+    )
+
+    assert providers == [
+        ("DmlExecutionProvider", {"device_id": 0}),
+        ("CPUExecutionProvider", {"arena_extend_strategy": "kSameAsRequested"}),
+    ]
+
+
+def test_select_onnx_providers_can_force_cuda_without_directml_fallback() -> None:
+    """Explicit CUDA selection does not silently switch to DirectML."""
+
+    providers = _select_onnx_providers(
+        use_gpu=True,
+        available_onnx_providers=[
+            "CPUExecutionProvider",
+            "CUDAExecutionProvider",
+            "DmlExecutionProvider",
+        ],
+        preferred_onnx_provider="cuda",
+    )
+
+    assert providers == [
+        (
+            "CUDAExecutionProvider",
+            {
+                "arena_extend_strategy": "kSameAsRequested",
+                "cudnn_conv_algo_search": "DEFAULT",
+            },
+        ),
+        ("CPUExecutionProvider", {"arena_extend_strategy": "kSameAsRequested"}),
+    ]
+
+
+def test_select_onnx_providers_keeps_auto_cuda_directml_fallback() -> None:
+    """Auto GPU selection keeps the existing CUDA to DirectML fallback chain."""
+
+    providers = _select_onnx_providers(
+        use_gpu=True,
+        available_onnx_providers=[
+            "CPUExecutionProvider",
+            "CUDAExecutionProvider",
+            "DmlExecutionProvider",
+        ],
+        preferred_onnx_provider=None,
+    )
+
+    assert providers == [
+        (
+            "CUDAExecutionProvider",
+            {
+                "arena_extend_strategy": "kSameAsRequested",
+                "cudnn_conv_algo_search": "DEFAULT",
+            },
+        ),
+        ("DmlExecutionProvider", {"device_id": 0}),
+        ("CPUExecutionProvider", {"arena_extend_strategy": "kSameAsRequested"}),
+    ]
 
 
 def test_configure_onnx_plugin_execution_provider_registers_and_prepends(

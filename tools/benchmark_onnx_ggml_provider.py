@@ -14,9 +14,11 @@ from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 import aivmlib
 import numpy as np
+import soundfile
 from style_bert_vits2.nlp import onnx_bert_models
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -28,6 +30,7 @@ from voicevox_engine.aivm_manager import AivmManager
 from voicevox_engine.metas.metas import StyleId
 from voicevox_engine.model import AudioQuery
 from voicevox_engine.tts_pipeline.style_bert_vits2_tts_engine import (
+    BuiltinOnnxProvider,
     OnnxPluginExecutionProviderConfig,
     StyleBertVITS2TTSEngine,
 )
@@ -56,7 +59,7 @@ class _NoNetworkAivisHubClient(AivisHubClient):
 
     async def fetch_model_detail(
         self,
-        aivm_model_uuid: str,
+        aivm_model_uuid: UUID,
     ) -> AivmModelResponse | None:
         return None
 
@@ -69,6 +72,7 @@ class _BackendSpec:
     name: str
     use_gpu: bool
     required_provider: str
+    preferred_onnx_provider: BuiltinOnnxProvider | None = None
     onnx_plugin_ep: OnnxPluginExecutionProviderConfig | None = None
 
 
@@ -117,7 +121,7 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--backend",
-        choices=("onnx-cpu", "onnx-cuda", "onnx-ggml-vulkan"),
+        choices=("onnx-cpu", "onnx-directml", "onnx-cuda", "onnx-ggml-vulkan"),
         action="append",
         default=None,
         help="Backend to benchmark. Repeat to select multiple backends.",
@@ -139,6 +143,15 @@ def _parse_args() -> argparse.Namespace:
         type=int,
         default=3,
         help="Measured syntheses per backend/text.",
+    )
+    parser.add_argument(
+        "--tempo_dynamics_scale",
+        type=float,
+        default=1.0,
+        help=(
+            "AudioQuery tempoDynamicsScale used for synthesis. "
+            "1.0 matches the Engine /audio_query default."
+        ),
     )
     parser.add_argument(
         "--ggml_native_library_path",
@@ -175,6 +188,12 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Optional JSON output path.",
     )
+    parser.add_argument(
+        "--audio_output_dir",
+        type=Path,
+        default=None,
+        help="Optional directory for representative WAV outputs.",
+    )
     return parser.parse_args()
 
 
@@ -208,6 +227,7 @@ def _build_audio_query(
     engine: StyleBertVITS2TTSEngine,
     text: str,
     style_id: StyleId,
+    tempo_dynamics_scale: float,
 ) -> AudioQuery:
     accent_phrases = engine.create_accent_phrases(
         text,
@@ -218,7 +238,7 @@ def _build_audio_query(
         accent_phrases=accent_phrases,
         speedScale=1.0,
         intonationScale=1.0,
-        tempoDynamicsScale=0.0,
+        tempoDynamicsScale=tempo_dynamics_scale,
         pitchScale=0.0,
         volumeScale=1.0,
         prePhonemeLength=0.1,
@@ -277,6 +297,16 @@ def _build_backend_specs(args: argparse.Namespace) -> list[_BackendSpec]:
                     name=backend,
                     use_gpu=True,
                     required_provider="CUDAExecutionProvider",
+                    preferred_onnx_provider="cuda",
+                )
+            )
+        elif backend == "onnx-directml":
+            specs.append(
+                _BackendSpec(
+                    name=backend,
+                    use_gpu=True,
+                    required_provider="DmlExecutionProvider",
+                    preferred_onnx_provider="directml",
                 )
             )
         elif backend == "onnx-ggml-vulkan":
@@ -343,7 +373,9 @@ def _benchmark_backend(
     texts: Sequence[str],
     warmup_runs: int,
     runs: int,
+    tempo_dynamics_scale: float,
     ggml_model_cache_dir: Path | None,
+    audio_output_dir: Path | None,
 ) -> tuple[list[_BenchmarkRecord], dict[str, Any]]:
     onnx_bert_models.unload_all_models()
     aivm_manager = _build_aivm_manager(tmp_path=tmp_path, models_dir=models_dir)
@@ -351,6 +383,7 @@ def _benchmark_backend(
         aivm_manager,
         use_gpu=spec.use_gpu,
         load_all_models=False,
+        preferred_onnx_provider=spec.preferred_onnx_provider,
         onnx_plugin_ep=spec.onnx_plugin_ep,
         ggml_model_cache_dir=ggml_model_cache_dir,
     )
@@ -363,7 +396,12 @@ def _benchmark_backend(
             if text_index < 3
             else f"text-{text_index}"
         )
-        query = _build_audio_query(engine=engine, text=text, style_id=style_id)
+        query = _build_audio_query(
+            engine=engine,
+            text=text,
+            style_id=style_id,
+            tempo_dynamics_scale=tempo_dynamics_scale,
+        )
         for _ in range(warmup_runs):
             engine.synthesize_wave(query, style_id, enable_interrogative_upspeak=True)
 
@@ -395,6 +433,14 @@ def _benchmark_backend(
                     peak_abs=float(np.max(np.abs(wave))) if wave.size > 0 else 0.0,
                 )
             )
+            if run_index == 0 and audio_output_dir is not None:
+                audio_output_dir.mkdir(parents=True, exist_ok=True)
+                soundfile.write(
+                    audio_output_dir / f"{spec.name}_{text_label}.wav",
+                    wave,
+                    query.outputSamplingRate,
+                    subtype="PCM_16",
+                )
     return records, provider_evidence
 
 
@@ -425,7 +471,9 @@ def main() -> None:
                 texts=texts,
                 warmup_runs=args.warmup_runs,
                 runs=args.runs,
+                tempo_dynamics_scale=args.tempo_dynamics_scale,
                 ggml_model_cache_dir=args.ggml_model_cache_dir,
+                audio_output_dir=args.audio_output_dir,
             )
             all_records.extend(records)
             provider_evidence[spec.name] = evidence
@@ -438,6 +486,7 @@ def main() -> None:
             "texts": list(texts),
             "warmup_runs": args.warmup_runs,
             "runs": args.runs,
+            "tempo_dynamics_scale": args.tempo_dynamics_scale,
         },
         "provider_evidence": provider_evidence,
         "summary": [asdict(summary) for summary in summaries],

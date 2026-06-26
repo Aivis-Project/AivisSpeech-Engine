@@ -4,6 +4,7 @@ This PR review benchmark compares only the ONNX paths affected by the minimal
 GGML Plugin EP integration:
 
 - ONNX CPU: existing `StyleBertVITS2TTSEngine` ONNX path with `CPUExecutionProvider`
+- ONNX DirectML: existing ONNX path with `DmlExecutionProvider`
 - ONNX CUDA: existing ONNX path with `CUDAExecutionProvider`
 - ONNX GGML Vulkan: existing ONNX path with `AivisGgmlExecutionProvider`
   claiming the synthesis and JP-BERT ONNX graphs
@@ -15,6 +16,7 @@ encoding is intentionally excluded from measured runs.
 
 - Measurement date: 2026-06-25, Asia/Tokyo
 - Profile: `warmup_runs=1`, `runs=3`
+- AudioQuery: `tempoDynamicsScale=0.0`
 - Model: AIVMX/ONNX Style-Bert-VITS2 model
 - Style: `888753760`
 - GGML model path: AIVMX/ONNX is converted to synthesis GGUF by the Plugin EP
@@ -85,6 +87,104 @@ included in the RTF timing window.
 | medium | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-cpu_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-cpu_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-cuda_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-cuda_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-ggml-vulkan_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-ggml-vulkan_medium.m4a) |
 | long | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-cpu_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-cpu_long.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-cuda_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-cuda_long.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-ggml-vulkan_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-ggml-vulkan_long.m4a) |
 
+## Windows Intel Arc B580 Local Run (2026-06-27)
+
+This local Windows run adds DirectML to the same CPU/GGML comparison. Raw
+results are stored in
+[windows-arc-b580-directml-ggml-cpu.json](res/onnx-ggml-plugin-benchmark/windows-arc-b580-directml-ggml-cpu.json).
+
+### Scope
+
+- Measurement date: 2026-06-27, Asia/Tokyo
+- Profile: `warmup_runs=1`, `runs=3`
+- AudioQuery: `tempoDynamicsScale=1.0`, matching the Engine `/audio_query`
+  default used by the app
+- OS: Microsoft Windows 11 Home `10.0.26200`, 64-bit
+- CPU: AMD Ryzen 5 5600, 6 cores / 12 threads
+- GPU: Intel(R) Arc(TM) B580 Graphics, driver `32.0.101.8826`
+- ONNX Runtime: `onnxruntime-directml 1.24.4`; providers include
+  `DmlExecutionProvider`, `CPUExecutionProvider`
+- Model: AIVMX/ONNX `コハク` model, version `1.1.0`
+- Style: `1878365376` (`ノーマル`)
+- GGML provider options: `backend=vulkan`, `precision=accurate`,
+  strict Plugin EP provider validation
+
+| label | text | chars |
+| --- | --- | ---: |
+| short | `テストです。` | 6 |
+| medium | `今日はいい天気です。` | 10 |
+| long | `これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。` | 41 |
+
+### RTF Results
+
+| text length | ONNX CPU RTF | ONNX DirectML RTF | ONNX GGML Plugin EP Vulkan RTF |
+| --- | ---: | ---: | ---: |
+| short | `0.423` | `2.212` | `0.178` |
+| medium | `0.341` | `0.233` | `0.172` |
+| long | `0.278` | `0.483` | `0.145` |
+| overall mean | `0.347` | `0.976` | `0.165` |
+
+Provider evidence from the run:
+
+```json
+{
+  "onnx-cpu": {
+    "active_providers": ["CPUExecutionProvider"]
+  },
+  "onnx-directml": {
+    "active_providers": ["DmlExecutionProvider", "CPUExecutionProvider"]
+  },
+  "onnx-ggml-vulkan": {
+    "active_providers": ["AivisGgmlExecutionProvider", "CPUExecutionProvider"]
+  }
+}
+```
+
+Interpretation:
+
+- DirectML is active in this run and is not silently falling back to CPU.
+- On this Intel Arc B580 machine with ONNX Runtime `1.24.4`, DirectML is not
+  consistently faster on the app-default `tempoDynamicsScale=1.0` path. It is
+  faster than CPU for the medium sample, but slower for the short and long
+  samples in this run.
+- GGML Plugin EP Vulkan remains faster than CPU for all three text lengths.
+- Short text measurements are especially sensitive to fixed ONNX Runtime and
+  provider overhead. This table still excludes the first warmup synthesis per
+  text; the app's first synthesis for a new sentence can be slower than these
+  warm-run numbers when DirectML has not compiled that input shape yet.
+
+### Audio Preview
+
+These WAV files are representative outputs for qualitative review. They are not
+included in the RTF timing window.
+
+| text length | ONNX CPU | ONNX DirectML | ONNX GGML Plugin EP Vulkan |
+| --- | --- | --- | --- |
+| short | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580/onnx-cpu_short.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580/onnx-cpu_short.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580/onnx-directml_short.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580/onnx-directml_short.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580/onnx-ggml-vulkan_short.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580/onnx-ggml-vulkan_short.wav) |
+| medium | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580/onnx-cpu_medium.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580/onnx-cpu_medium.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580/onnx-directml_medium.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580/onnx-directml_medium.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580/onnx-ggml-vulkan_medium.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580/onnx-ggml-vulkan_medium.wav) |
+| long | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580/onnx-cpu_long.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580/onnx-cpu_long.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580/onnx-directml_long.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580/onnx-directml_long.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580/onnx-ggml-vulkan_long.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580/onnx-ggml-vulkan_long.wav) |
+
+### Windows Reproduction Command
+
+```powershell
+$env:PATH = "C:\path\to\tts.cpp\bin;$env:PATH"
+
+uv run python tools\benchmark_onnx_ggml_provider.py `
+  --aivmx_path "$env:APPDATA\AivisSpeech-Engine-Dev\Models\22e8ed77-94fe-4ef2-871f-a86f94e9a579.aivmx" `
+  --style_id 1878365376 `
+  --backend onnx-cpu `
+  --backend onnx-directml `
+  --backend onnx-ggml-vulkan `
+  --ggml_native_library_path "C:\path\to\tts.dll" `
+  --onnx_ep_library_path "C:\path\to\aivis_ggml_onnx_ep.dll" `
+  --ggml_vulkan_precision accurate `
+  --warmup_runs 1 `
+  --runs 3 `
+  --tempo_dynamics_scale 1.0 `
+  --output_json "docs\res\onnx-ggml-plugin-benchmark\windows-arc-b580-directml-ggml-cpu.json" `
+  --audio_output_dir "docs\res\onnx-ggml-plugin-benchmark\audio\windows-arc-b580"
+```
+
 ## Reproduction Command
 
 The benchmark script added for this PR installs the provided AIVMX into a
@@ -117,6 +217,7 @@ uv run python tools/benchmark_onnx_ggml_provider.py \
   --onnx_ep_library_path "$AIVIS_GGML_ONNX_EP_LIBRARY_PATH" \
   --ggml_native_library_path "$TTS_CPP_NATIVE_LIBRARY_PATH" \
   --ggml_vulkan_precision accurate \
+  --tempo_dynamics_scale 0.0 \
   --warmup_runs 1 \
   --runs 3 \
   --output_json "$BENCHMARK_OUTPUT_JSON"
@@ -125,6 +226,7 @@ uv run python tools/benchmark_onnx_ggml_provider.py \
 Strict provider checks:
 
 - `onnx-cpu` must select `CPUExecutionProvider`
+- `onnx-directml` must select `DmlExecutionProvider`
 - `onnx-cuda` must select `CUDAExecutionProvider`
 - `onnx-ggml-vulkan` must select `AivisGgmlExecutionProvider`
 

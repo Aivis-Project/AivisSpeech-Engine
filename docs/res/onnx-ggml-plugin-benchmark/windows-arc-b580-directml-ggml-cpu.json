@@ -1,0 +1,415 @@
+{
+  "profile": {
+    "aivmx_path": "C:\\Users\\kevin\\AppData\\Roaming\\AivisSpeech-Engine-Dev\\Models\\22e8ed77-94fe-4ef2-871f-a86f94e9a579.aivmx",
+    "style_id": 1878365376,
+    "texts": [
+      "テストです。",
+      "今日はいい天気です。",
+      "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。"
+    ],
+    "warmup_runs": 1,
+    "runs": 3,
+    "tempo_dynamics_scale": 1.0
+  },
+  "provider_evidence": {
+    "onnx-cpu": {
+      "active_providers": [
+        "CPUExecutionProvider"
+      ]
+    },
+    "onnx-directml": {
+      "active_providers": [
+        "DmlExecutionProvider",
+        "CPUExecutionProvider"
+      ]
+    },
+    "onnx-ggml-vulkan": {
+      "active_providers": [
+        "AivisGgmlExecutionProvider",
+        "CPUExecutionProvider"
+      ]
+    }
+  },
+  "summary": [
+    {
+      "backend": "onnx-cpu",
+      "text_label": "long",
+      "rtf_mean": 0.27805936384528523,
+      "rtf_min": 0.2642737118332641,
+      "rtf_max": 0.29083770983275564,
+      "output_duration_seconds_mean": 7.591609977324263,
+      "output_samples_last": 335729
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "medium",
+      "rtf_mean": 0.3409028588600809,
+      "rtf_min": 0.3287943653102958,
+      "rtf_max": 0.3582578013413164,
+      "output_duration_seconds_mean": 1.7774300831443688,
+      "output_samples_last": 78574
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "short",
+      "rtf_mean": 0.4231661638807267,
+      "rtf_min": 0.41346353931588226,
+      "rtf_max": 0.4319251752960578,
+      "output_duration_seconds_mean": 1.238442932728647,
+      "output_samples_last": 56106
+    },
+    {
+      "backend": "onnx-directml",
+      "text_label": "long",
+      "rtf_mean": 0.4830147420705034,
+      "rtf_min": 0.42522238603738083,
+      "rtf_max": 0.5889905153615806,
+      "output_duration_seconds_mean": 7.58875283446712,
+      "output_samples_last": 335351
+    },
+    {
+      "backend": "onnx-directml",
+      "text_label": "medium",
+      "rtf_mean": 0.23316778950511274,
+      "rtf_min": 0.23247197315572674,
+      "rtf_max": 0.23396058860307103,
+      "output_duration_seconds_mean": 1.7774300831443688,
+      "output_samples_last": 78574
+    },
+    {
+      "backend": "onnx-directml",
+      "text_label": "short",
+      "rtf_mean": 2.2120982292433897,
+      "rtf_min": 2.192929853425785,
+      "rtf_max": 2.2311755737971044,
+      "output_duration_seconds_mean": 1.238442932728647,
+      "output_samples_last": 56106
+    },
+    {
+      "backend": "onnx-ggml-vulkan",
+      "text_label": "long",
+      "rtf_mean": 0.14475247673933705,
+      "rtf_min": 0.14348089921366972,
+      "rtf_max": 0.14665339164136545,
+      "output_duration_seconds_mean": 7.62467120181406,
+      "output_samples_last": 336632
+    },
+    {
+      "backend": "onnx-ggml-vulkan",
+      "text_label": "medium",
+      "rtf_mean": 0.17247574666930907,
+      "rtf_min": 0.17110925660254211,
+      "rtf_max": 0.1739875845517639,
+      "output_duration_seconds_mean": 1.776432350718065,
+      "output_samples_last": 80155
+    },
+    {
+      "backend": "onnx-ggml-vulkan",
+      "text_label": "short",
+      "rtf_mean": 0.1777942486782267,
+      "rtf_min": 0.17691936194922436,
+      "rtf_max": 0.1786718132389019,
+      "output_duration_seconds_mean": 1.2527966742252457,
+      "output_samples_last": 55798
+    }
+  ],
+  "records": [
+    {
+      "backend": "onnx-cpu",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 0,
+      "elapsed_seconds": 0.5439221000015095,
+      "output_duration_seconds": 1.259297052154195,
+      "output_samples": 55535,
+      "rtf": 0.4319251752960578,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 1,
+      "elapsed_seconds": 0.4894526999996742,
+      "output_duration_seconds": 1.1837868480725624,
+      "output_samples": 52205,
+      "rtf": 0.41346353931588226,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 2,
+      "elapsed_seconds": 0.5395715000013297,
+      "output_duration_seconds": 1.2722448979591836,
+      "output_samples": 56106,
+      "rtf": 0.42410977703023994,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "medium",
+      "text": "今日はいい天気です。",
+      "run_index": 0,
+      "elapsed_seconds": 0.5963799999990442,
+      "output_duration_seconds": 1.7767573696145125,
+      "output_samples": 78355,
+      "rtf": 0.3356564099286306,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "medium",
+      "text": "今日はいい天気です。",
+      "run_index": 1,
+      "elapsed_seconds": 0.6354810999982874,
+      "output_duration_seconds": 1.7738095238095237,
+      "output_samples": 78225,
+      "rtf": 0.3582578013413164,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "medium",
+      "text": "今日はいい天気です。",
+      "run_index": 2,
+      "elapsed_seconds": 0.5858205999975326,
+      "output_duration_seconds": 1.7817233560090704,
+      "output_samples": 78574,
+      "rtf": 0.3287943653102958,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 0,
+      "elapsed_seconds": 2.199761900003068,
+      "output_duration_seconds": 7.563537414965986,
+      "output_samples": 333552,
+      "rtf": 0.29083770983275564,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 1,
+      "elapsed_seconds": 2.120457400000305,
+      "output_duration_seconds": 7.598390022675737,
+      "output_samples": 335089,
+      "rtf": 0.2790666698698359,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 2,
+      "elapsed_seconds": 2.0118900000015856,
+      "output_duration_seconds": 7.612902494331066,
+      "output_samples": 335729,
+      "rtf": 0.2642737118332641,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-directml",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 0,
+      "elapsed_seconds": 2.761550100000022,
+      "output_duration_seconds": 1.259297052154195,
+      "output_samples": 55535,
+      "rtf": 2.192929853425785,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-directml",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 1,
+      "elapsed_seconds": 2.641236300001765,
+      "output_duration_seconds": 1.1837868480725624,
+      "output_samples": 52205,
+      "rtf": 2.2311755737971044,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-directml",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 2,
+      "elapsed_seconds": 2.8144465000004857,
+      "output_duration_seconds": 1.2722448979591836,
+      "output_samples": 56106,
+      "rtf": 2.2121892605072797,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-directml",
+      "text_label": "medium",
+      "text": "今日はいい天気です。",
+      "run_index": 0,
+      "elapsed_seconds": 0.4156911999998556,
+      "output_duration_seconds": 1.7767573696145125,
+      "output_samples": 78355,
+      "rtf": 0.23396058860307103,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-directml",
+      "text_label": "medium",
+      "text": "今日はいい天気です。",
+      "run_index": 1,
+      "elapsed_seconds": 0.41236100000242004,
+      "output_duration_seconds": 1.7738095238095237,
+      "output_samples": 78225,
+      "rtf": 0.23247197315572674,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-directml",
+      "text_label": "medium",
+      "text": "今日はいい天気です。",
+      "run_index": 2,
+      "elapsed_seconds": 0.41526770000200486,
+      "output_duration_seconds": 1.7817233560090704,
+      "output_samples": 78574,
+      "rtf": 0.2330708067565405,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-directml",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 0,
+      "elapsed_seconds": 4.454851799997414,
+      "output_duration_seconds": 7.563537414965986,
+      "output_samples": 333552,
+      "rtf": 0.5889905153615806,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-directml",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 1,
+      "elapsed_seconds": 3.304018000002543,
+      "output_duration_seconds": 7.598390022675737,
+      "output_samples": 335089,
+      "rtf": 0.4348313248125487,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-directml",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 2,
+      "elapsed_seconds": 3.233531800000492,
+      "output_duration_seconds": 7.604331065759637,
+      "output_samples": 335351,
+      "rtf": 0.42522238603738083,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-ggml-vulkan",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 0,
+      "elapsed_seconds": 0.22421419999955106,
+      "output_duration_seconds": 1.2673242630385488,
+      "output_samples": 55889,
+      "rtf": 0.17691936194922436,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-ggml-vulkan",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 1,
+      "elapsed_seconds": 0.21901680000155466,
+      "output_duration_seconds": 1.2258049886621316,
+      "output_samples": 54058,
+      "rtf": 0.1786718132389019,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-ggml-vulkan",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 2,
+      "elapsed_seconds": 0.22495270000217715,
+      "output_duration_seconds": 1.2652607709750567,
+      "output_samples": 55798,
+      "rtf": 0.17779157084655386,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-ggml-vulkan",
+      "text_label": "medium",
+      "text": "今日はいい天気です。",
+      "run_index": 0,
+      "elapsed_seconds": 0.3008485999998811,
+      "output_duration_seconds": 1.7291383219954648,
+      "output_samples": 76255,
+      "rtf": 0.1739875845517639,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-ggml-vulkan",
+      "text_label": "medium",
+      "text": "今日はいい天気です。",
+      "run_index": 1,
+      "elapsed_seconds": 0.30501680000088527,
+      "output_duration_seconds": 1.7825850340136054,
+      "output_samples": 78612,
+      "rtf": 0.17110925660254211,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-ggml-vulkan",
+      "text_label": "medium",
+      "text": "今日はいい天気です。",
+      "run_index": 2,
+      "elapsed_seconds": 0.31322320000253967,
+      "output_duration_seconds": 1.8175736961451248,
+      "output_samples": 80155,
+      "rtf": 0.1723303988536211,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-ggml-vulkan",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 0,
+      "elapsed_seconds": 1.085821799999394,
+      "output_duration_seconds": 7.567709750566894,
+      "output_samples": 333736,
+      "rtf": 0.14348089921366972,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-ggml-vulkan",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 1,
+      "elapsed_seconds": 1.125260500000877,
+      "output_duration_seconds": 7.672925170068027,
+      "output_samples": 338376,
+      "rtf": 0.14665339164136545,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-ggml-vulkan",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 2,
+      "elapsed_seconds": 1.1001465000008466,
+      "output_duration_seconds": 7.633378684807257,
+      "output_samples": 336632,
+      "rtf": 0.144123139362976,
+      "peak_abs": 0.999969482421875
+    }
+  ]
+}

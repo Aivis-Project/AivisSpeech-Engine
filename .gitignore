@@ -162,3 +162,4 @@ cython_debug/
 ._*
 
 *.wav
+!docs/res/onnx-ggml-plugin-benchmark/audio/**/*.wav
