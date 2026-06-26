@@ -184,6 +184,11 @@ def prepare_mapped_tensor_array(
         target_name=target_name,
     ):
         return np.ascontiguousarray(np.asarray(array, dtype=np.float32).T)
+    if _requires_negative_log_reconstruction(
+        source_name=source_name,
+        target_name=target_name,
+    ):
+        return np.ascontiguousarray(-np.log(np.asarray(array, dtype=np.float32)))
     return array
 
 
@@ -196,6 +201,17 @@ def _requires_matmul_weight_transpose(*, source_name: str, target_name: str) -> 
         return True
     return target_name.startswith("style_bert_vits2.fl.") and target_name.endswith(
         ".enc.spk.w"
+    )
+
+
+def _requires_negative_log_reconstruction(
+    *,
+    source_name: str,
+    target_name: str,
+) -> bool:
+    return (
+        source_name == "/sdp/flows.0/Exp_output_0"
+        and target_name == "style_bert_vits2.sdp.flows.0.logs"
     )
 
 

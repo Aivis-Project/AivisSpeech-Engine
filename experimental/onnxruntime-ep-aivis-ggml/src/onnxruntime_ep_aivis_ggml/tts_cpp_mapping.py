@@ -174,6 +174,7 @@ def map_initializer_name(source_name: str) -> str | None:
         "enc_p.emb.weight": "style_bert_vits2.text_encoder.token_embedding.weight",
         "enc_p.tone_emb.weight": "style_bert_vits2.text_encoder.tone_embedding.weight",
         "enc_p.language_emb.weight": "style_bert_vits2.text_encoder.language_embedding.weight",
+        "/sdp/flows.0/Exp_output_0": "style_bert_vits2.sdp.flows.0.logs",
     }
     if source_name in exact:
         return exact[source_name]
@@ -264,6 +265,8 @@ def _has_complete_weight_norm_pair(
 
 
 def _is_onnx_graph_constant_name(source_name: str) -> bool:
+    if source_name == "/sdp/flows.0/Exp_output_0":
+        return False
     if source_name.startswith("/") or "_output_" in source_name:
         return True
     if source_name.startswith("_v_"):
