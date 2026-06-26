@@ -131,7 +131,10 @@ jobs:
             -o "download/${ORT_ARCHIVE}"
           mkdir -p "${ORT_DIR}"
           tar -xzf "download/${ORT_ARCHIVE}" -C "${ORT_DIR}" --strip-components=1
-          echo "ORT_INCLUDE_DIR=${ORT_DIR}/include/onnxruntime/core/session" >> "$GITHUB_ENV"
+          ORT_HEADER_PATH="$(find "${ORT_DIR}" -name onnxruntime_cxx_api.h -type f | head -n 1)"
+          ORT_INCLUDE_DIR="$(dirname "${ORT_HEADER_PATH}")"
+          test -f "${ORT_INCLUDE_DIR}/onnxruntime_cxx_api.h"
+          echo "ORT_INCLUDE_DIR=${ORT_INCLUDE_DIR}" >> "$GITHUB_ENV"
 
       - name: <Build> Build ONNX GGML Plugin EP
         run: |
