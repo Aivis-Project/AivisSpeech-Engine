@@ -3,6 +3,7 @@ name = "onnxruntime-ep-aivis-ggml"
 version = "0.1.0"
 description = "Aivis Style-Bert-VITS2 ggml ONNX Runtime Plugin Execution Provider"
 readme = "README.md"
+license = { file = "../../LICENSE" }
 requires-python = ">=3.11"
 dependencies = []
 

@@ -113,6 +113,10 @@ jobs:
           tar -xf "download/${VULKAN_SDK_ARCHIVE}" -C "${VULKAN_SDK_DIR}"
           GLSLC_PATH="$(find "${VULKAN_SDK_DIR}" -path '*/bin/glslc' -type f | head -n 1)"
           test -x "${GLSLC_PATH}"
+          VULKAN_SDK_ROOT="$(dirname "$(dirname "${GLSLC_PATH}")")"
+          echo "VULKAN_SDK=${VULKAN_SDK_ROOT}" >> "$GITHUB_ENV"
+          echo "CMAKE_PREFIX_PATH=${VULKAN_SDK_ROOT}${CMAKE_PREFIX_PATH:+:${CMAKE_PREFIX_PATH}}" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=${VULKAN_SDK_ROOT}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" >> "$GITHUB_ENV"
           echo "$(dirname "${GLSLC_PATH}")" >> "$GITHUB_PATH"
           "${GLSLC_PATH}" --version
 
@@ -126,6 +130,7 @@ jobs:
             throw "Vulkan SDK was not installed under C:\VulkanSDK"
           }
           "VULKAN_SDK=$($sdk.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "CMAKE_PREFIX_PATH=$($sdk.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "$($sdk.FullName)\Bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
           & "$($sdk.FullName)\Bin\glslc.exe" --version
 
@@ -139,7 +144,7 @@ jobs:
             "https://github.com/microsoft/onnxruntime/releases/download/v${AIVIS_ONNX_GGML_ORT_VERSION}/${ORT_ARCHIVE}" \
             -o "download/${ORT_ARCHIVE}"
           mkdir -p "${ORT_DIR}"
-          tar -xzf "download/${ORT_ARCHIVE}" -C "${ORT_DIR}" --strip-components=1
+          tar -xzf "download/${ORT_ARCHIVE}" -C "${ORT_DIR}" --strip-components=1 --exclude='*/lib/*'
           ORT_HEADER_PATH="$(find "${ORT_DIR}" -name onnxruntime_cxx_api.h -type f | head -n 1)"
           ORT_INCLUDE_DIR="$(dirname "${ORT_HEADER_PATH}")"
           test -f "${ORT_INCLUDE_DIR}/onnxruntime_cxx_api.h"

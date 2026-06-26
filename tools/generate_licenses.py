@@ -103,6 +103,9 @@ def _update_licenses(pip_licenses: list[_PipLicense]) -> list[_License]:
         "sudachipy": "https://raw.githubusercontent.com/WorksApplications/sudachi.rs/v0.6.8/LICENSE",
         "tokenizers": "https://raw.githubusercontent.com/huggingface/tokenizers/v0.19.1/LICENSE",
     }
+    package_to_license_path: dict[str, str] = {
+        "onnxruntime-ep-aivis-ggml": "LICENSE",
+    }
 
     updated_licenses = []
 
@@ -127,11 +130,14 @@ def _update_licenses(pip_licenses: list[_PipLicense]) -> list[_License]:
 
         # ライセンス文が pip から取得できていない場合、pip 外から補う
         if pip_license.LicenseText == "UNKNOWN":
-            if package_name not in package_to_license_url:
+            if package_name in package_to_license_path:
+                pip_license.LicenseText = Path(package_to_license_path[package_name]).read_text(encoding="utf-8")
+            elif package_name in package_to_license_url:
+                text_url = package_to_license_url[package_name]
+                pip_license.LicenseText = _get_license_text(text_url)
+            else:
                 # ライセンスが PyPI に存在しない
                 raise Exception(f"No License info provided for {package_name}")
-            text_url = package_to_license_url[package_name]
-            pip_license.LicenseText = _get_license_text(text_url)
 
         updated_licenses.append(
             _License(
