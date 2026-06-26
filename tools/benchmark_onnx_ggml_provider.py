@@ -1,0 +1,456 @@
+"""Benchmark ONNX CPU/CUDA against the Aivis GGML ONNX Plugin EP."""
+
+# ruff: noqa: E402
+
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import sys
+import tempfile
+import time
+from collections.abc import Sequence
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any
+
+import aivmlib
+import numpy as np
+from style_bert_vits2.nlp import onnx_bert_models
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from run import _resolve_default_onnx_ep_library_path
+from voicevox_engine.aivm_manager import AivmManager
+from voicevox_engine.metas.metas import StyleId
+from voicevox_engine.model import AudioQuery
+from voicevox_engine.tts_pipeline.style_bert_vits2_tts_engine import (
+    OnnxPluginExecutionProviderConfig,
+    StyleBertVITS2TTSEngine,
+)
+from voicevox_engine.utility.aivishub_client import (
+    AivisHubClient,
+    AivisSpeechDefaultModelProperty,
+    AivisSpeechForcedRemovalRule,
+    AivmModelResponse,
+)
+
+_DEFAULT_TEXTS = (
+    "テストです。",
+    "今日はいい天気ですね。",
+    "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+)
+
+
+class _NoNetworkAivisHubClient(AivisHubClient):
+    """AivisHub client that prevents benchmark runs from touching the network."""
+
+    def fetch_default_models(self) -> list[AivisSpeechDefaultModelProperty]:
+        return []
+
+    def fetch_forced_removal_rules(self) -> list[AivisSpeechForcedRemovalRule]:
+        return []
+
+    async def fetch_model_detail(
+        self,
+        aivm_model_uuid: str,
+    ) -> AivmModelResponse | None:
+        return None
+
+    def send_event(self, *args: Any, **kwargs: Any) -> None:
+        return
+
+
+@dataclass(frozen=True)
+class _BackendSpec:
+    name: str
+    use_gpu: bool
+    required_provider: str
+    onnx_plugin_ep: OnnxPluginExecutionProviderConfig | None = None
+
+
+@dataclass(frozen=True)
+class _BenchmarkRecord:
+    backend: str
+    text_label: str
+    text: str
+    run_index: int
+    elapsed_seconds: float
+    output_duration_seconds: float
+    output_samples: int
+    rtf: float
+    peak_abs: float
+
+
+@dataclass(frozen=True)
+class _BackendSummary:
+    backend: str
+    text_label: str
+    rtf_mean: float
+    rtf_min: float
+    rtf_max: float
+    output_duration_seconds_mean: float
+    output_samples_last: int
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Benchmark Aivis Style-Bert-VITS2 ONNX CPU/CUDA and ONNX GGML "
+            "Plugin EP Vulkan paths."
+        )
+    )
+    parser.add_argument(
+        "--aivmx_path",
+        type=Path,
+        required=True,
+        help="AIVMX/ONNX model path to install into a temporary Models directory.",
+    )
+    parser.add_argument(
+        "--style_id",
+        type=int,
+        required=True,
+        help="Global Aivis style id to synthesize with.",
+    )
+    parser.add_argument(
+        "--backend",
+        choices=("onnx-cpu", "onnx-cuda", "onnx-ggml-vulkan"),
+        action="append",
+        default=None,
+        help="Backend to benchmark. Repeat to select multiple backends.",
+    )
+    parser.add_argument(
+        "--text",
+        action="append",
+        default=None,
+        help="Text to synthesize. Repeat for short/medium/long benchmark texts.",
+    )
+    parser.add_argument(
+        "--warmup_runs",
+        type=int,
+        default=1,
+        help="Warmup syntheses per backend/text before measured runs.",
+    )
+    parser.add_argument(
+        "--runs",
+        type=int,
+        default=3,
+        help="Measured syntheses per backend/text.",
+    )
+    parser.add_argument(
+        "--ggml_native_library_path",
+        type=Path,
+        default=None,
+        help="TTS.cpp C API shared library path. Required for onnx-ggml-vulkan.",
+    )
+    parser.add_argument(
+        "--onnx_ep_library_path",
+        type=Path,
+        default=None,
+        help="Aivis GGML ONNX Runtime Plugin EP shared library path.",
+    )
+    parser.add_argument(
+        "--ggml_model_cache_dir",
+        type=Path,
+        default=None,
+        help="Optional GGUF cache directory for the Plugin EP run.",
+    )
+    parser.add_argument(
+        "--ggml_vulkan_device",
+        default=None,
+        help="Provider option device id for Vulkan.",
+    )
+    parser.add_argument(
+        "--ggml_vulkan_precision",
+        choices=("accurate", "fast"),
+        default="accurate",
+        help="Provider option precision for Vulkan.",
+    )
+    parser.add_argument(
+        "--output_json",
+        type=Path,
+        default=None,
+        help="Optional JSON output path.",
+    )
+    return parser.parse_args()
+
+
+def _read_aivmx_model_uuid(aivmx_path: Path) -> str:
+    with aivmx_path.open("rb") as file:
+        metadata = aivmlib.read_aivmx_metadata(file)
+    return str(metadata.manifest.uuid)
+
+
+def _prepare_models_dir(*, tmp_path: Path, aivmx_path: Path) -> tuple[Path, str]:
+    model_uuid = _read_aivmx_model_uuid(aivmx_path)
+    models_dir = tmp_path / "Models"
+    models_dir.mkdir(parents=True)
+    shutil.copyfile(aivmx_path, models_dir / f"{model_uuid}.aivmx")
+    return models_dir, model_uuid
+
+
+def _build_aivm_manager(*, tmp_path: Path, models_dir: Path) -> AivmManager:
+    return AivmManager(
+        models_dir,
+        aivishub_client=_NoNetworkAivisHubClient(
+            installation_uuid_path=tmp_path / "installation_uuid.dat",
+        ),
+        cache_file_path=tmp_path / "aivm_infos_cache.json",
+        is_background_scan_enabled=False,
+    )
+
+
+def _build_audio_query(
+    *,
+    engine: StyleBertVITS2TTSEngine,
+    text: str,
+    style_id: StyleId,
+) -> AudioQuery:
+    accent_phrases = engine.create_accent_phrases(
+        text,
+        style_id,
+        enable_katakana_english=True,
+    )
+    return AudioQuery(
+        accent_phrases=accent_phrases,
+        speedScale=1.0,
+        intonationScale=1.0,
+        tempoDynamicsScale=0.0,
+        pitchScale=0.0,
+        volumeScale=1.0,
+        prePhonemeLength=0.1,
+        postPhonemeLength=0.1,
+        pauseLength=None,
+        pauseLengthScale=1.0,
+        outputSamplingRate=engine.default_sampling_rate,
+        outputStereo=False,
+        kana=text,
+    )
+
+
+def _build_ggml_plugin_config(
+    args: argparse.Namespace,
+) -> OnnxPluginExecutionProviderConfig:
+    if args.ggml_native_library_path is None:
+        raise RuntimeError("onnx-ggml-vulkan requires --ggml_native_library_path.")
+    provider_options = {
+        "backend": "vulkan",
+        "claim_jp_bert_graph": "1",
+        "claim_synthesis_graph": "1",
+        "eager_load_model": "1",
+        "n_threads": "0",
+        "precision": args.ggml_vulkan_precision,
+        "tts_cpp_library_path": str(args.ggml_native_library_path),
+    }
+    if args.ggml_vulkan_device is not None:
+        provider_options["device"] = args.ggml_vulkan_device
+    return OnnxPluginExecutionProviderConfig(
+        provider_name="AivisGgmlExecutionProvider",
+        provider_options=provider_options,
+        library_path=_resolve_default_onnx_ep_library_path(args.onnx_ep_library_path),
+        strict=True,
+    )
+
+
+def _build_backend_specs(args: argparse.Namespace) -> list[_BackendSpec]:
+    requested_backends = args.backend or [
+        "onnx-cpu",
+        "onnx-cuda",
+        "onnx-ggml-vulkan",
+    ]
+    specs: list[_BackendSpec] = []
+    for backend in requested_backends:
+        if backend == "onnx-cpu":
+            specs.append(
+                _BackendSpec(
+                    name=backend,
+                    use_gpu=False,
+                    required_provider="CPUExecutionProvider",
+                )
+            )
+        elif backend == "onnx-cuda":
+            specs.append(
+                _BackendSpec(
+                    name=backend,
+                    use_gpu=True,
+                    required_provider="CUDAExecutionProvider",
+                )
+            )
+        elif backend == "onnx-ggml-vulkan":
+            specs.append(
+                _BackendSpec(
+                    name=backend,
+                    use_gpu=False,
+                    required_provider="AivisGgmlExecutionProvider",
+                    onnx_plugin_ep=_build_ggml_plugin_config(args),
+                )
+            )
+    return specs
+
+
+def _validate_active_provider(
+    *,
+    engine: StyleBertVITS2TTSEngine,
+    model_uuid: str,
+    spec: _BackendSpec,
+) -> list[str]:
+    tts_model = engine.tts_models.get(model_uuid)
+    if tts_model is None or tts_model.onnx_session is None:
+        raise RuntimeError(f"{spec.name} did not create an ONNX session.")
+    providers = list(tts_model.onnx_session.get_providers())
+    active_provider = providers[0] if providers else None
+    if active_provider != spec.required_provider:
+        raise RuntimeError(
+            f"{spec.name} expected {spec.required_provider}, but ONNX Runtime "
+            f"selected {active_provider}. Full providers: {providers}"
+        )
+    return providers
+
+
+def _summarize(records: Sequence[_BenchmarkRecord]) -> list[_BackendSummary]:
+    groups: dict[tuple[str, str], list[_BenchmarkRecord]] = {}
+    for record in records:
+        groups.setdefault((record.backend, record.text_label), []).append(record)
+
+    summaries: list[_BackendSummary] = []
+    for (backend, text_label), group_records in sorted(groups.items()):
+        rtfs = [record.rtf for record in group_records]
+        durations = [record.output_duration_seconds for record in group_records]
+        summaries.append(
+            _BackendSummary(
+                backend=backend,
+                text_label=text_label,
+                rtf_mean=float(np.mean(rtfs)),
+                rtf_min=float(np.min(rtfs)),
+                rtf_max=float(np.max(rtfs)),
+                output_duration_seconds_mean=float(np.mean(durations)),
+                output_samples_last=group_records[-1].output_samples,
+            )
+        )
+    return summaries
+
+
+def _benchmark_backend(
+    *,
+    spec: _BackendSpec,
+    tmp_path: Path,
+    models_dir: Path,
+    model_uuid: str,
+    style_id: StyleId,
+    texts: Sequence[str],
+    warmup_runs: int,
+    runs: int,
+    ggml_model_cache_dir: Path | None,
+) -> tuple[list[_BenchmarkRecord], dict[str, Any]]:
+    onnx_bert_models.unload_all_models()
+    aivm_manager = _build_aivm_manager(tmp_path=tmp_path, models_dir=models_dir)
+    engine = StyleBertVITS2TTSEngine(
+        aivm_manager,
+        use_gpu=spec.use_gpu,
+        load_all_models=False,
+        onnx_plugin_ep=spec.onnx_plugin_ep,
+        ggml_model_cache_dir=ggml_model_cache_dir,
+    )
+
+    records: list[_BenchmarkRecord] = []
+    provider_evidence: dict[str, Any] = {}
+    for text_index, text in enumerate(texts):
+        text_label = (
+            ("short", "medium", "long")[text_index]
+            if text_index < 3
+            else f"text-{text_index}"
+        )
+        query = _build_audio_query(engine=engine, text=text, style_id=style_id)
+        for _ in range(warmup_runs):
+            engine.synthesize_wave(query, style_id, enable_interrogative_upspeak=True)
+
+        provider_evidence["active_providers"] = _validate_active_provider(
+            engine=engine,
+            model_uuid=model_uuid,
+            spec=spec,
+        )
+        for run_index in range(runs):
+            started_at = time.perf_counter()
+            wave = engine.synthesize_wave(
+                query,
+                style_id,
+                enable_interrogative_upspeak=True,
+            )
+            elapsed_seconds = time.perf_counter() - started_at
+            output_samples = int(wave.shape[0])
+            output_duration_seconds = output_samples / query.outputSamplingRate
+            records.append(
+                _BenchmarkRecord(
+                    backend=spec.name,
+                    text_label=text_label,
+                    text=text,
+                    run_index=run_index,
+                    elapsed_seconds=elapsed_seconds,
+                    output_duration_seconds=output_duration_seconds,
+                    output_samples=output_samples,
+                    rtf=elapsed_seconds / output_duration_seconds,
+                    peak_abs=float(np.max(np.abs(wave))) if wave.size > 0 else 0.0,
+                )
+            )
+    return records, provider_evidence
+
+
+def main() -> None:
+    """Run the selected backend benchmarks and emit JSON summary data."""
+
+    args = _parse_args()
+    texts = tuple(args.text or _DEFAULT_TEXTS)
+    style_id = StyleId(args.style_id)
+    specs = _build_backend_specs(args)
+
+    with tempfile.TemporaryDirectory(prefix="aivis-onnx-ggml-bench-") as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        models_dir, model_uuid = _prepare_models_dir(
+            tmp_path=tmp_path,
+            aivmx_path=args.aivmx_path,
+        )
+
+        all_records: list[_BenchmarkRecord] = []
+        provider_evidence: dict[str, dict[str, Any]] = {}
+        for spec in specs:
+            records, evidence = _benchmark_backend(
+                spec=spec,
+                tmp_path=tmp_path,
+                models_dir=models_dir,
+                model_uuid=model_uuid,
+                style_id=style_id,
+                texts=texts,
+                warmup_runs=args.warmup_runs,
+                runs=args.runs,
+                ggml_model_cache_dir=args.ggml_model_cache_dir,
+            )
+            all_records.extend(records)
+            provider_evidence[spec.name] = evidence
+
+    summaries = _summarize(all_records)
+    payload = {
+        "profile": {
+            "aivmx_path": str(args.aivmx_path),
+            "style_id": int(style_id),
+            "texts": list(texts),
+            "warmup_runs": args.warmup_runs,
+            "runs": args.runs,
+        },
+        "provider_evidence": provider_evidence,
+        "summary": [asdict(summary) for summary in summaries],
+        "records": [asdict(record) for record in all_records],
+    }
+    if args.output_json is not None:
+        args.output_json.parent.mkdir(parents=True, exist_ok=True)
+        args.output_json.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    print(json.dumps(payload["summary"], ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()
