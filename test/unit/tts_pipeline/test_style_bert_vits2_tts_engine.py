@@ -2,6 +2,7 @@
 
 import threading
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -20,6 +21,7 @@ from style_bert_vits2.constants import DEFAULT_SDP_RATIO, DEFAULT_STYLE_WEIGHT
 
 import voicevox_engine.tts_pipeline.style_bert_vits2_tts_engine as style_bert_vits2_tts_engine
 from voicevox_engine.aivm_manager import AivmManager
+from voicevox_engine.core.core_adapter import DeviceSupport
 from voicevox_engine.metas.metas import StyleId
 from voicevox_engine.model import AudioQuery
 from voicevox_engine.tts_pipeline.model import AccentPhrase, Mora
@@ -27,6 +29,7 @@ from voicevox_engine.tts_pipeline.style_bert_vits2_tts_engine import (
     OnnxPluginExecutionProviderConfig,
     StyleBertVITS2TTSEngine,
     _configure_onnx_plugin_execution_provider,
+    _onnx_plugin_inference_session_scope,
 )
 
 
@@ -235,7 +238,6 @@ def test_configure_onnx_plugin_execution_provider_registers_and_prepends(
         library_path: str,
     ) -> None:
         register_calls.append((registration_name, library_path))
-        available_providers.insert(0, "AivisGgmlExecutionProvider")
 
     monkeypatch.setattr(
         style_bert_vits2_tts_engine.onnxruntime,
@@ -246,6 +248,11 @@ def test_configure_onnx_plugin_execution_provider_registers_and_prepends(
         style_bert_vits2_tts_engine.onnxruntime,
         "get_available_providers",
         lambda: list(available_providers),
+    )
+    monkeypatch.setattr(
+        style_bert_vits2_tts_engine.onnxruntime,
+        "get_ep_devices",
+        lambda: [SimpleNamespace(ep_name="AivisGgmlExecutionProvider")],
     )
 
     providers = _configure_onnx_plugin_execution_provider(
@@ -289,6 +296,11 @@ def test_configure_onnx_plugin_execution_provider_raises_when_strict(
         "get_available_providers",
         lambda: ["CPUExecutionProvider"],
     )
+    monkeypatch.setattr(
+        style_bert_vits2_tts_engine.onnxruntime,
+        "get_ep_devices",
+        lambda: [],
+    )
 
     with pytest.raises(RuntimeError) as exc_info:
         _configure_onnx_plugin_execution_provider(
@@ -303,6 +315,83 @@ def test_configure_onnx_plugin_execution_provider_raises_when_strict(
 
     assert "AivisGgmlExecutionProvider" in str(exc_info.value)
     assert "Available providers" in str(exc_info.value)
+
+
+def test_onnx_plugin_inference_session_scope_uses_ep_devices(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Plugin EP sessions use OrtEpDevice when available."""
+
+    calls: list[tuple[str, Any]] = []
+
+    class FakeSessionOptions:
+        def add_provider_for_devices(
+            self,
+            ep_devices: Sequence[Any],
+            provider_options: dict[str, str],
+        ) -> None:
+            calls.append(("add_provider_for_devices", (ep_devices, provider_options)))
+
+    def fake_inference_session(
+        path_or_bytes: str,
+        *,
+        sess_options: Any | None = None,
+        providers: Sequence[str | tuple[str, dict[str, Any]]] | None = None,
+        provider_options: Sequence[dict[Any, Any]] | None = None,
+        **_kwargs: Any,
+    ) -> str:
+        calls.append(
+            (
+                "InferenceSession",
+                {
+                    "path_or_bytes": path_or_bytes,
+                    "sess_options": sess_options,
+                    "providers": providers,
+                    "provider_options": provider_options,
+                },
+            )
+        )
+        return "session"
+
+    ep_device = SimpleNamespace(ep_name="AivisGgmlExecutionProvider")
+    monkeypatch.setattr(
+        style_bert_vits2_tts_engine.onnxruntime,
+        "get_ep_devices",
+        lambda: [ep_device],
+    )
+    monkeypatch.setattr(
+        style_bert_vits2_tts_engine.onnxruntime,
+        "SessionOptions",
+        FakeSessionOptions,
+    )
+    monkeypatch.setattr(
+        style_bert_vits2_tts_engine.onnxruntime,
+        "InferenceSession",
+        fake_inference_session,
+    )
+
+    config = OnnxPluginExecutionProviderConfig(
+        provider_name="AivisGgmlExecutionProvider",
+        provider_options={"backend": "vulkan"},
+    )
+    providers = [
+        ("AivisGgmlExecutionProvider", {"backend": "cpu", "n_threads": "4"}),
+        "CPUExecutionProvider",
+    ]
+
+    with _onnx_plugin_inference_session_scope(config):
+        session = style_bert_vits2_tts_engine.onnxruntime.InferenceSession(
+            "model.onnx",
+            providers=providers,
+        )
+
+    assert session == "session"
+    assert calls[0] == (
+        "add_provider_for_devices",
+        ([ep_device], {"backend": "cpu", "n_threads": "4"}),
+    )
+    assert calls[1][0] == "InferenceSession"
+    assert calls[1][1]["providers"] is None
 
 
 def test_validate_strict_session_provider_rejects_silent_cpu_fallback() -> None:
@@ -417,6 +506,44 @@ def test_model_specific_onnx_providers_fills_synthesis_gguf_path(
             "gguf_path": str(gguf_path),
         },
     )
+
+
+def test_supported_devices_reports_onnx_plugin_ep_as_gpu_capable() -> None:
+    engine = cast(StyleBertVITS2TTSEngine, object.__new__(StyleBertVITS2TTSEngine))
+    config = OnnxPluginExecutionProviderConfig(
+        provider_name="AivisGgmlExecutionProvider",
+        provider_options={
+            "backend": "cpu",
+            "claim_jp_bert_graph": "1",
+            "claim_synthesis_graph": "1",
+        },
+        strict=True,
+    )
+    engine._onnx_plugin_ep = config  # noqa: SLF001
+    engine.onnx_providers = [
+        ("AivisGgmlExecutionProvider", dict(config.provider_options)),
+        "CPUExecutionProvider",
+    ]
+    engine.available_onnx_providers = ["CPUExecutionProvider"]
+
+    assert engine.supported_devices == DeviceSupport(cpu=True, cuda=False, dml=True)
+
+
+def test_supported_devices_ignores_unselected_onnx_plugin_ep() -> None:
+    engine = cast(StyleBertVITS2TTSEngine, object.__new__(StyleBertVITS2TTSEngine))
+    engine._onnx_plugin_ep = OnnxPluginExecutionProviderConfig(
+        provider_name="AivisGgmlExecutionProvider",
+        provider_options={
+            "backend": "cpu",
+            "claim_jp_bert_graph": "1",
+            "claim_synthesis_graph": "1",
+        },
+        strict=False,
+    )
+    engine.onnx_providers = ["CPUExecutionProvider"]
+    engine.available_onnx_providers = ["CPUExecutionProvider"]
+
+    assert engine.supported_devices == DeviceSupport(cpu=True, cuda=False, dml=False)
 
 
 def test_synthesize_wave_uses_trimmed_kana_as_inference_text() -> None:

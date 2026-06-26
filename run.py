@@ -280,6 +280,12 @@ class _CLIArgs:
 _cli_args_adapter = TypeAdapter(_CLIArgs)
 
 
+def _default_ggml_cpu_threads() -> int:
+    """Return a positive thread count for the TTS.cpp CPU backend."""
+
+    return max(os.cpu_count() or 1, 1)
+
+
 def _add_local_onnx_ep_package_src_to_path() -> None:
     package_src_path = (
         engine_root() / "experimental" / "onnxruntime-ep-aivis-ggml" / "src"
@@ -347,6 +353,11 @@ def _build_ggml_onnx_ep_options(args: _CLIArgs) -> dict[str, str]:
         )
     if args.ggml_vulkan_device is not None and provider_options.get("backend") != "cpu":
         provider_options.setdefault("device", args.ggml_vulkan_device)
+    if (
+        provider_options.get("backend") == "cpu"
+        and provider_options.get("n_threads") == "0"
+    ):
+        provider_options["n_threads"] = str(_default_ggml_cpu_threads())
 
     if provider_options.get("tts_cpp_library_path") in {None, ""}:
         raise RuntimeError(

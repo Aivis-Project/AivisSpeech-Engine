@@ -9,6 +9,7 @@ import pytest
 from run import (
     _build_ggml_onnx_ep_options,
     decide_onnx_provider_from_env,
+    engine_root,
 )
 
 
@@ -36,11 +37,12 @@ def test_decide_onnx_provider_from_env_rejects_non_minimal_choices(
 def test_build_ggml_onnx_ep_options_defaults_to_claiming_supported_graphs() -> None:
     """--onnx_provider ggml creates the production Plugin EP defaults."""
 
+    library_path = Path("opt/tts.cpp/libtts.so")
     args = SimpleNamespace(
         onnx_ep_options={},
         ggml_tts_server_backend="vulkan",
         ggml_vulkan_precision="accurate",
-        ggml_native_library_path=Path("/opt/tts.cpp/libtts.so"),
+        ggml_native_library_path=library_path,
         ggml_vulkan_device="0",
     )
 
@@ -54,8 +56,29 @@ def test_build_ggml_onnx_ep_options_defaults_to_claiming_supported_graphs() -> N
         "eager_load_model": "1",
         "n_threads": "0",
         "precision": "accurate",
-        "tts_cpp_library_path": "/opt/tts.cpp/libtts.so",
+        "tts_cpp_library_path": str((engine_root() / library_path).resolve()),
     }
+
+
+def test_build_ggml_onnx_ep_options_sets_positive_threads_for_cpu_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """TTS.cpp CPU backend requires a positive thread count."""
+
+    monkeypatch.setattr("run.os.cpu_count", lambda: 8)
+    args = SimpleNamespace(
+        onnx_ep_options={},
+        ggml_tts_server_backend="cpu",
+        ggml_vulkan_precision="accurate",
+        ggml_native_library_path=Path("/opt/tts.cpp/libtts.so"),
+        ggml_vulkan_device="0",
+    )
+
+    provider_options = _build_ggml_onnx_ep_options(cast(Any, args))
+
+    assert provider_options["backend"] == "cpu"
+    assert provider_options["n_threads"] == "8"
+    assert "device" not in provider_options
 
 
 def test_build_ggml_onnx_ep_options_requires_tts_cpp_library() -> None:

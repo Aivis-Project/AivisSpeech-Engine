@@ -6,6 +6,7 @@ import shutil
 import threading
 import time
 from collections.abc import Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -92,11 +93,13 @@ def _configure_onnx_plugin_execution_provider(
         except Exception as ex:
             registration_error = ex
 
+    ep_devices = _get_onnx_plugin_ep_devices(config.provider_name)
     available_providers = onnxruntime.get_available_providers()
-    if config.provider_name not in available_providers:
+    if config.provider_name not in available_providers and not ep_devices:
         detail = (
             f"ONNX Runtime Plugin EP '{config.provider_name}' is not available. "
-            f"Available providers: {available_providers}"
+            f"Available providers: {available_providers}. "
+            f"Available EP devices: {_available_onnx_ep_device_names()}"
         )
         if registration_error is not None:
             detail += f" Registration failed: {registration_error}"
@@ -133,10 +136,130 @@ def _onnx_provider_name(provider: str | tuple[str, dict[str, Any]]) -> str:
     return provider if isinstance(provider, str) else provider[0]
 
 
+def _onnx_provider_options(
+    provider: str | tuple[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Return ONNX provider options from string or tuple provider forms."""
+
+    return {} if isinstance(provider, str) else dict(provider[1])
+
+
 def _provider_names(providers: Sequence[str | tuple[str, dict[str, Any]]]) -> list[str]:
     """Return only ONNX Runtime provider names."""
 
     return [_onnx_provider_name(provider) for provider in providers]
+
+
+def _get_onnx_plugin_ep_devices(provider_name: str) -> list[Any]:
+    """Return OrtEpDevice objects for a registered Plugin EP."""
+
+    get_ep_devices = getattr(onnxruntime, "get_ep_devices", None)
+    if not callable(get_ep_devices):
+        return []
+
+    return [
+        ep_device
+        for ep_device in get_ep_devices()
+        if getattr(ep_device, "ep_name", None) == provider_name
+    ]
+
+
+def _available_onnx_ep_device_names() -> list[str]:
+    """Return the ONNX Runtime EP device provider names visible to Python."""
+
+    get_ep_devices = getattr(onnxruntime, "get_ep_devices", None)
+    if not callable(get_ep_devices):
+        return []
+
+    return [
+        str(getattr(ep_device, "ep_name", ""))
+        for ep_device in get_ep_devices()
+    ]
+
+
+def _find_onnx_provider_options(
+    *,
+    providers: Sequence[str | tuple[str, dict[str, Any]]] | None,
+    provider_options: Sequence[dict[Any, Any]] | None,
+    provider_name: str,
+) -> dict[str, Any] | None:
+    """Find provider options for a provider in ONNX Runtime Python arguments."""
+
+    if providers is None:
+        return None
+
+    for index, provider in enumerate(providers):
+        if _onnx_provider_name(provider) != provider_name:
+            continue
+        if isinstance(provider, tuple):
+            return dict(provider[1])
+        if provider_options is not None and index < len(provider_options):
+            return dict(provider_options[index])
+        return {}
+
+    return None
+
+
+@contextmanager
+def _onnx_plugin_inference_session_scope(
+    config: OnnxPluginExecutionProviderConfig | None,
+) -> Any:
+    """Create Plugin EP sessions through the ORT 1.24 EpDevice API when needed."""
+
+    if config is None:
+        yield
+        return
+
+    original_inference_session = onnxruntime.InferenceSession
+
+    def plugin_aware_inference_session(
+        path_or_bytes: str | bytes | Path,
+        sess_options: Any | None = None,
+        providers: Sequence[str | tuple[str, dict[str, Any]]] | None = None,
+        provider_options: Sequence[dict[Any, Any]] | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        plugin_provider_options = _find_onnx_provider_options(
+            providers=providers,
+            provider_options=provider_options,
+            provider_name=config.provider_name,
+        )
+        if plugin_provider_options is None:
+            return original_inference_session(
+                path_or_bytes,
+                sess_options=sess_options,
+                providers=providers,
+                provider_options=provider_options,
+                **kwargs,
+            )
+
+        ep_devices = _get_onnx_plugin_ep_devices(config.provider_name)
+        if not ep_devices:
+            return original_inference_session(
+                path_or_bytes,
+                sess_options=sess_options,
+                providers=providers,
+                provider_options=provider_options,
+                **kwargs,
+            )
+
+        if sess_options is None:
+            sess_options = onnxruntime.SessionOptions()
+        sess_options.add_provider_for_devices(
+            ep_devices,
+            {key: str(value) for key, value in plugin_provider_options.items()},
+        )
+        return original_inference_session(
+            path_or_bytes,
+            sess_options=sess_options,
+            **kwargs,
+        )
+
+    onnxruntime.InferenceSession = plugin_aware_inference_session  # type: ignore[assignment]
+    try:
+        yield
+    finally:
+        onnxruntime.InferenceSession = original_inference_session  # type: ignore[assignment]
 
 
 def _replace_provider_options(
@@ -446,13 +569,14 @@ class StyleBertVITS2TTSEngine(TTSEngine):
 
     def _load_bert_model_and_tokenizer(self) -> Any:
         """BERT モデルとトークナイザーをロードし、ローカルキャッシュを更新する。"""
-        bert_session = onnx_bert_models.load_model(
-            language=Languages.JP,
-            pretrained_model_name_or_path=self.BERT_MODEL_REPOSITORY,
-            onnx_providers=self.onnx_providers,
-            cache_dir=str(self._bert_model_cache_dir),
-            revision=self.BERT_MODEL_REVISION,
-        )
+        with _onnx_plugin_inference_session_scope(self._onnx_plugin_ep):
+            bert_session = onnx_bert_models.load_model(
+                language=Languages.JP,
+                pretrained_model_name_or_path=self.BERT_MODEL_REPOSITORY,
+                onnx_providers=self.onnx_providers,
+                cache_dir=str(self._bert_model_cache_dir),
+                revision=self.BERT_MODEL_REVISION,
+            )
         onnx_bert_models.load_tokenizer(
             language=Languages.JP,
             pretrained_model_name_or_path=self.BERT_MODEL_REPOSITORY,
@@ -506,6 +630,10 @@ class StyleBertVITS2TTSEngine(TTSEngine):
     @property
     def supported_devices(self) -> DeviceSupport | None:
         """合成時に各デバイスが利用可能か否かの一覧を取得する。"""
+        supports_onnx_plugin_ep = (
+            self._onnx_plugin_ep is not None
+            and self._onnx_plugin_ep.provider_name in _provider_names(self.onnx_providers)
+        )
         return DeviceSupport(
             # CPU: 常にサポートされる
             cpu=True,
@@ -520,7 +648,8 @@ class StyleBertVITS2TTSEngine(TTSEngine):
             # この値が True であるからといって、必ずしも DirectML 推論が利用できるとは限らない
             dml=(
                 True
-                if "DmlExecutionProvider" in self.available_onnx_providers
+                if supports_onnx_plugin_ep
+                or "DmlExecutionProvider" in self.available_onnx_providers
                 else False
             ),
         )
@@ -591,7 +720,8 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         )  # fmt: skip
         start_time = time.time()
         logger.info(f"Loading {aivm_info.manifest.name} ({aivm_model_uuid}) ...")
-        tts_model.load()
+        with _onnx_plugin_inference_session_scope(self._onnx_plugin_ep):
+            tts_model.load()
         self._validate_strict_provider(tts_model)
         with self._tts_models_lock:
             # ロード中に別スレッドが同一モデルを先にロードした場合は、そのインスタンスを優先して利用する

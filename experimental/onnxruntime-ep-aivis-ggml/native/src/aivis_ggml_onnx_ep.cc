@@ -3107,8 +3107,10 @@ struct AivisGgmlEpFactory final : OrtEpFactory {
     CreateExternalResourceImporterForDevice = CreateExternalResourceImporterForDeviceImpl;
     GetNumCustomOpDomains = GetNumCustomOpDomainsImpl;
     GetCustomOpDomains = GetCustomOpDomainsImpl;
+#if ORT_API_VERSION >= 25
     InitGraphicsInterop = InitGraphicsInteropImpl;
     DeinitGraphicsInterop = DeinitGraphicsInteropImpl;
+#endif
   }
 
   static const char* ORT_API_CALL GetNameImpl(const OrtEpFactory* /*this_ptr*/) noexcept {
@@ -3369,6 +3371,7 @@ struct AivisGgmlEpFactory final : OrtEpFactory {
     return nullptr;
   }
 
+#if ORT_API_VERSION >= 25
   static OrtStatus* ORT_API_CALL InitGraphicsInteropImpl(
       OrtEpFactory* this_ptr,
       const OrtEpDevice* /*ep_device*/,
@@ -3389,6 +3392,7 @@ struct AivisGgmlEpFactory final : OrtEpFactory {
         ORT_NOT_IMPLEMENTED,
         "Aivis GGML EP has no graphics interop support yet.");
   }
+#endif
 
   const OrtApi& ort_api_;
   const OrtEpApi& ep_api_;
