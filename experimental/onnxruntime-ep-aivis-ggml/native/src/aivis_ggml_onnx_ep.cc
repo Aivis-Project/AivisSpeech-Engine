@@ -21,6 +21,10 @@
 #include <utility>
 #include <vector>
 
+#if defined(_WIN32) && !defined(NOMINMAX)
+#define NOMINMAX
+#endif
+
 #if defined(_WIN32)
 #include <windows.h>
 #else

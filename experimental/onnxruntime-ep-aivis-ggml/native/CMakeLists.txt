@@ -15,6 +15,7 @@ add_library(aivis_ggml_onnx_ep SHARED
 target_compile_features(aivis_ggml_onnx_ep PRIVATE cxx_std_17)
 target_include_directories(aivis_ggml_onnx_ep PRIVATE "${ORT_INCLUDE_DIR}")
 target_link_libraries(aivis_ggml_onnx_ep PRIVATE ${CMAKE_DL_LIBS})
+target_compile_definitions(aivis_ggml_onnx_ep PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 
 set_target_properties(aivis_ggml_onnx_ep PROPERTIES
   CXX_VISIBILITY_PRESET hidden
