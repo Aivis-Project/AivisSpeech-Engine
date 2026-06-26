@@ -44,6 +44,7 @@ jobs:
     needs: [config]
     environment: ${{ github.event.inputs.code_signing == 'true' && 'code_signing' || '' }} # コード署名用のenvironment
     strategy:
+      fail-fast: false
       matrix:
         include:
           # Windows x64
@@ -118,14 +119,22 @@ jobs:
       - name: <Setup> Install ONNX GGML native build dependencies (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: choco install vulkan-sdk -y --no-progress
+        run: |
+          choco install vulkan-sdk -y --no-progress
+          $sdk = Get-ChildItem "C:\VulkanSDK" -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          if ($null -eq $sdk) {
+            throw "Vulkan SDK was not installed under C:\VulkanSDK"
+          }
+          "VULKAN_SDK=$($sdk.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "$($sdk.FullName)\Bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          & "$($sdk.FullName)\Bin\glslc.exe" --version
 
       - name: <Setup> Prepare ONNX Runtime Plugin EP headers
         run: |
           set -eux
           mkdir -p download/
           ORT_ARCHIVE="onnxruntime-linux-x64-${AIVIS_ONNX_GGML_ORT_VERSION}.tgz"
-          ORT_DIR="${{ runner.temp }}/onnxruntime-${AIVIS_ONNX_GGML_ORT_VERSION}"
+          ORT_DIR="$PWD/build/onnxruntime-${AIVIS_ONNX_GGML_ORT_VERSION}"
           curl -sSL \
             "https://github.com/microsoft/onnxruntime/releases/download/v${AIVIS_ONNX_GGML_ORT_VERSION}/${ORT_ARCHIVE}" \
             -o "download/${ORT_ARCHIVE}"
@@ -134,6 +143,9 @@ jobs:
           ORT_HEADER_PATH="$(find "${ORT_DIR}" -name onnxruntime_cxx_api.h -type f | head -n 1)"
           ORT_INCLUDE_DIR="$(dirname "${ORT_HEADER_PATH}")"
           test -f "${ORT_INCLUDE_DIR}/onnxruntime_cxx_api.h"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            ORT_INCLUDE_DIR="$(cygpath -w "${ORT_INCLUDE_DIR}")"
+          fi
           echo "ORT_INCLUDE_DIR=${ORT_INCLUDE_DIR}" >> "$GITHUB_ENV"
 
       - name: <Build> Build ONNX GGML Plugin EP
@@ -151,8 +163,8 @@ jobs:
       - name: <Build> Build TTS.cpp runtime
         run: |
           set -eux
-          TTS_CPP_DIR="${{ runner.temp }}/TTS.cpp"
-          TTS_CPP_BUILD_DIR="${{ runner.temp }}/TTS.cpp-build"
+          TTS_CPP_DIR="$PWD/build/TTS.cpp"
+          TTS_CPP_BUILD_DIR="$PWD/build/TTS.cpp-build"
           rm -rf "$TTS_CPP_DIR" "$TTS_CPP_BUILD_DIR"
           git clone --recursive "$AIVIS_ONNX_GGML_TTS_CPP_REPOSITORY" "$TTS_CPP_DIR"
           git -C "$TTS_CPP_DIR" checkout "$AIVIS_ONNX_GGML_TTS_CPP_REF"
@@ -175,7 +187,11 @@ jobs:
           cmake -S "$TTS_CPP_DIR" -B "$TTS_CPP_BUILD_DIR" "${cmake_args[@]}"
           cmake --build "$TTS_CPP_BUILD_DIR" --config Release --target tts --parallel
 
-          TTS_CPP_BUILD_DIR="$TTS_CPP_BUILD_DIR" python - <<'PY'
+          TTS_CPP_BUILD_DIR_FOR_PYTHON="$TTS_CPP_BUILD_DIR"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            TTS_CPP_BUILD_DIR_FOR_PYTHON="$(cygpath -w "${TTS_CPP_BUILD_DIR}")"
+          fi
+          TTS_CPP_BUILD_DIR="$TTS_CPP_BUILD_DIR_FOR_PYTHON" python - <<'PY'
           import os
           import sys
           from pathlib import Path
