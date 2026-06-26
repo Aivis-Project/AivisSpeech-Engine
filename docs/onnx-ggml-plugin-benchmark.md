@@ -74,6 +74,17 @@ Interpretation:
 - Long text is effectively tied between ONNX CUDA and ONNX GGML Plugin EP
   Vulkan in this run.
 
+## Audio Preview
+
+These AAC files are representative outputs for qualitative review. They are not
+included in the RTF timing window.
+
+| text length | ONNX CPU | ONNX CUDA | ONNX GGML Plugin EP Vulkan |
+| --- | --- | --- | --- |
+| short | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-cpu_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-cpu_short.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-cuda_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-cuda_short.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-ggml-vulkan_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-ggml-vulkan_short.m4a) |
+| medium | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-cpu_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-cpu_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-cuda_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-cuda_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-ggml-vulkan_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-ggml-vulkan_medium.m4a) |
+| long | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-cpu_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-cpu_long.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-cuda_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-cuda_long.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-ggml-vulkan_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-ggml-vulkan_long.m4a) |
+
 ## Reproduction Command
 
 The benchmark script added for this PR installs the provided AIVMX into a
