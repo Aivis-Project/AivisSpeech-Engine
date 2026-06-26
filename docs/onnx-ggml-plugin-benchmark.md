@@ -104,6 +104,8 @@ results are stored in
 - GPU: Intel(R) Arc(TM) B580 Graphics, driver `32.0.101.8826`
 - ONNX Runtime: `onnxruntime-directml 1.24.4`; providers include
   `DmlExecutionProvider`, `CPUExecutionProvider`
+- TTS.cpp: `7b83c9c1408ae01712d612b5ac35f63b76861e0a`; ggml submodule
+  `a78c352bb70b312daa7ef1361485fbb94392713e`
 - Model: AIVMX/ONNX `コハク` model, version `1.1.0`
 - Style: `1878365376` (`ノーマル`)
 - GGML provider options: `backend=vulkan`, `precision=accurate`,
@@ -119,10 +121,10 @@ results are stored in
 
 | text length | ONNX CPU RTF | ONNX DirectML RTF | ONNX GGML Plugin EP Vulkan RTF |
 | --- | ---: | ---: | ---: |
-| short | `0.423` | `2.212` | `0.178` |
-| medium | `0.341` | `0.233` | `0.172` |
-| long | `0.278` | `0.483` | `0.145` |
-| overall mean | `0.347` | `0.976` | `0.165` |
+| short | `0.425` | `2.402` | `0.105` |
+| medium | `0.373` | `1.390` | `0.098` |
+| long | `0.284` | `0.207` | `0.056` |
+| overall mean | `0.361` | `1.333` | `0.087` |
 
 Provider evidence from the run:
 
@@ -145,9 +147,10 @@ Interpretation:
 - DirectML is active in this run and is not silently falling back to CPU.
 - On this Intel Arc B580 machine with ONNX Runtime `1.24.4`, DirectML is not
   consistently faster on the app-default `tempoDynamicsScale=1.0` path. It is
-  faster than CPU for the medium sample, but slower for the short and long
+  faster than CPU for the long sample, but slower for the short and medium
   samples in this run.
-- GGML Plugin EP Vulkan remains faster than CPU for all three text lengths.
+- GGML Plugin EP Vulkan is faster than both ONNX CPU and ONNX DirectML for all
+  three text lengths after the TTS.cpp Style-Bert conv1d fallback fix.
 - Short text measurements are especially sensitive to fixed ONNX Runtime and
   provider overhead. This table still excludes the first warmup synthesis per
   text; the app's first synthesis for a new sentence can be slower than these
@@ -175,6 +178,9 @@ uv run python tools\benchmark_onnx_ggml_provider.py `
   --backend onnx-cpu `
   --backend onnx-directml `
   --backend onnx-ggml-vulkan `
+  --text "テストです。" `
+  --text "今日はいい天気です。" `
+  --text "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。" `
   --ggml_native_library_path "C:\path\to\tts.dll" `
   --onnx_ep_library_path "C:\path\to\aivis_ggml_onnx_ep.dll" `
   --ggml_vulkan_precision accurate `
