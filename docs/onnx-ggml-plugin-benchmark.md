@@ -12,13 +12,21 @@ GGML Plugin EP integration:
 RTF is `elapsed_seconds / output_duration_seconds`; lower is better. Audio
 encoding is intentionally excluded from measured runs.
 
-## Scope
+## Linux RTX 3060 Local Run (2026-06-27)
 
-- Measurement date: 2026-06-25, Asia/Tokyo
+Raw results are stored in
+[linux-rtx3060-cuda-ggml-cpu.json](res/onnx-ggml-plugin-benchmark/linux-rtx3060-cuda-ggml-cpu.json).
+
+### Scope
+
+- Measurement date: 2026-06-27, Asia/Tokyo
 - Profile: `warmup_runs=1`, `runs=3`
-- AudioQuery: `tempoDynamicsScale=0.0`
-- Model: AIVMX/ONNX Style-Bert-VITS2 model
-- Style: `888753760`
+- AudioQuery: `tempoDynamicsScale=1.0`, matching the Engine `/audio_query`
+  default used by the app
+- Engine: `30ead73c88a7`
+- TTS.cpp: `0c6678415023`
+- Model: AIVMX/ONNX `コハク` model, version `1.1.0`
+- Style: `1878365376` (`ノーマル`)
 - GGML model path: AIVMX/ONNX is converted to synthesis GGUF by the Plugin EP
   cache path; JP-BERT uses `kevinzhow/style-bert-vits2-gguf`
   `frontend/style-bert-vits2-jp-bert.gguf`
@@ -28,10 +36,10 @@ encoding is intentionally excluded from measured runs.
 | label | text | chars |
 | --- | --- | ---: |
 | short | `テストです。` | 6 |
-| medium | `今日はいい天気ですね。` | 11 |
+| medium | `今日はいい天気です。` | 10 |
 | long | `これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。` | 41 |
 
-## Device Parameters
+### Device Parameters
 
 | component | value |
 | --- | --- |
@@ -42,27 +50,27 @@ encoding is intentionally excluded from measured runs.
 | Vulkan GPU | NVIDIA GeForce RTX 3060, Vulkan API `1.4.329`, UMA `0`, fp16 `0`, bf16 `1`, warp size `32`, shared memory `49152`, int dot `1` |
 | GGML Vulkan device pin | `GGML_VK_VISIBLE_DEVICES=1` |
 
-## RTF Results
+### RTF Results
 
 | text length | ONNX CPU RTF | ONNX CUDA RTF | ONNX GGML Plugin EP Vulkan RTF |
 | --- | ---: | ---: | ---: |
-| short | `0.354` | `0.267` | `0.145` |
-| medium | `0.271` | `0.184` | `0.101` |
-| long | `0.200` | `0.065` | `0.062` |
-| overall mean | `0.275` | `0.172` | `0.102` |
+| short | `0.296` | `1.390` | `0.176` |
+| medium | `0.259` | `1.003` | `0.169` |
+| long | `0.225` | `0.237` | `0.152` |
+| overall mean | `0.260` | `0.877` | `0.166` |
 
-Provider evidence from the GGML Plugin EP run:
+Provider evidence from the run:
 
 ```json
 {
-  "active_providers": ["AivisGgmlExecutionProvider", "CPUExecutionProvider"],
-  "bert_active_providers": ["AivisGgmlExecutionProvider", "CPUExecutionProvider"],
-  "provider_options": {
-    "backend": "vulkan",
-    "claim_jp_bert_graph": "1",
-    "claim_synthesis_graph": "1",
-    "eager_load_model": "1",
-    "precision": "accurate"
+  "onnx-cpu": {
+    "active_providers": ["CPUExecutionProvider"]
+  },
+  "onnx-cuda": {
+    "active_providers": ["CUDAExecutionProvider", "CPUExecutionProvider"]
+  },
+  "onnx-ggml-vulkan": {
+    "active_providers": ["AivisGgmlExecutionProvider", "CPUExecutionProvider"]
   }
 }
 ```
@@ -71,21 +79,25 @@ Interpretation:
 
 - The Plugin EP path keeps the normal ONNX frontend and replaces only the
   supported synthesis and JP-BERT ONNX graphs with TTS.cpp GGML execution.
-- On the RTX 3060 run, ONNX GGML Plugin EP Vulkan is faster than ONNX CPU for
-  all three text lengths and slightly faster than ONNX CUDA overall.
-- Long text is effectively tied between ONNX CUDA and ONNX GGML Plugin EP
-  Vulkan in this run.
+- ONNX CUDA is active and not silently falling back to CPU. This run required
+  CUDA 12 runtime libraries to be present in `LD_LIBRARY_PATH`; without them,
+  the benchmark fails instead of recording a CPU fallback as a CUDA result.
+- On this RTX 3060 run, ONNX CUDA is slower than ONNX CPU for short and medium
+  text and slightly slower for long text. The result reflects this model/input
+  shape on `onnxruntime-gpu 1.26.0`, not a provider fallback.
+- GGML Plugin EP Vulkan is faster than both ONNX CPU and ONNX CUDA for all
+  three text lengths in this run.
 
-## Audio Preview
+### Audio Preview
 
 These AAC files are representative outputs for qualitative review. They are not
 included in the RTF timing window.
 
 | text length | ONNX CPU | ONNX CUDA | ONNX GGML Plugin EP Vulkan |
 | --- | --- | --- | --- |
-| short | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-cpu_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-cpu_short.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-cuda_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-cuda_short.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-ggml-vulkan_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-ggml-vulkan_short.m4a) |
-| medium | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-cpu_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-cpu_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-cuda_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-cuda_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-ggml-vulkan_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-ggml-vulkan_medium.m4a) |
-| long | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-cpu_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-cpu_long.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-cuda_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-cuda_long.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/onnx-ggml-vulkan_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/onnx-ggml-vulkan_long.m4a) |
+| short | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_short.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_short.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan_short.m4a) |
+| medium | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan_medium.m4a) |
+| long | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_long.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_long.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan_long.m4a) |
 
 ## Windows Intel Arc B580 Local Run (2026-06-27)
 
@@ -191,22 +203,23 @@ uv run python tools\benchmark_onnx_ggml_provider.py `
   --audio_output_dir "docs\res\onnx-ggml-plugin-benchmark\audio\windows-arc-b580"
 ```
 
-## Reproduction Command
+## Linux Reproduction Command
 
-The benchmark script added for this PR installs the provided AIVMX into a
-temporary `Models` directory, clears the process-global JP-BERT ONNX cache
-before each backend, validates the actual ONNX provider after model load, and
-then measures only `synthesize_wave()`.
+The benchmark script installs the provided AIVMX into a temporary `Models`
+directory, clears the process-global JP-BERT ONNX cache before each backend,
+validates the actual ONNX provider after model load, and then measures only
+`synthesize_wave()`.
 
 Set local paths before running:
 
 ```bash
 export AIVMX_PATH="<path-to-model.aivmx>"
-export STYLE_ID="888753760"
+export STYLE_ID="1878365376"
 export CUDA12_NVIDIA_LIBS="<colon-separated CUDA 12/cuDNN library dirs>"
 export AIVIS_GGML_ONNX_EP_LIBRARY_PATH="<path-to-libaivis_ggml_onnx_ep.so>"
 export TTS_CPP_NATIVE_LIBRARY_PATH="<path-to-libtts.so>"
-export BENCHMARK_OUTPUT_JSON="<path-to-output-json>"
+export BENCHMARK_OUTPUT_JSON="docs/res/onnx-ggml-plugin-benchmark/linux-rtx3060-cuda-ggml-cpu.json"
+export BENCHMARK_AUDIO_WAV_DIR="<path-to-temporary-wav-output-dir>"
 ```
 
 Run ONNX CPU, ONNX CUDA, and ONNX GGML Plugin EP Vulkan in one process:
@@ -220,13 +233,17 @@ uv run python tools/benchmark_onnx_ggml_provider.py \
   --backend onnx-cpu \
   --backend onnx-cuda \
   --backend onnx-ggml-vulkan \
+  --text "テストです。" \
+  --text "今日はいい天気です。" \
+  --text "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。" \
   --onnx_ep_library_path "$AIVIS_GGML_ONNX_EP_LIBRARY_PATH" \
   --ggml_native_library_path "$TTS_CPP_NATIVE_LIBRARY_PATH" \
   --ggml_vulkan_precision accurate \
-  --tempo_dynamics_scale 0.0 \
+  --tempo_dynamics_scale 1.0 \
   --warmup_runs 1 \
   --runs 3 \
-  --output_json "$BENCHMARK_OUTPUT_JSON"
+  --output_json "$BENCHMARK_OUTPUT_JSON" \
+  --audio_output_dir "$BENCHMARK_AUDIO_WAV_DIR"
 ```
 
 Strict provider checks:
