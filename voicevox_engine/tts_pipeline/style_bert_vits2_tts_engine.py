@@ -174,7 +174,7 @@ def _cuda_onnx_providers(
             "CUDAExecutionProvider",
             {
                 "arena_extend_strategy": "kSameAsRequested",
-                "cudnn_conv_algo_search": "DEFAULT",
+                "cudnn_conv_algo_search": "HEURISTIC",
             },
         ),
     ]
@@ -464,11 +464,11 @@ class StyleBertVITS2TTSEngine(TTSEngine):
             )
         elif use_gpu is True and "CUDAExecutionProvider" in self.available_onnx_providers:
             self.onnx_providers = []
-            # cudnn_conv_algo_search を DEFAULT にすると推論速度が大幅に向上する
-            # ref: https://medium.com/neuml/debug-onnx-gpu-performance-c9290fe07459
+            # HEURISTIC avoids the slow CUDA convolution path seen in
+            # Style-Bert-VITS2 SDP runs while keeping first-run cost bounded.
             self.onnx_providers.append(("CUDAExecutionProvider", {
                 "arena_extend_strategy": "kSameAsRequested",
-                "cudnn_conv_algo_search": "DEFAULT",
+                "cudnn_conv_algo_search": "HEURISTIC",
             }))  # fmt: skip
             # DirectML が利用可能なら、フォールバックとして DmlExecutionProvider も指定する
             if "DmlExecutionProvider" in self.available_onnx_providers:
