@@ -23,8 +23,9 @@ Raw results are stored in
 - Profile: `warmup_runs=1`, `runs=3`
 - AudioQuery: `tempoDynamicsScale=1.0`, matching the Engine `/audio_query`
   default used by the app
-- Engine: `30ead73c88a7`
+- Engine: `0d5e47c29511`
 - TTS.cpp: `0c6678415023`
+- CUDA provider option: `cudnn_conv_algo_search=HEURISTIC`
 - Model: AIVMX/ONNX `コハク` model, version `1.1.0`
 - Style: `1878365376` (`ノーマル`)
 - GGML model path: AIVMX/ONNX is converted to synthesis GGUF by the Plugin EP
@@ -54,10 +55,10 @@ Raw results are stored in
 
 | text length | ONNX CPU RTF | ONNX CUDA RTF | ONNX GGML Plugin EP Vulkan RTF |
 | --- | ---: | ---: | ---: |
-| short | `0.296` | `1.390` | `0.176` |
-| medium | `0.259` | `1.003` | `0.169` |
-| long | `0.225` | `0.237` | `0.152` |
-| overall mean | `0.260` | `0.877` | `0.166` |
+| short | `0.324` | `0.160` | `0.176` |
+| medium | `0.239` | `0.117` | `0.170` |
+| long | `0.211` | `0.033` | `0.153` |
+| overall mean | `0.258` | `0.103` | `0.166` |
 
 Provider evidence from the run:
 
@@ -82,11 +83,14 @@ Interpretation:
 - ONNX CUDA is active and not silently falling back to CPU. This run required
   CUDA 12 runtime libraries to be present in `LD_LIBRARY_PATH`; without them,
   the benchmark fails instead of recording a CPU fallback as a CUDA result.
-- On this RTX 3060 run, ONNX CUDA is slower than ONNX CPU for short and medium
-  text and slightly slower for long text. The result reflects this model/input
-  shape on `onnxruntime-gpu 1.26.0`, not a provider fallback.
-- GGML Plugin EP Vulkan is faster than both ONNX CPU and ONNX CUDA for all
-  three text lengths in this run.
+- ONNX CUDA uses `cudnn_conv_algo_search=HEURISTIC`. The previous `DEFAULT`
+  setting triggered a slow CUDA convolution path for the app-default
+  `tempoDynamicsScale=1.0` SDP run on this RTX 3060, raising short and medium
+  RTF above `1.0` even though CUDA was active.
+- With the CUDA convolution search fix, ONNX CUDA is the fastest backend for
+  all three text lengths on this machine. GGML Plugin EP Vulkan is still faster
+  than ONNX CPU for all three text lengths and does not require NVIDIA CUDA
+  runtime libraries.
 
 ### Audio Preview
 
