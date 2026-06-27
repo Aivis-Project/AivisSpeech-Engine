@@ -23,15 +23,15 @@ Raw results are stored in
 - Profile: `warmup_runs=1`, `runs=3`
 - AudioQuery: `tempoDynamicsScale=1.0`, matching the Engine `/audio_query`
   default used by the app
-- Engine: `0d5e47c29511`
-- TTS.cpp: `0c6678415023`
+- Engine: `feat/onnx-ggml-minimal-upstream` with Plugin EP precision env propagation
+- TTS.cpp: `a053e7270261`
 - CUDA provider option: `cudnn_conv_algo_search=HEURISTIC`
 - Model: AIVMX/ONNX `コハク` model, version `1.1.0`
 - Style: `1878365376` (`ノーマル`)
 - GGML model path: AIVMX/ONNX is converted to synthesis GGUF by the Plugin EP
   cache path; JP-BERT uses `kevinzhow/style-bert-vits2-gguf`
   `frontend/style-bert-vits2-jp-bert.gguf`
-- GGML provider options: `backend=vulkan`, `precision=accurate`,
+- GGML provider options: `backend=vulkan`, `precision=fast`,
   `claim_synthesis_graph=1`, `claim_jp_bert_graph=1`, `eager_load_model=1`
 
 | label | text | chars |
@@ -55,10 +55,10 @@ Raw results are stored in
 
 | text length | ONNX CPU RTF | ONNX CUDA RTF | ONNX GGML Plugin EP Vulkan RTF |
 | --- | ---: | ---: | ---: |
-| short | `0.324` | `0.160` | `0.176` |
-| medium | `0.239` | `0.117` | `0.170` |
-| long | `0.211` | `0.033` | `0.153` |
-| overall mean | `0.258` | `0.103` | `0.166` |
+| short | `0.304` | `0.163` | `0.122` |
+| medium | `0.246` | `0.088` | `0.098` |
+| long | `0.196` | `0.033` | `0.063` |
+| overall mean | `0.249` | `0.095` | `0.095` |
 
 Provider evidence from the run:
 
@@ -87,10 +87,14 @@ Interpretation:
   setting triggered a slow CUDA convolution path for the app-default
   `tempoDynamicsScale=1.0` SDP run on this RTX 3060, raising short and medium
   RTF above `1.0` even though CUDA was active.
-- With the CUDA convolution search fix, ONNX CUDA is the fastest backend for
-  all three text lengths on this machine. GGML Plugin EP Vulkan is still faster
-  than ONNX CPU for all three text lengths and does not require NVIDIA CUDA
-  runtime libraries.
+- GGML Plugin EP Vulkan uses `precision=fast` in this run, which opts into the
+  TTS.cpp Vulkan fast conv1d path. `precision=accurate` remains the conservative
+  parity-oriented mode and is not the performance number shown in this table.
+- With the CUDA convolution search fix, ONNX CUDA remains fastest for the
+  medium and long samples, while GGML Plugin EP Vulkan is faster on the short
+  sample in this run. Their overall mean RTF is effectively tied here. GGML
+  Plugin EP Vulkan is faster than ONNX CPU for all three text lengths and does
+  not require NVIDIA CUDA runtime libraries.
 
 ### Audio Preview
 
@@ -242,7 +246,7 @@ uv run python tools/benchmark_onnx_ggml_provider.py \
   --text "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。" \
   --onnx_ep_library_path "$AIVIS_GGML_ONNX_EP_LIBRARY_PATH" \
   --ggml_native_library_path "$TTS_CPP_NATIVE_LIBRARY_PATH" \
-  --ggml_vulkan_precision accurate \
+  --ggml_vulkan_precision fast \
   --tempo_dynamics_scale 1.0 \
   --warmup_runs 1 \
   --runs 3 \

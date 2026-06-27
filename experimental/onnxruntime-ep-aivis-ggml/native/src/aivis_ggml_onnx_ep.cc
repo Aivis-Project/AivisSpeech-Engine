@@ -598,6 +598,81 @@ class DynamicLibrary final {
 #endif
 };
 
+class ScopedEnvironment final {
+ public:
+  ScopedEnvironment() = default;
+  ScopedEnvironment(const ScopedEnvironment&) = delete;
+  ScopedEnvironment& operator=(const ScopedEnvironment&) = delete;
+  ScopedEnvironment(ScopedEnvironment&& other) noexcept
+      : entries_{std::move(other.entries_)} {
+    other.entries_.clear();
+  }
+  ScopedEnvironment& operator=(ScopedEnvironment&&) = delete;
+
+  ~ScopedEnvironment() {
+    for (auto it = entries_.rbegin(); it != entries_.rend(); ++it) {
+      if (it->had_value) {
+        SetProcessEnv(it->name, it->old_value);
+      } else {
+        UnsetProcessEnv(it->name);
+      }
+    }
+  }
+
+  void Set(std::string name, std::string value) {
+    Entry entry;
+    entry.name = std::move(name);
+    entry.had_value = ReadProcessEnv(entry.name, entry.old_value);
+    SetProcessEnv(entry.name, value);
+    entries_.push_back(std::move(entry));
+  }
+
+ private:
+  struct Entry {
+    std::string name;
+    bool had_value = false;
+    std::string old_value;
+  };
+
+  static bool ReadProcessEnv(const std::string& name, std::string& value) {
+#if defined(_WIN32)
+    char* buffer = nullptr;
+    size_t length = 0;
+    if (_dupenv_s(&buffer, &length, name.c_str()) != 0 || buffer == nullptr) {
+      return false;
+    }
+    value.assign(buffer, length > 0 ? length - 1 : 0);
+    std::free(buffer);
+    return true;
+#else
+    const char* raw = std::getenv(name.c_str());
+    if (raw == nullptr) {
+      return false;
+    }
+    value = raw;
+    return true;
+#endif
+  }
+
+  static void SetProcessEnv(const std::string& name, const std::string& value) {
+#if defined(_WIN32)
+    _putenv_s(name.c_str(), value.c_str());
+#else
+    setenv(name.c_str(), value.c_str(), 1);
+#endif
+  }
+
+  static void UnsetProcessEnv(const std::string& name) {
+#if defined(_WIN32)
+    _putenv_s(name.c_str(), "");
+#else
+    unsetenv(name.c_str());
+#endif
+  }
+
+  std::vector<Entry> entries_;
+};
+
 struct tts_style_bert_vits2_handle;
 struct tts_style_bert_vits2_jp_bert_handle;
 
@@ -797,7 +872,7 @@ class TtsCppRuntime final {
 
   static std::shared_ptr<TtsCppRuntime> LoadAndMaybeOpenModel(const AivisGgmlEpConfig& config) {
     auto library = DynamicLibrary::Load(config.tts_cpp_library_path);
-    auto runtime = std::shared_ptr<TtsCppRuntime>(new TtsCppRuntime(std::move(library)));
+    auto runtime = std::shared_ptr<TtsCppRuntime>(new TtsCppRuntime(std::move(library), config));
     runtime->last_error_ = reinterpret_cast<LastErrorFn>(
         runtime->library_->Symbol("tts_style_bert_vits2_last_error"));
     runtime->load_model_ = reinterpret_cast<LoadModelFn>(
@@ -823,6 +898,7 @@ class TtsCppRuntime final {
     const int cpu_only = config.backend == "cpu" ? 1 : 0;
     if (!config.gguf_path.empty()) {
       tts_style_bert_vits2_handle* handle = nullptr;
+      auto env = runtime->EnterRuntimeEnvironment();
       if (runtime->load_model_(config.gguf_path.c_str(), config.n_threads, cpu_only, &handle) == 0 || handle == nullptr) {
         const char* detail = runtime->last_error_ != nullptr ? runtime->last_error_() : nullptr;
         throw std::runtime_error(
@@ -833,6 +909,7 @@ class TtsCppRuntime final {
     }
     if (!config.jp_bert_gguf_path.empty()) {
       tts_style_bert_vits2_jp_bert_handle* handle = nullptr;
+      auto env = runtime->EnterRuntimeEnvironment();
       if (runtime->load_jp_bert_model_(config.jp_bert_gguf_path.c_str(), config.n_threads, cpu_only, &handle) == 0 ||
           handle == nullptr) {
         const char* detail = runtime->last_error_ != nullptr ? runtime->last_error_() : nullptr;
@@ -894,6 +971,7 @@ class TtsCppRuntime final {
       error = "TTS.cpp Style-Bert-VITS2 direct style_vec synthesis API is not loaded.";
       return false;
     }
+    auto env = EnterRuntimeEnvironment();
     const int ok = synthesize_front_with_style_vec_(
         model_handle_,
         phone_ids,
@@ -928,6 +1006,7 @@ class TtsCppRuntime final {
       error = "TTS.cpp Style-Bert-VITS2 JP-BERT API is not loaded.";
       return false;
     }
+    auto env = EnterRuntimeEnvironment();
     const int ok = encode_jp_bert_features_(
         jp_bert_handle_,
         input_ids,
@@ -942,8 +1021,26 @@ class TtsCppRuntime final {
   }
 
  private:
-  explicit TtsCppRuntime(std::unique_ptr<DynamicLibrary> library)
-      : library_(std::move(library)) {}
+  TtsCppRuntime(std::unique_ptr<DynamicLibrary> library, AivisGgmlEpConfig config)
+      : library_(std::move(library)),
+        config_(std::move(config)) {}
+
+  ScopedEnvironment EnterRuntimeEnvironment() const {
+    ScopedEnvironment env;
+    env.Set("TTS_BACKEND", config_.backend);
+    if (!config_.device.empty()) {
+      env.Set("TTS_DEVICE", config_.device);
+    }
+    if (config_.backend == "vulkan") {
+      env.Set("STYLE_BERT_VITS2_VULKAN_PRECISION", config_.precision);
+      env.Set("STYLE_BERT_VITS2_JP_BERT_VULKAN_PRECISION", config_.precision);
+      const bool fast = config_.precision == "fast";
+      env.Set("GGML_VK_DISABLE_F16", fast ? "0" : "1");
+      env.Set("GGML_VK_DISABLE_COOPMAT", fast ? "0" : "1");
+      env.Set("GGML_VK_DISABLE_COOPMAT2", fast ? "0" : "1");
+    }
+    return env;
+  }
 
   static std::string OptionalVersionString(Uint32Fn version_fn) {
     if (version_fn == nullptr) {
@@ -984,6 +1081,7 @@ class TtsCppRuntime final {
   SynthesizeFrontFn synthesize_front_ = nullptr;
   SynthesizeFrontWithStyleVecFn synthesize_front_with_style_vec_ = nullptr;
   EncodeJpBertFeaturesFn encode_jp_bert_features_ = nullptr;
+  AivisGgmlEpConfig config_;
   tts_style_bert_vits2_handle* model_handle_ = nullptr;
   tts_style_bert_vits2_jp_bert_handle* jp_bert_handle_ = nullptr;
   std::mutex mutex_;

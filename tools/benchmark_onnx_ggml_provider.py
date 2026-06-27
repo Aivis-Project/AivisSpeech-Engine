@@ -481,12 +481,13 @@ def main() -> None:
     summaries = _summarize(all_records)
     payload = {
         "profile": {
-            "aivmx_path": str(args.aivmx_path),
+            "aivmx_path": f"<local-model-dir>/{args.aivmx_path.name}",
             "style_id": int(style_id),
             "texts": list(texts),
             "warmup_runs": args.warmup_runs,
             "runs": args.runs,
             "tempo_dynamics_scale": args.tempo_dynamics_scale,
+            "ggml_vulkan_precision": args.ggml_vulkan_precision,
         },
         "provider_evidence": provider_evidence,
         "summary": [asdict(summary) for summary in summaries],

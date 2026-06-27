@@ -258,7 +258,7 @@ def test_select_onnx_providers_can_force_cuda_without_directml_fallback() -> Non
             "CUDAExecutionProvider",
             {
                 "arena_extend_strategy": "kSameAsRequested",
-                "cudnn_conv_algo_search": "DEFAULT",
+                "cudnn_conv_algo_search": "HEURISTIC",
             },
         ),
         ("CPUExecutionProvider", {"arena_extend_strategy": "kSameAsRequested"}),
@@ -283,7 +283,7 @@ def test_select_onnx_providers_keeps_auto_cuda_directml_fallback() -> None:
             "CUDAExecutionProvider",
             {
                 "arena_extend_strategy": "kSameAsRequested",
-                "cudnn_conv_algo_search": "DEFAULT",
+                "cudnn_conv_algo_search": "HEURISTIC",
             },
         ),
         ("DmlExecutionProvider", {"device_id": 0}),
