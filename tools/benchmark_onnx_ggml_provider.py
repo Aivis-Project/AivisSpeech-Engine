@@ -154,6 +154,18 @@ def _parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--noise_scale",
+        type=float,
+        default=None,
+        help="Optional Style-Bert-VITS2 noise value for deterministic parity checks.",
+    )
+    parser.add_argument(
+        "--noise_scale_w",
+        type=float,
+        default=None,
+        help="Optional Style-Bert-VITS2 SDP noise value for deterministic parity checks.",
+    )
+    parser.add_argument(
         "--ggml_native_library_path",
         type=Path,
         default=None,
@@ -195,6 +207,28 @@ def _parse_args() -> argparse.Namespace:
         help="Optional directory for representative WAV outputs.",
     )
     return parser.parse_args()
+
+
+def _patch_tts_model_noise(
+    *,
+    noise_scale: float | None,
+    noise_scale_w: float | None,
+) -> None:
+    if noise_scale is None and noise_scale_w is None:
+        return
+
+    from style_bert_vits2.tts_model import TTSModel
+
+    original_infer = TTSModel.infer
+
+    def infer_with_fixed_noise(self: Any, *args: Any, **kwargs: Any) -> Any:
+        if noise_scale is not None:
+            kwargs.setdefault("noise", noise_scale)
+        if noise_scale_w is not None:
+            kwargs.setdefault("noise_w", noise_scale_w)
+        return original_infer(self, *args, **kwargs)
+
+    TTSModel.infer = infer_with_fixed_noise
 
 
 def _read_aivmx_model_uuid(aivmx_path: Path) -> str:
@@ -448,6 +482,10 @@ def main() -> None:
     """Run the selected backend benchmarks and emit JSON summary data."""
 
     args = _parse_args()
+    _patch_tts_model_noise(
+        noise_scale=args.noise_scale,
+        noise_scale_w=args.noise_scale_w,
+    )
     texts = tuple(args.text or _DEFAULT_TEXTS)
     style_id = StyleId(args.style_id)
     specs = _build_backend_specs(args)
@@ -487,6 +525,8 @@ def main() -> None:
             "warmup_runs": args.warmup_runs,
             "runs": args.runs,
             "tempo_dynamics_scale": args.tempo_dynamics_scale,
+            "noise_scale": args.noise_scale,
+            "noise_scale_w": args.noise_scale_w,
             "ggml_vulkan_precision": args.ggml_vulkan_precision,
         },
         "provider_evidence": provider_evidence,

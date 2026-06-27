@@ -1034,10 +1034,12 @@ class TtsCppRuntime final {
     if (config_.backend == "vulkan") {
       env.Set("STYLE_BERT_VITS2_VULKAN_PRECISION", config_.precision);
       env.Set("STYLE_BERT_VITS2_JP_BERT_VULKAN_PRECISION", config_.precision);
-      const bool fast = config_.precision == "fast";
-      env.Set("GGML_VK_DISABLE_F16", fast ? "0" : "1");
-      env.Set("GGML_VK_DISABLE_COOPMAT", fast ? "0" : "1");
-      env.Set("GGML_VK_DISABLE_COOPMAT2", fast ? "0" : "1");
+      // ggml-vulkan treats these switches as disabled when the variable exists,
+      // regardless of value. Keep both accurate and fast modes on the F32 Vulkan
+      // math path; fast only changes the Style-Bert conv lowering.
+      env.Set("GGML_VK_DISABLE_F16", "1");
+      env.Set("GGML_VK_DISABLE_COOPMAT", "1");
+      env.Set("GGML_VK_DISABLE_COOPMAT2", "1");
     }
     return env;
   }

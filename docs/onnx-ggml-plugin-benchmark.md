@@ -88,13 +88,33 @@ Interpretation:
   `tempoDynamicsScale=1.0` SDP run on this RTX 3060, raising short and medium
   RTF above `1.0` even though CUDA was active.
 - GGML Plugin EP Vulkan uses `precision=fast` in this run, which opts into the
-  TTS.cpp Vulkan fast conv1d path. `precision=accurate` remains the conservative
-  parity-oriented mode and is not the performance number shown in this table.
+  TTS.cpp Vulkan fast conv1d lowering while keeping ggml-vulkan F16/coopmat
+  disabled. `precision=accurate` remains the conservative direct-F32-conv mode
+  and is not the performance number shown in this table.
 - With the CUDA convolution search fix, ONNX CUDA remains fastest for the
   medium and long samples, while GGML Plugin EP Vulkan is faster on the short
   sample in this run. Their overall mean RTF is effectively tied here. GGML
   Plugin EP Vulkan is faster than ONNX CPU for all three text lengths and does
   not require NVIDIA CUDA runtime libraries.
+
+### Precision Path Validation
+
+This validation fixes `tempoDynamicsScale=0.0`, `noise_scale=0.0`, and
+`noise_scale_w=0.0` so ONNX CPU and GGML output length can be compared without
+sampling noise. It uses the same Linux RTX 3060 environment and the same three
+texts as the benchmark table above.
+
+| GGML path | Vulkan math | short RTF | medium RTF | long RTF | sample-count delta vs ONNX CPU | decision |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| `precision=accurate` | direct F32 conv, F16/coopmat disabled | `0.168` | `0.166` | `0.148` | `0 / 0 / 0` | Too slow for the performance target |
+| `precision=fast` | fast conv lowering, F16/coopmat disabled | `0.116` | `0.092` | `0.061` | `0 / 0 / 0` | Adopted path |
+| experimental true-F16 fast | fast conv lowering, F16/coopmat enabled | `0.078` | `0.060` | `0.042` | `-2 / +528 / +723` | Rejected: changes duration |
+
+Audio PCM deltas for the adopted `precision=fast` path against ONNX CPU were:
+short `rmse=0.00088`, medium `rmse=0.00448`, and long `rmse=0.00332`, with
+identical output sample counts for all three texts. This points to the conv
+lowering as the correct performance lever; enabling ggml-vulkan F16/coopmat is
+not safe for this model because it changes duration.
 
 ### Audio Preview
 
