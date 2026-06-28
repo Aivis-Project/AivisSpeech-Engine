@@ -30,8 +30,8 @@ Raw results are stored in
   benchmark selector, and an explicit JP-BERT FP32 GGUF benchmark selector
 - TTS.cpp: `a053e7270261`; ggml submodule `a78c352bb70b`
 - CUDA provider option: `cudnn_conv_algo_search=HEURISTIC`
-- Model: AIVMX/ONNX `コハク` model, version `1.1.0`
-- Style: `1878365376` (`ノーマル`)
+- Model: AIVMX/ONNX `まお` model, version `1.2.0`
+- Style: `888753760` (`ノーマル`)
 - GGML model path: AIVMX/ONNX is converted to synthesis GGUF by the Plugin EP
   cache path using either the F16 `no-embed-norm-no-ups` recipe or the all-F32
   voice recipe. JP-BERT is tested as both the default
@@ -64,10 +64,10 @@ Raw results are stored in
 
 | text length | ONNX CPU Truth RTF | ONNX CUDA RTF | JP-BERT FP16 + voices FP16 | JP-BERT FP16 + voices FP32 | JP-BERT FP32 + voices FP16 | JP-BERT FP32 + voices FP32 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| short | `0.278` | `0.034` | `0.120` | `0.121` | `0.121` | `0.122` |
-| medium | `0.231` | `0.027` | `0.089` | `0.092` | `0.091` | `0.091` |
-| long | `0.220` | `0.020` | `0.062` | `0.062` | `0.061` | `0.062` |
-| overall mean | `0.243` | `0.027` | `0.090` | `0.092` | `0.091` | `0.092` |
+| short | `0.326` | `0.035` | `0.124` | `0.125` | `0.129` | `0.128` |
+| medium | `0.239` | `0.028` | `0.092` | `0.093` | `0.092` | `0.093` |
+| long | `0.209` | `0.020` | `0.061` | `0.063` | `0.062` | `0.062` |
+| overall mean | `0.258` | `0.028` | `0.092` | `0.093` | `0.094` | `0.094` |
 
 Provider evidence from the run:
 
@@ -136,23 +136,23 @@ Interpretation:
 
 ### GGUF Precision Matrix
 
-The synthesis voice GGUF files were generated from the same AIVMX/ONNX `コハク`
+The synthesis voice GGUF files were generated from the same AIVMX/ONNX `まお`
 model in the same benchmark run. The JP-BERT FP32 GGUF is a local benchmark
 artifact derived from the all-F32 baseline; the default production artifact
 remains the HF F16 `linear` GGUF.
 
 | JP-BERT GGUF | voice GGUF | JP-BERT size / tensors | voice size / tensors | short samples | medium samples | long samples |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| FP16 `linear` | FP16 voices | `710,407,072` bytes / `250 F32 + 144 F16` | `129,812,864` bytes / `574 F32 + 326 F16` | `56,962` | `90,261` | `345,994` |
-| FP16 `linear` | FP32 voices | `710,407,072` bytes / `250 F32 + 144 F16` | `248,034,656` bytes / `900 F32` | `56,960` | `90,261` | `345,994` |
-| FP32 | FP16 voices | `1,314,386,784` bytes / `394 F32` | `129,812,864` bytes / `574 F32 + 326 F16` | `56,960` | `90,261` | `345,994` |
-| FP32 | FP32 voices | `1,314,386,784` bytes / `394 F32` | `248,034,656` bytes / `900 F32` | `56,962` | `90,261` | `345,482` |
+| FP16 `linear` | FP16 voices | `710,407,072` bytes / `250 F32 + 144 F16` | `129,814,912` bytes / `574 F32 + 326 F16` | `52,851` | `84,596` | `338,604` |
+| FP16 `linear` | FP32 voices | `710,407,072` bytes / `250 F32 + 144 F16` | `248,036,704` bytes / `900 F32` | `52,851` | `84,596` | `338,604` |
+| FP32 | FP16 voices | `1,314,386,784` bytes / `394 F32` | `129,814,912` bytes / `574 F32 + 326 F16` | `52,851` | `84,596` | `338,604` |
+| FP32 | FP32 voices | `1,314,386,784` bytes / `394 F32` | `248,036,704` bytes / `900 F32` | `52,851` | `84,596` | `338,603` |
 
 The FP16 voice cache is about `47.7%` smaller than the FP32 voice cache, and the
 JP-BERT F16 `linear` cache is about `45.9%` smaller than the JP-BERT FP32
 baseline. Under the app-default `tempoDynamicsScale=1.0` settings used here,
-the adopted JP-BERT F16 `linear` + FP16 voices path differs from ONNX CPU only
-by `+2` samples on the short text and matches medium/long sample counts.
+the adopted JP-BERT F16 `linear` + FP16 voices path matches ONNX CPU sample
+counts exactly for all three texts.
 
 ### ONNX CPU Truth Comparison
 
@@ -164,34 +164,34 @@ Sample-count delta versus ONNX CPU truth:
 
 | backend | short | medium | long |
 | --- | ---: | ---: | ---: |
-| ONNX CUDA | `0` | `0` | `-512` |
-| JP-BERT FP16 + voices FP16 | `+2` | `0` | `0` |
+| ONNX CUDA | `0` | `0` | `0` |
+| JP-BERT FP16 + voices FP16 | `0` | `0` | `0` |
 | JP-BERT FP16 + voices FP32 | `0` | `0` | `0` |
 | JP-BERT FP32 + voices FP16 | `0` | `0` | `0` |
-| JP-BERT FP32 + voices FP32 | `+2` | `0` | `-512` |
+| JP-BERT FP32 + voices FP32 | `0` | `0` | `-1` |
 
 PCM RMSE / correlation versus ONNX CPU truth:
 
 | backend | short | medium | long |
 | --- | ---: | ---: | ---: |
-| ONNX CUDA | `0.003154 / 0.999694` | `0.003113 / 0.999885` | `0.156940 / 0.329343` |
-| JP-BERT FP16 + voices FP16 | `0.002136 / 0.999858` | `0.002882 / 0.999896` | `0.002510 / 0.999828` |
-| JP-BERT FP16 + voices FP32 | `0.001605 / 0.999920` | `0.003362 / 0.999867` | `0.002030 / 0.999888` |
-| JP-BERT FP32 + voices FP16 | `0.001321 / 0.999950` | `0.002930 / 0.999892` | `0.003324 / 0.999699` |
-| JP-BERT FP32 + voices FP32 | `0.000686 / 0.999985` | `0.003157 / 0.999884` | `0.157076 / 0.328134` |
+| ONNX CUDA | `0.001822 / 0.999906` | `0.007855 / 0.998921` | `0.004312 / 0.999512` |
+| JP-BERT FP16 + voices FP16 | `0.005618 / 0.999110` | `0.006145 / 0.999340` | `0.009864 / 0.997452` |
+| JP-BERT FP16 + voices FP32 | `0.002013 / 0.999889` | `0.004940 / 0.999574` | `0.011819 / 0.996347` |
+| JP-BERT FP32 + voices FP16 | `0.006218 / 0.998904` | `0.005589 / 0.999459` | `0.005774 / 0.999125` |
+| JP-BERT FP32 + voices FP32 | `0.002180 / 0.999867` | `0.004352 / 0.999671` | `0.007179 / 0.998648` |
 
-The strictest sample-count match is JP-BERT F16 `linear` + FP32 voices, but the
-current default JP-BERT F16 `linear` + FP16 voices keeps the short-sentence
-delta to `+2` samples while reducing voice GGUF size by about `47.7%`. JP-BERT
-FP32 is not a better default: it costs about `604 MB` more than JP-BERT F16
-`linear` and does not improve the truth comparison.
+The current default JP-BERT F16 `linear` + FP16 voices matches ONNX CPU output
+length for short, medium, and long while reducing voice GGUF size by about
+`47.7%`. JP-BERT FP32 is not a better default: it costs about `604 MB` more
+than JP-BERT F16 `linear` and does not improve the truth comparison.
 
-### Precision Path Validation
+### Precision Path Validation (Historical)
 
 This validation fixes `tempoDynamicsScale=0.0`, `noise_scale=0.0`, and
 `noise_scale_w=0.0` so ONNX CPU and GGML output length can be compared without
 sampling noise. It uses the same Linux RTX 3060 environment and the same three
-texts as the benchmark table above.
+texts as the benchmark table above, but predates the current `まお` refresh and
+is retained only as precision-path decision history.
 
 | GGML path | Vulkan math | short RTF | medium RTF | long RTF | sample-count delta vs ONNX CPU | decision |
 | --- | --- | ---: | ---: | ---: | --- | --- |
@@ -205,14 +205,15 @@ identical output sample counts for all three texts. This points to the conv
 lowering as the correct performance lever; enabling ggml-vulkan F16/coopmat is
 not safe for this model because it changes duration.
 
-### GGML Vulkan Profile Run (2026-06-28)
+### GGML Vulkan Profile Run (Historical, 2026-06-28)
 
 This profile keeps the performance-oriented mixed-precision synthesis GGUF
 cache: F16 for Style-Bert-VITS2 weights except embeddings, norms, decoder
 upsample weights, biases, and style vectors. The generated synthesis GGUF for
-this run was `129,812,864` bytes with `574 F32` tensors and `326 F16` tensors.
-The decoder upsample exception is intentional: allowing those tensors to become
-F16 moved a `CONV_TRANSPOSE_1D` decoder node to CPU and regressed RTF.
+this earlier `コハク` run was `129,812,864` bytes with `574 F32` tensors and
+`326 F16` tensors. The decoder upsample exception is intentional: allowing
+those tensors to become F16 moved a `CONV_TRANSPOSE_1D` decoder node to CPU and
+regressed RTF.
 
 Strict backend validation passed with `TTS_BACKEND_STRICT=1`, confirming the
 short-sentence decoder graph stayed on `Vulkan0` instead of falling back to CPU.
@@ -280,7 +281,7 @@ GGML Vulkan precision matrix:
 | medium | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp16-voices-fp16_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp16-voices-fp16_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp16-voices-fp32_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp16-voices-fp32_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp32-voices-fp16_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp32-voices-fp16_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp32-voices-fp32_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp32-voices-fp32_medium.m4a) |
 | long | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp16-voices-fp16_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp16-voices-fp16_long.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp16-voices-fp32_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp16-voices-fp32_long.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp32-voices-fp16_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp32-voices-fp16_long.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp32-voices-fp32_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp32-voices-fp32_long.m4a) |
 
-## Windows Intel Arc B580 Local Run (2026-06-27)
+## Historical Windows Intel Arc B580 Local Run (2026-06-27)
 
 This local Windows run adds DirectML to the same CPU/GGML comparison. Raw
 results are stored in
@@ -395,7 +396,7 @@ Set local paths before running:
 
 ```bash
 export AIVMX_PATH="<path-to-model.aivmx>"
-export STYLE_ID="1878365376"
+export STYLE_ID="888753760"
 export CUDA12_NVIDIA_LIBS="<colon-separated CUDA 12/cuDNN library dirs>"
 export AIVIS_GGML_ONNX_EP_LIBRARY_PATH="<path-to-libaivis_ggml_onnx_ep.so>"
 export TTS_CPP_NATIVE_LIBRARY_PATH="<path-to-libtts.so>"
