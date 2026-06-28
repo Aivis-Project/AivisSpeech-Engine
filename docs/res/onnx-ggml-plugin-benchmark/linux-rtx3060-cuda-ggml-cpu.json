@@ -824,5 +824,157 @@
       "rtf": 0.061904067306695953,
       "peak_abs": 0.999969482421875
     }
+  ],
+  "truth_comparison": [
+    {
+      "backend": "onnx-cuda",
+      "text_label": "long",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": -512,
+      "compared_samples": 345482,
+      "rmse": 0.15694034099578857,
+      "max_abs_diff": 1.358001708984375,
+      "correlation": 0.3293425719020816
+    },
+    {
+      "backend": "onnx-ggml-vulkan-jpbert-fp16-voices-fp16",
+      "text_label": "long",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 345994,
+      "rmse": 0.002509801182895899,
+      "max_abs_diff": 0.0643310546875,
+      "correlation": 0.9998281032172676
+    },
+    {
+      "backend": "onnx-ggml-vulkan-jpbert-fp16-voices-fp32",
+      "text_label": "long",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 345994,
+      "rmse": 0.002029564930126071,
+      "max_abs_diff": 0.05828857421875,
+      "correlation": 0.9998875705804662
+    },
+    {
+      "backend": "onnx-ggml-vulkan-jpbert-fp32-voices-fp16",
+      "text_label": "long",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 345994,
+      "rmse": 0.003324248129501939,
+      "max_abs_diff": 0.089324951171875,
+      "correlation": 0.9996985520447375
+    },
+    {
+      "backend": "onnx-ggml-vulkan-jpbert-fp32-voices-fp32",
+      "text_label": "long",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": -512,
+      "compared_samples": 345482,
+      "rmse": 0.15707647800445557,
+      "max_abs_diff": 1.358001708984375,
+      "correlation": 0.32813363400503043
+    },
+    {
+      "backend": "onnx-cuda",
+      "text_label": "medium",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 90261,
+      "rmse": 0.003112789709120989,
+      "max_abs_diff": 0.039886474609375,
+      "correlation": 0.9998847568737586
+    },
+    {
+      "backend": "onnx-ggml-vulkan-jpbert-fp16-voices-fp16",
+      "text_label": "medium",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 90261,
+      "rmse": 0.0028821537271142006,
+      "max_abs_diff": 0.033416748046875,
+      "correlation": 0.9998963020727059
+    },
+    {
+      "backend": "onnx-ggml-vulkan-jpbert-fp16-voices-fp32",
+      "text_label": "medium",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 90261,
+      "rmse": 0.0033618162851780653,
+      "max_abs_diff": 0.05029296875,
+      "correlation": 0.999866572824044
+    },
+    {
+      "backend": "onnx-ggml-vulkan-jpbert-fp32-voices-fp16",
+      "text_label": "medium",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 90261,
+      "rmse": 0.00292972382158041,
+      "max_abs_diff": 0.042938232421875,
+      "correlation": 0.9998919023609324
+    },
+    {
+      "backend": "onnx-ggml-vulkan-jpbert-fp32-voices-fp32",
+      "text_label": "medium",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 90261,
+      "rmse": 0.0031574824824929237,
+      "max_abs_diff": 0.03753662109375,
+      "correlation": 0.9998835518335496
+    },
+    {
+      "backend": "onnx-cuda",
+      "text_label": "short",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 56960,
+      "rmse": 0.0031538268085569143,
+      "max_abs_diff": 0.031982421875,
+      "correlation": 0.9996944164644234
+    },
+    {
+      "backend": "onnx-ggml-vulkan-jpbert-fp16-voices-fp16",
+      "text_label": "short",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 2,
+      "compared_samples": 56960,
+      "rmse": 0.0021358837839215994,
+      "max_abs_diff": 0.022613525390625,
+      "correlation": 0.9998581301427717
+    },
+    {
+      "backend": "onnx-ggml-vulkan-jpbert-fp16-voices-fp32",
+      "text_label": "short",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 56960,
+      "rmse": 0.0016049871919676661,
+      "max_abs_diff": 0.016326904296875,
+      "correlation": 0.9999198999801489
+    },
+    {
+      "backend": "onnx-ggml-vulkan-jpbert-fp32-voices-fp16",
+      "text_label": "short",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 56960,
+      "rmse": 0.0013206027215346694,
+      "max_abs_diff": 0.0128173828125,
+      "correlation": 0.9999498857161961
+    },
+    {
+      "backend": "onnx-ggml-vulkan-jpbert-fp32-voices-fp32",
+      "text_label": "short",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 2,
+      "compared_samples": 56960,
+      "rmse": 0.0006856819381937385,
+      "max_abs_diff": 0.00927734375,
+      "correlation": 0.9999853814658328
+    }
   ]
 }

@@ -62,7 +62,7 @@ Raw results are stored in
 
 ### RTF Results
 
-| text length | ONNX CPU RTF | ONNX CUDA RTF | JP-BERT FP16 + voices FP16 | JP-BERT FP16 + voices FP32 | JP-BERT FP32 + voices FP16 | JP-BERT FP32 + voices FP32 |
+| text length | ONNX CPU Truth RTF | ONNX CUDA RTF | JP-BERT FP16 + voices FP16 | JP-BERT FP16 + voices FP32 | JP-BERT FP32 + voices FP16 | JP-BERT FP32 + voices FP32 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | short | `0.278` | `0.034` | `0.120` | `0.121` | `0.121` | `0.122` |
 | medium | `0.231` | `0.027` | `0.089` | `0.092` | `0.091` | `0.091` |
@@ -131,6 +131,8 @@ Interpretation:
 - FP16 voices are slightly faster than FP32 voices in this run, but the speedup
   is small because the remaining ceiling is decoder execution rather than model
   file size. The larger practical win is memory and disk footprint.
+- ONNX CPU is the truth baseline for accuracy checks below. The RTF table is a
+  speed comparison; precision decisions should use the truth comparison table.
 
 ### GGUF Precision Matrix
 
@@ -151,6 +153,38 @@ JP-BERT F16 `linear` cache is about `45.9%` smaller than the JP-BERT FP32
 baseline. Under the app-default `tempoDynamicsScale=1.0` settings used here,
 the adopted JP-BERT F16 `linear` + FP16 voices path differs from ONNX CPU only
 by `+2` samples on the short text and matches medium/long sample counts.
+
+### ONNX CPU Truth Comparison
+
+The same-run ONNX CPU PCM output is treated as the truth baseline. Metrics below
+compare the first saved WAV for each backend before AAC encoding, so they are
+not affected by the documentation audio-preview codec.
+
+Sample-count delta versus ONNX CPU truth:
+
+| backend | short | medium | long |
+| --- | ---: | ---: | ---: |
+| ONNX CUDA | `0` | `0` | `-512` |
+| JP-BERT FP16 + voices FP16 | `+2` | `0` | `0` |
+| JP-BERT FP16 + voices FP32 | `0` | `0` | `0` |
+| JP-BERT FP32 + voices FP16 | `0` | `0` | `0` |
+| JP-BERT FP32 + voices FP32 | `+2` | `0` | `-512` |
+
+PCM RMSE / correlation versus ONNX CPU truth:
+
+| backend | short | medium | long |
+| --- | ---: | ---: | ---: |
+| ONNX CUDA | `0.003154 / 0.999694` | `0.003113 / 0.999885` | `0.156940 / 0.329343` |
+| JP-BERT FP16 + voices FP16 | `0.002136 / 0.999858` | `0.002882 / 0.999896` | `0.002510 / 0.999828` |
+| JP-BERT FP16 + voices FP32 | `0.001605 / 0.999920` | `0.003362 / 0.999867` | `0.002030 / 0.999888` |
+| JP-BERT FP32 + voices FP16 | `0.001321 / 0.999950` | `0.002930 / 0.999892` | `0.003324 / 0.999699` |
+| JP-BERT FP32 + voices FP32 | `0.000686 / 0.999985` | `0.003157 / 0.999884` | `0.157076 / 0.328134` |
+
+The strictest sample-count match is JP-BERT F16 `linear` + FP32 voices, but the
+current default JP-BERT F16 `linear` + FP16 voices keeps the short-sentence
+delta to `+2` samples while reducing voice GGUF size by about `47.7%`. JP-BERT
+FP32 is not a better default: it costs about `604 MB` more than JP-BERT F16
+`linear` and does not improve the truth comparison.
 
 ### Precision Path Validation
 
@@ -232,7 +266,7 @@ included in the RTF timing window.
 
 Baseline ONNX outputs:
 
-| text length | ONNX CPU | ONNX CUDA |
+| text length | ONNX CPU Truth | ONNX CUDA |
 | --- | --- | --- |
 | short | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_short.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_short.m4a) |
 | medium | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_medium.m4a) |

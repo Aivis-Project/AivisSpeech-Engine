@@ -107,6 +107,18 @@ class _BackendSummary:
     output_samples_last: int
 
 
+@dataclass(frozen=True)
+class _TruthComparison:
+    backend: str
+    text_label: str
+    truth_backend: str
+    sample_delta: int
+    compared_samples: int
+    rmse: float
+    max_abs_diff: float
+    correlation: float | None
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -516,6 +528,80 @@ def _summarize(records: Sequence[_BenchmarkRecord]) -> list[_BackendSummary]:
     return summaries
 
 
+def _compare_against_onnx_cpu_truth(
+    *,
+    audio_output_dir: Path | None,
+    summaries: Sequence[_BackendSummary],
+) -> list[_TruthComparison]:
+    if audio_output_dir is None:
+        return []
+
+    text_labels = sorted({summary.text_label for summary in summaries})
+    backends = sorted(
+        {
+            summary.backend
+            for summary in summaries
+            if summary.backend != "onnx-cpu"
+        }
+    )
+    comparisons: list[_TruthComparison] = []
+    for text_label in text_labels:
+        truth_path = audio_output_dir / f"onnx-cpu_{text_label}.wav"
+        if not truth_path.is_file():
+            continue
+        truth_wave, truth_sample_rate = soundfile.read(
+            truth_path,
+            dtype="float32",
+            always_2d=False,
+        )
+        truth_wave = np.asarray(truth_wave, dtype=np.float32).reshape(-1)
+        for backend in backends:
+            candidate_path = audio_output_dir / f"{backend}_{text_label}.wav"
+            if not candidate_path.is_file():
+                continue
+            candidate_wave, candidate_sample_rate = soundfile.read(
+                candidate_path,
+                dtype="float32",
+                always_2d=False,
+            )
+            if candidate_sample_rate != truth_sample_rate:
+                raise RuntimeError(
+                    f"{candidate_path} sample rate {candidate_sample_rate} "
+                    f"does not match ONNX CPU truth {truth_sample_rate}."
+                )
+            candidate_wave = np.asarray(candidate_wave, dtype=np.float32).reshape(-1)
+            compared_samples = min(truth_wave.shape[0], candidate_wave.shape[0])
+            if compared_samples == 0:
+                rmse = 0.0
+                max_abs_diff = 0.0
+                correlation: float | None = None
+            else:
+                truth_slice = truth_wave[:compared_samples]
+                candidate_slice = candidate_wave[:compared_samples]
+                diff = candidate_slice - truth_slice
+                rmse = float(np.sqrt(np.mean(np.square(diff))))
+                max_abs_diff = float(np.max(np.abs(diff)))
+                truth_std = float(np.std(truth_slice))
+                candidate_std = float(np.std(candidate_slice))
+                if truth_std == 0.0 or candidate_std == 0.0:
+                    correlation = None
+                else:
+                    correlation = float(np.corrcoef(truth_slice, candidate_slice)[0, 1])
+            comparisons.append(
+                _TruthComparison(
+                    backend=backend,
+                    text_label=text_label,
+                    truth_backend="onnx-cpu",
+                    sample_delta=int(candidate_wave.shape[0] - truth_wave.shape[0]),
+                    compared_samples=int(compared_samples),
+                    rmse=rmse,
+                    max_abs_diff=max_abs_diff,
+                    correlation=correlation,
+                )
+            )
+    return comparisons
+
+
 def _benchmark_backend(
     *,
     spec: _BackendSpec,
@@ -649,6 +735,10 @@ def main() -> None:
             provider_evidence[spec.name] = evidence
 
     summaries = _summarize(all_records)
+    truth_comparison = _compare_against_onnx_cpu_truth(
+        audio_output_dir=args.audio_output_dir,
+        summaries=summaries,
+    )
     payload = {
         "profile": {
             "aivmx_path": f"<local-model-dir>/{args.aivmx_path.name}",
@@ -675,6 +765,9 @@ def main() -> None:
         },
         "provider_evidence": provider_evidence,
         "summary": [asdict(summary) for summary in summaries],
+        "truth_comparison": [
+            asdict(comparison) for comparison in truth_comparison
+        ],
         "records": [asdict(record) for record in all_records],
     }
     if args.output_json is not None:
