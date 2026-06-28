@@ -1,0 +1,860 @@
+{
+  "profile": {
+    "aivmx_path": "<local-model-dir>/22e8ed77-94fe-4ef2-871f-a86f94e9a579.aivmx",
+    "backends": [
+      "onnx-cpu",
+      "openvino-native-gpu",
+      "openvino-native-npu",
+      "openvino-native-split-gpu",
+      "openvino-native-split-npu"
+    ],
+    "texts": [
+      "テストです。",
+      "今日はいい天気ですね。",
+      "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。"
+    ],
+    "warmup_runs": 1,
+    "runs": 3,
+    "speaker_id": 0,
+    "style_id": 0,
+    "style_weight": 1.0,
+    "length_scale": 1.0,
+    "sdp_ratio": 0.2,
+    "noise_scale": 0.0,
+    "noise_scale_w": 0.0,
+    "synthesis_only_rtf": false,
+    "rtf_scope": "g2p + selected JP-BERT backend + synthesis graph; OpenVINO compile excluded; raw model waveform duration"
+  },
+  "provider_evidence": {
+    "front_cpu": {
+      "seconds": 2.7228440770413727,
+      "execution_devices": [
+        "CPU"
+      ]
+    },
+    "jpbert": {
+      "('GPU', (('attention_mask', (1, 8)), ('input_ids', (1, 8))))": {
+        "seconds": 1.5408364520408213,
+        "execution_devices": [
+          "GPU.0"
+        ]
+      },
+      "('GPU', (('attention_mask', (1, 13)), ('input_ids', (1, 13))))": {
+        "seconds": 1.5877566520357504,
+        "execution_devices": [
+          "GPU.0"
+        ]
+      },
+      "('GPU', (('attention_mask', (1, 46)), ('input_ids', (1, 46))))": {
+        "seconds": 1.6963205659994856,
+        "execution_devices": [
+          "GPU.0"
+        ]
+      },
+      "('NPU', (('attention_mask', (1, 8)), ('input_ids', (1, 8))))": {
+        "seconds": 0.17244888900313526,
+        "execution_devices": "NPU"
+      },
+      "('NPU', (('attention_mask', (1, 13)), ('input_ids', (1, 13))))": {
+        "seconds": 0.1666877819225192,
+        "execution_devices": "NPU"
+      },
+      "('NPU', (('attention_mask', (1, 46)), ('input_ids', (1, 46))))": {
+        "seconds": 0.1657833190402016,
+        "execution_devices": "NPU"
+      }
+    },
+    "decoder": {
+      "('GPU', (1, 192, 96), (1, 512, 1))": {
+        "seconds": 1.0998114380054176,
+        "execution_devices": [
+          "GPU.0"
+        ]
+      },
+      "('GPU', (1, 192, 161), (1, 512, 1))": {
+        "seconds": 1.6533502420643345,
+        "execution_devices": [
+          "GPU.0"
+        ]
+      },
+      "('GPU', (1, 192, 662), (1, 512, 1))": {
+        "seconds": 1.1973211088916287,
+        "execution_devices": [
+          "GPU.0"
+        ]
+      },
+      "('NPU', (1, 192, 96), (1, 512, 1))": {
+        "seconds": 0.03452761797234416,
+        "execution_devices": "NPU"
+      },
+      "('NPU', (1, 192, 161), (1, 512, 1))": {
+        "seconds": 0.05244569398928434,
+        "execution_devices": "NPU"
+      },
+      "('NPU', (1, 192, 662), (1, 512, 1))": {
+        "seconds": 0.04577781702391803,
+        "execution_devices": "NPU"
+      }
+    },
+    "full_graph_artifacts": null,
+    "full_graph": {},
+    "full_synthesis_graph_probe": null,
+    "native_full_npu": "The full synthesis graph is not benchmarked as NPU because OpenVINO NPU fails to compile its data-dependent duration/alignment/output-length subgraph. The split backend runs the decoder subgraph on NPU with static shape."
+  },
+  "summary": [
+    {
+      "backend": "onnx-cpu",
+      "text_label": "long",
+      "rtf_mean": 0.3383024525725071,
+      "rtf_min": 0.3371666264969644,
+      "rtf_max": 0.3393521100088312,
+      "output_duration_seconds_mean": 7.685804988662132,
+      "output_samples_last": 338944
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "medium",
+      "rtf_mean": 0.6670625975501657,
+      "rtf_min": 0.6395102036707533,
+      "rtf_max": 0.6837414325841367,
+      "output_duration_seconds_mean": 1.8692063492063493,
+      "output_samples_last": 82432
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "short",
+      "rtf_mean": 0.9490602688927652,
+      "rtf_min": 0.9362222680394439,
+      "rtf_max": 0.9639963693366838,
+      "output_duration_seconds_mean": 1.1145578231292517,
+      "output_samples_last": 49152
+    },
+    {
+      "backend": "openvino-native-gpu",
+      "text_label": "long",
+      "rtf_mean": 0.04627303661162514,
+      "rtf_min": 0.04605518829991862,
+      "rtf_max": 0.04651369563489177,
+      "output_duration_seconds_mean": 7.685804988662132,
+      "output_samples_last": 338944
+    },
+    {
+      "backend": "openvino-native-gpu",
+      "text_label": "medium",
+      "rtf_mean": 0.04595628730266585,
+      "rtf_min": 0.04489040121746296,
+      "rtf_max": 0.04724082929363288,
+      "output_duration_seconds_mean": 1.8692063492063493,
+      "output_samples_last": 82432
+    },
+    {
+      "backend": "openvino-native-gpu",
+      "text_label": "short",
+      "rtf_mean": 0.08945657480410318,
+      "rtf_min": 0.0560819884015018,
+      "rtf_max": 0.11580967288509214,
+      "output_duration_seconds_mean": 1.1145578231292517,
+      "output_samples_last": 49152
+    },
+    {
+      "backend": "openvino-native-npu",
+      "text_label": "long",
+      "rtf_mean": 0.08920789126107502,
+      "rtf_min": 0.08644805325865988,
+      "rtf_max": 0.09076336389473295,
+      "output_duration_seconds_mean": 7.685804988662132,
+      "output_samples_last": 338944
+    },
+    {
+      "backend": "openvino-native-npu",
+      "text_label": "medium",
+      "rtf_mean": 0.09353199840678944,
+      "rtf_min": 0.0892014538877724,
+      "rtf_max": 0.09637763161426055,
+      "output_duration_seconds_mean": 1.8692063492063493,
+      "output_samples_last": 82432
+    },
+    {
+      "backend": "openvino-native-npu",
+      "text_label": "short",
+      "rtf_mean": 0.129417374941454,
+      "rtf_min": 0.12098704449172715,
+      "rtf_max": 0.13797545081715157,
+      "output_duration_seconds_mean": 1.1145578231292517,
+      "output_samples_last": 49152
+    },
+    {
+      "backend": "openvino-native-split-gpu",
+      "text_label": "long",
+      "rtf_mean": 0.10799424439824522,
+      "rtf_min": 0.10568388101966988,
+      "rtf_max": 0.11206479142618873,
+      "output_duration_seconds_mean": 7.685804988662132,
+      "output_samples_last": 338944
+    },
+    {
+      "backend": "openvino-native-split-gpu",
+      "text_label": "medium",
+      "rtf_mean": 0.19300920031404845,
+      "rtf_min": 0.18773692597140165,
+      "rtf_max": 0.19841465716482437,
+      "output_duration_seconds_mean": 1.8692063492063493,
+      "output_samples_last": 82432
+    },
+    {
+      "backend": "openvino-native-split-gpu",
+      "text_label": "short",
+      "rtf_mean": 0.2686893311363292,
+      "rtf_min": 0.2339577432607598,
+      "rtf_max": 0.3145319271126823,
+      "output_duration_seconds_mean": 1.1145578231292517,
+      "output_samples_last": 49152
+    },
+    {
+      "backend": "openvino-native-split-npu",
+      "text_label": "long",
+      "rtf_mean": 0.1377365236624694,
+      "rtf_min": 0.1362318212013867,
+      "rtf_max": 0.13882949926474047,
+      "output_duration_seconds_mean": 7.685804988662132,
+      "output_samples_last": 338944
+    },
+    {
+      "backend": "openvino-native-split-npu",
+      "text_label": "medium",
+      "rtf_mean": 0.2338763362618208,
+      "rtf_min": 0.22430006735663957,
+      "rtf_max": 0.24142213463896356,
+      "output_duration_seconds_mean": 1.8692063492063493,
+      "output_samples_last": 82432
+    },
+    {
+      "backend": "openvino-native-split-npu",
+      "text_label": "short",
+      "rtf_mean": 0.300014915090685,
+      "rtf_min": 0.2810928571399529,
+      "rtf_max": 0.3120231196980683,
+      "output_duration_seconds_mean": 1.1145578231292517,
+      "output_samples_last": 49152
+    }
+  ],
+  "truth_comparison": [
+    {
+      "backend": "openvino-native-gpu",
+      "text_label": "long",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 338944,
+      "rmse": 0.0018497726414352655,
+      "max_abs_diff": 0.06073877215385437,
+      "correlation": 0.9997450082637931
+    },
+    {
+      "backend": "openvino-native-npu",
+      "text_label": "long",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 338944,
+      "rmse": 0.004514861386269331,
+      "max_abs_diff": 0.113339863717556,
+      "correlation": 0.998473120592618
+    },
+    {
+      "backend": "openvino-native-split-gpu",
+      "text_label": "long",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 338944,
+      "rmse": 0.0003906979982275516,
+      "max_abs_diff": 0.006683042272925377,
+      "correlation": 0.99999067060512
+    },
+    {
+      "backend": "openvino-native-split-npu",
+      "text_label": "long",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 338944,
+      "rmse": 0.000453406129963696,
+      "max_abs_diff": 0.008145175874233246,
+      "correlation": 0.9999855138378803
+    },
+    {
+      "backend": "openvino-native-gpu",
+      "text_label": "medium",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 82432,
+      "rmse": 0.0009124153293669224,
+      "max_abs_diff": 0.011598367244005203,
+      "correlation": 0.9999068800712523
+    },
+    {
+      "backend": "openvino-native-npu",
+      "text_label": "medium",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 82432,
+      "rmse": 0.007271734066307545,
+      "max_abs_diff": 0.13092221319675446,
+      "correlation": 0.9939725425759531
+    },
+    {
+      "backend": "openvino-native-split-gpu",
+      "text_label": "medium",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 82432,
+      "rmse": 0.0002946570166386664,
+      "max_abs_diff": 0.003948697820305824,
+      "correlation": 0.9999921005592258
+    },
+    {
+      "backend": "openvino-native-split-npu",
+      "text_label": "medium",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 82432,
+      "rmse": 0.00031534681329503655,
+      "max_abs_diff": 0.004776659421622753,
+      "correlation": 0.9999897912833328
+    },
+    {
+      "backend": "openvino-native-gpu",
+      "text_label": "short",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 49152,
+      "rmse": 0.0021069615613669157,
+      "max_abs_diff": 0.01758427917957306,
+      "correlation": 0.9996478725907566
+    },
+    {
+      "backend": "openvino-native-npu",
+      "text_label": "short",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 49152,
+      "rmse": 0.001731294789351523,
+      "max_abs_diff": 0.018252745270729065,
+      "correlation": 0.9997625102717732
+    },
+    {
+      "backend": "openvino-native-split-gpu",
+      "text_label": "short",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 49152,
+      "rmse": 0.0002447966835461557,
+      "max_abs_diff": 0.0023916587233543396,
+      "correlation": 0.9999969481047177
+    },
+    {
+      "backend": "openvino-native-split-npu",
+      "text_label": "short",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 49152,
+      "rmse": 0.00020877511997241527,
+      "max_abs_diff": 0.002106065396219492,
+      "correlation": 0.9999975914785825
+    }
+  ],
+  "records": [
+    {
+      "backend": "onnx-cpu",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 0,
+      "elapsed_seconds": 1.0434738530311733,
+      "output_duration_seconds": 1.1145578231292517,
+      "output_samples": 49152,
+      "rtf": 0.9362222680394439,
+      "peak_abs": 0.5812945365905762
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 1,
+      "elapsed_seconds": 1.0554440940031782,
+      "output_duration_seconds": 1.1145578231292517,
+      "output_samples": 49152,
+      "rtf": 0.9469621693021679,
+      "peak_abs": 0.5812945365905762
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 2,
+      "elapsed_seconds": 1.0744296949123964,
+      "output_duration_seconds": 1.1145578231292517,
+      "output_samples": 49152,
+      "rtf": 0.9639963693366838,
+      "peak_abs": 0.5812945365905762
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "medium",
+      "text": "今日はいい天気ですね。",
+      "run_index": 0,
+      "elapsed_seconds": 1.2780538270017132,
+      "output_duration_seconds": 1.8692063492063493,
+      "output_samples": 82432,
+      "rtf": 0.6837414325841367,
+      "peak_abs": 0.31908416748046875
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "medium",
+      "text": "今日はいい天気ですね。",
+      "run_index": 1,
+      "elapsed_seconds": 1.1953765330836177,
+      "output_duration_seconds": 1.8692063492063493,
+      "output_samples": 82432,
+      "rtf": 0.6395102036707533,
+      "peak_abs": 0.31908416748046875
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "medium",
+      "text": "今日はいい天気ですね。",
+      "run_index": 2,
+      "elapsed_seconds": 1.2672025678912178,
+      "output_duration_seconds": 1.8692063492063493,
+      "output_samples": 82432,
+      "rtf": 0.6779361563956073,
+      "peak_abs": 0.31908416748046875
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 0,
+      "elapsed_seconds": 2.6007889530155808,
+      "output_duration_seconds": 7.685804988662132,
+      "output_samples": 338944,
+      "rtf": 0.3383886212117256,
+      "peak_abs": 0.5977282524108887
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 1,
+      "elapsed_seconds": 2.5913969399407506,
+      "output_duration_seconds": 7.685804988662132,
+      "output_samples": 338944,
+      "rtf": 0.3371666264969644,
+      "peak_abs": 0.5977282524108887
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 2,
+      "elapsed_seconds": 2.6081941400188953,
+      "output_duration_seconds": 7.685804988662132,
+      "output_samples": 338944,
+      "rtf": 0.3393521100088312,
+      "peak_abs": 0.5977282524108887
+    },
+    {
+      "backend": "openvino-native-gpu",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 0,
+      "elapsed_seconds": 0.12907657690811902,
+      "output_duration_seconds": 1.1145578231292517,
+      "output_samples": 49152,
+      "rtf": 0.11580967288509214,
+      "peak_abs": 0.5791015625
+    },
+    {
+      "backend": "openvino-native-gpu",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 1,
+      "elapsed_seconds": 0.10753038001712412,
+      "output_duration_seconds": 1.1145578231292517,
+      "output_samples": 49152,
+      "rtf": 0.09647806312571561,
+      "peak_abs": 0.5791015625
+    },
+    {
+      "backend": "openvino-native-gpu",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 2,
+      "elapsed_seconds": 0.06250661890953779,
+      "output_duration_seconds": 1.1145578231292517,
+      "output_samples": 49152,
+      "rtf": 0.0560819884015018,
+      "peak_abs": 0.5791015625
+    },
+    {
+      "backend": "openvino-native-gpu",
+      "text_label": "medium",
+      "text": "今日はいい天気ですね。",
+      "run_index": 0,
+      "elapsed_seconds": 0.08830285805743188,
+      "output_duration_seconds": 1.8692063492063493,
+      "output_samples": 82432,
+      "rtf": 0.04724082929363288,
+      "peak_abs": 0.31884765625
+    },
+    {
+      "backend": "openvino-native-gpu",
+      "text_label": "medium",
+      "text": "今日はいい天気ですね。",
+      "run_index": 1,
+      "elapsed_seconds": 0.08549307100474834,
+      "output_duration_seconds": 1.8692063492063493,
+      "output_samples": 82432,
+      "rtf": 0.04573763139690171,
+      "peak_abs": 0.31884765625
+    },
+    {
+      "backend": "openvino-native-gpu",
+      "text_label": "medium",
+      "text": "今日はいい天気ですね。",
+      "run_index": 2,
+      "elapsed_seconds": 0.0839094229741022,
+      "output_duration_seconds": 1.8692063492063493,
+      "output_samples": 82432,
+      "rtf": 0.04489040121746296,
+      "peak_abs": 0.31884765625
+    },
+    {
+      "backend": "openvino-native-gpu",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 0,
+      "elapsed_seconds": 0.3574951939517632,
+      "output_duration_seconds": 7.685804988662132,
+      "output_samples": 338944,
+      "rtf": 0.04651369563489177,
+      "peak_abs": 0.59619140625
+    },
+    {
+      "backend": "openvino-native-gpu",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 1,
+      "elapsed_seconds": 0.35547021694947034,
+      "output_duration_seconds": 7.685804988662132,
+      "output_samples": 338944,
+      "rtf": 0.04625022590006503,
+      "peak_abs": 0.59619140625
+    },
+    {
+      "backend": "openvino-native-gpu",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 2,
+      "elapsed_seconds": 0.3539711959892884,
+      "output_duration_seconds": 7.685804988662132,
+      "output_samples": 338944,
+      "rtf": 0.04605518829991862,
+      "peak_abs": 0.59619140625
+    },
+    {
+      "backend": "openvino-native-npu",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 0,
+      "elapsed_seconds": 0.1441007680259645,
+      "output_duration_seconds": 1.1145578231292517,
+      "output_samples": 49152,
+      "rtf": 0.12928962951548328,
+      "peak_abs": 0.5810546875
+    },
+    {
+      "backend": "openvino-native-npu",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 1,
+      "elapsed_seconds": 0.15378161810804158,
+      "output_duration_seconds": 1.1145578231292517,
+      "output_samples": 49152,
+      "rtf": 0.13797545081715157,
+      "peak_abs": 0.5810546875
+    },
+    {
+      "backend": "openvino-native-npu",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 2,
+      "elapsed_seconds": 0.13484705693554133,
+      "output_duration_seconds": 1.1145578231292517,
+      "output_samples": 49152,
+      "rtf": 0.12098704449172715,
+      "peak_abs": 0.5810546875
+    },
+    {
+      "backend": "openvino-native-npu",
+      "text_label": "medium",
+      "text": "今日はいい天気ですね。",
+      "run_index": 0,
+      "elapsed_seconds": 0.1801496809348464,
+      "output_duration_seconds": 1.8692063492063493,
+      "output_samples": 82432,
+      "rtf": 0.09637763161426055,
+      "peak_abs": 0.3125
+    },
+    {
+      "backend": "openvino-native-npu",
+      "text_label": "medium",
+      "text": "今日はいい天気ですね。",
+      "run_index": 1,
+      "elapsed_seconds": 0.16673592396546155,
+      "output_duration_seconds": 1.8692063492063493,
+      "output_samples": 82432,
+      "rtf": 0.0892014538877724,
+      "peak_abs": 0.3125
+    },
+    {
+      "backend": "openvino-native-npu",
+      "text_label": "medium",
+      "text": "今日はいい天気ですね。",
+      "run_index": 2,
+      "elapsed_seconds": 0.17760621092747897,
+      "output_duration_seconds": 1.8692063492063493,
+      "output_samples": 82432,
+      "rtf": 0.09501690971833537,
+      "peak_abs": 0.3125
+    },
+    {
+      "backend": "openvino-native-npu",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 0,
+      "elapsed_seconds": 0.6644228789955378,
+      "output_duration_seconds": 7.685804988662132,
+      "output_samples": 338944,
+      "rtf": 0.08644805325865988,
+      "peak_abs": 0.5966796875
+    },
+    {
+      "backend": "openvino-native-npu",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 1,
+      "elapsed_seconds": 0.697589515009895,
+      "output_duration_seconds": 7.685804988662132,
+      "output_samples": 338944,
+      "rtf": 0.09076336389473295,
+      "peak_abs": 0.5966796875
+    },
+    {
+      "backend": "openvino-native-npu",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 2,
+      "elapsed_seconds": 0.6948909730417654,
+      "output_duration_seconds": 7.685804988662132,
+      "output_samples": 338944,
+      "rtf": 0.09041225662983222,
+      "peak_abs": 0.5966796875
+    },
+    {
+      "backend": "openvino-native-split-gpu",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 0,
+      "elapsed_seconds": 0.35056401998735964,
+      "output_duration_seconds": 1.1145578231292517,
+      "output_samples": 49152,
+      "rtf": 0.3145319271126823,
+      "peak_abs": 0.57958984375
+    },
+    {
+      "backend": "openvino-native-split-gpu",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 1,
+      "elapsed_seconds": 0.2607594330329448,
+      "output_duration_seconds": 1.1145578231292517,
+      "output_samples": 49152,
+      "rtf": 0.2339577432607598,
+      "peak_abs": 0.57958984375
+    },
+    {
+      "backend": "openvino-native-split-gpu",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 2,
+      "elapsed_seconds": 0.2870859350077808,
+      "output_duration_seconds": 1.1145578231292517,
+      "output_samples": 49152,
+      "rtf": 0.2575783230355455,
+      "peak_abs": 0.57958984375
+    },
+    {
+      "backend": "openvino-native-split-gpu",
+      "text_label": "medium",
+      "text": "今日はいい天気ですね。",
+      "run_index": 0,
+      "elapsed_seconds": 0.3605250770924613,
+      "output_duration_seconds": 1.8692063492063493,
+      "output_samples": 82432,
+      "rtf": 0.19287601780591931,
+      "peak_abs": 0.318359375
+    },
+    {
+      "backend": "openvino-native-split-gpu",
+      "text_label": "medium",
+      "text": "今日はいい天気ですね。",
+      "run_index": 1,
+      "elapsed_seconds": 0.35091905400622636,
+      "output_duration_seconds": 1.8692063492063493,
+      "output_samples": 82432,
+      "rtf": 0.18773692597140165,
+      "peak_abs": 0.318359375
+    },
+    {
+      "backend": "openvino-native-split-gpu",
+      "text_label": "medium",
+      "text": "今日はいい天気ですね。",
+      "run_index": 2,
+      "elapsed_seconds": 0.3708779369480908,
+      "output_duration_seconds": 1.8692063492063493,
+      "output_samples": 82432,
+      "rtf": 0.19841465716482437,
+      "peak_abs": 0.318359375
+    },
+    {
+      "backend": "openvino-native-split-gpu",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 0,
+      "elapsed_seconds": 0.8164942740695551,
+      "output_duration_seconds": 7.685804988662132,
+      "output_samples": 338944,
+      "rtf": 0.10623406074887703,
+      "peak_abs": 0.5966796875
+    },
+    {
+      "backend": "openvino-native-split-gpu",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 1,
+      "elapsed_seconds": 0.8613081329967827,
+      "output_duration_seconds": 7.685804988662132,
+      "output_samples": 338944,
+      "rtf": 0.11206479142618873,
+      "peak_abs": 0.5966796875
+    },
+    {
+      "backend": "openvino-native-split-gpu",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 2,
+      "elapsed_seconds": 0.812265699962154,
+      "output_duration_seconds": 7.685804988662132,
+      "output_samples": 338944,
+      "rtf": 0.10568388101966988,
+      "peak_abs": 0.5966796875
+    },
+    {
+      "backend": "openvino-native-split-npu",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 0,
+      "elapsed_seconds": 0.3420898600015789,
+      "output_duration_seconds": 1.1145578231292517,
+      "output_samples": 49152,
+      "rtf": 0.3069287684340338,
+      "peak_abs": 0.58056640625
+    },
+    {
+      "backend": "openvino-native-split-npu",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 1,
+      "elapsed_seconds": 0.31329424295108765,
+      "output_duration_seconds": 1.1145578231292517,
+      "output_samples": 49152,
+      "rtf": 0.2810928571399529,
+      "peak_abs": 0.58056640625
+    },
+    {
+      "backend": "openvino-native-split-npu",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 2,
+      "elapsed_seconds": 0.3477678090566769,
+      "output_duration_seconds": 1.1145578231292517,
+      "output_samples": 49152,
+      "rtf": 0.3120231196980683,
+      "peak_abs": 0.58056640625
+    },
+    {
+      "backend": "openvino-native-split-npu",
+      "text_label": "medium",
+      "text": "今日はいい天気ですね。",
+      "run_index": 0,
+      "elapsed_seconds": 0.4409585010726005,
+      "output_duration_seconds": 1.8692063492063493,
+      "output_samples": 82432,
+      "rtf": 0.23590680678985929,
+      "peak_abs": 0.318603515625
+    },
+    {
+      "backend": "openvino-native-split-npu",
+      "text_label": "medium",
+      "text": "今日はいい天気ですね。",
+      "run_index": 1,
+      "elapsed_seconds": 0.4512677869061008,
+      "output_duration_seconds": 1.8692063492063493,
+      "output_samples": 82432,
+      "rtf": 0.24142213463896356,
+      "peak_abs": 0.318603515625
+    },
+    {
+      "backend": "openvino-native-split-npu",
+      "text_label": "medium",
+      "text": "今日はいい天気ですね。",
+      "run_index": 2,
+      "elapsed_seconds": 0.4192631100304425,
+      "output_duration_seconds": 1.8692063492063493,
+      "output_samples": 82432,
+      "rtf": 0.22430006735663957,
+      "peak_abs": 0.318603515625
+    },
+    {
+      "backend": "openvino-native-split-npu",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 0,
+      "elapsed_seconds": 1.0670164580224082,
+      "output_duration_seconds": 7.685804988662132,
+      "output_samples": 338944,
+      "rtf": 0.13882949926474047,
+      "peak_abs": 0.59716796875
+    },
+    {
+      "backend": "openvino-native-split-npu",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 1,
+      "elapsed_seconds": 1.0470512110041454,
+      "output_duration_seconds": 7.685804988662132,
+      "output_samples": 338944,
+      "rtf": 0.1362318212013867,
+      "peak_abs": 0.59716796875
+    },
+    {
+      "backend": "openvino-native-split-npu",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 2,
+      "elapsed_seconds": 1.0617805130314082,
+      "output_duration_seconds": 7.685804988662132,
+      "output_samples": 338944,
+      "rtf": 0.1381482505212811,
+      "peak_abs": 0.59716796875
+    }
+  ]
+}
