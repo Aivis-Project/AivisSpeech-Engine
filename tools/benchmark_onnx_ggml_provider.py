@@ -28,7 +28,6 @@ if str(_REPO_ROOT) not in sys.path:
 from run import _resolve_default_onnx_ep_library_path
 from voicevox_engine.aivm_gguf_cache import (
     DEFAULT_GGUF_CONVERTER_VERSION,
-    F32_GGUF_CONVERTER_VERSION,
 )
 from voicevox_engine.aivm_manager import AivmManager
 from voicevox_engine.metas.metas import StyleId
@@ -49,6 +48,12 @@ _DEFAULT_TEXTS = (
     "テストです。",
     "今日はいい天気ですね。",
     "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+)
+
+_DEFAULT_WARMUP_TEXTS = (
+    "測定用ではない短い文です。",
+    "ウォームアップのために別の文章を読み上げます。",
+    "測定対象とは異なる長めのウォームアップ文章です。バックエンドの初回処理だけを先に済ませます。",
 )
 
 
@@ -145,12 +150,6 @@ def _parse_args() -> argparse.Namespace:
             "onnx-directml",
             "onnx-cuda",
             "onnx-ggml-vulkan",
-            "onnx-ggml-vulkan-fp16",
-            "onnx-ggml-vulkan-fp32",
-            "onnx-ggml-vulkan-jpbert-fp16-voices-fp16",
-            "onnx-ggml-vulkan-jpbert-fp16-voices-fp32",
-            "onnx-ggml-vulkan-jpbert-fp32-voices-fp16",
-            "onnx-ggml-vulkan-jpbert-fp32-voices-fp32",
         ),
         action="append",
         default=None,
@@ -166,7 +165,19 @@ def _parse_args() -> argparse.Namespace:
         "--warmup_runs",
         type=int,
         default=1,
-        help="Warmup syntheses per backend/text before measured runs.",
+        help=(
+            "Warmup syntheses per backend/text before measured runs. Warmup "
+            "uses --warmup_text, never the measured --text values."
+        ),
+    )
+    parser.add_argument(
+        "--warmup_text",
+        action="append",
+        default=None,
+        help=(
+            "Text used only for warmup. Repeat for short/medium/long warmup "
+            "texts. Values must not match any measured --text."
+        ),
     )
     parser.add_argument(
         "--runs",
@@ -223,15 +234,6 @@ def _parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--ggml_jp_bert_fp32_gguf_path",
-        type=Path,
-        default=None,
-        help=(
-            "Prepared all-FP32 JP-BERT GGUF path used by the explicit "
-            "jpbert-fp32 benchmark backends."
-        ),
-    )
-    parser.add_argument(
         "--ggml_vulkan_device",
         default=None,
         help="Provider option device id for Vulkan.",
@@ -273,6 +275,20 @@ def _parse_args() -> argparse.Namespace:
         ),
     )
     return parser.parse_args()
+
+
+def _validate_warmup_texts(
+    *,
+    texts: Sequence[str],
+    warmup_texts: Sequence[str],
+) -> None:
+    measured = {text.strip() for text in texts}
+    overlapping = [text for text in warmup_texts if text.strip() in measured]
+    if overlapping:
+        raise ValueError(
+            "Warmup text must be different from measured benchmark text: "
+            + ", ".join(repr(text) for text in overlapping)
+        )
 
 
 def _patch_tts_model_noise(
@@ -384,18 +400,6 @@ def _build_ggml_plugin_config(
     )
 
 
-def _require_jp_bert_fp32_gguf_path(args: argparse.Namespace) -> Path:
-    jp_bert_path = args.ggml_jp_bert_fp32_gguf_path
-    if jp_bert_path is None:
-        raise RuntimeError(
-            "jpbert-fp32 benchmark backends require "
-            "--ggml_jp_bert_fp32_gguf_path."
-        )
-    if not jp_bert_path.is_file():
-        raise RuntimeError(f"JP-BERT FP32 GGUF does not exist: {jp_bert_path}")
-    return jp_bert_path
-
-
 def _build_backend_specs(args: argparse.Namespace) -> list[_BackendSpec]:
     requested_backends = args.backend or [
         "onnx-cpu",
@@ -461,45 +465,10 @@ def _build_backend_specs(args: argparse.Namespace) -> list[_BackendSpec]:
                 )
             )
         elif backend == "onnx-ggml-vulkan":
-            add_ggml_spec(name=backend)
-        elif backend == "onnx-ggml-vulkan-fp16":
-            add_ggml_spec(
-                name=backend,
-                synthesis_converter_version=DEFAULT_GGUF_CONVERTER_VERSION,
-            )
-        elif backend == "onnx-ggml-vulkan-fp32":
-            add_ggml_spec(
-                name=backend,
-                synthesis_converter_version=F32_GGUF_CONVERTER_VERSION,
-            )
-        elif backend == "onnx-ggml-vulkan-jpbert-fp16-voices-fp16":
             add_ggml_spec(
                 name=backend,
                 synthesis_converter_version=DEFAULT_GGUF_CONVERTER_VERSION,
                 jp_bert_precision_label="fp16-linear",
-                inherit_global_jp_bert_gguf_path=False,
-            )
-        elif backend == "onnx-ggml-vulkan-jpbert-fp16-voices-fp32":
-            add_ggml_spec(
-                name=backend,
-                synthesis_converter_version=F32_GGUF_CONVERTER_VERSION,
-                jp_bert_precision_label="fp16-linear",
-                inherit_global_jp_bert_gguf_path=False,
-            )
-        elif backend == "onnx-ggml-vulkan-jpbert-fp32-voices-fp16":
-            add_ggml_spec(
-                name=backend,
-                synthesis_converter_version=DEFAULT_GGUF_CONVERTER_VERSION,
-                jp_bert_precision_label="fp32",
-                jp_bert_gguf_path=_require_jp_bert_fp32_gguf_path(args),
-                inherit_global_jp_bert_gguf_path=False,
-            )
-        elif backend == "onnx-ggml-vulkan-jpbert-fp32-voices-fp32":
-            add_ggml_spec(
-                name=backend,
-                synthesis_converter_version=F32_GGUF_CONVERTER_VERSION,
-                jp_bert_precision_label="fp32",
-                jp_bert_gguf_path=_require_jp_bert_fp32_gguf_path(args),
                 inherit_global_jp_bert_gguf_path=False,
             )
     return specs
@@ -629,6 +598,7 @@ def _benchmark_backend(
     model_uuid: str,
     style_id: StyleId,
     texts: Sequence[str],
+    warmup_texts: Sequence[str],
     warmup_runs: int,
     runs: int,
     tempo_dynamics_scale: float,
@@ -655,14 +625,26 @@ def _benchmark_backend(
             if text_index < 3
             else f"text-{text_index}"
         )
+        warmup_text = warmup_texts[text_index % len(warmup_texts)]
+        warmup_query = _build_audio_query(
+            engine=engine,
+            text=warmup_text,
+            style_id=style_id,
+            tempo_dynamics_scale=tempo_dynamics_scale,
+        )
+        for _ in range(warmup_runs):
+            engine.synthesize_wave(
+                warmup_query,
+                style_id,
+                enable_interrogative_upspeak=True,
+            )
+
         query = _build_audio_query(
             engine=engine,
             text=text,
             style_id=style_id,
             tempo_dynamics_scale=tempo_dynamics_scale,
         )
-        for _ in range(warmup_runs):
-            engine.synthesize_wave(query, style_id, enable_interrogative_upspeak=True)
 
         provider_evidence["active_providers"] = _validate_active_provider(
             engine=engine,
@@ -724,6 +706,8 @@ def main() -> None:
         noise_scale_w=args.noise_scale_w,
     )
     texts = tuple(args.text or _DEFAULT_TEXTS)
+    warmup_texts = tuple(args.warmup_text or _DEFAULT_WARMUP_TEXTS)
+    _validate_warmup_texts(texts=texts, warmup_texts=warmup_texts)
     style_id = StyleId(args.style_id)
     specs = _build_backend_specs(args)
 
@@ -744,6 +728,7 @@ def main() -> None:
                 model_uuid=model_uuid,
                 style_id=style_id,
                 texts=texts,
+                warmup_texts=warmup_texts,
                 warmup_runs=args.warmup_runs,
                 runs=args.runs,
                 tempo_dynamics_scale=args.tempo_dynamics_scale,
@@ -767,6 +752,7 @@ def main() -> None:
             "aivmx_path": f"<local-model-dir>/{args.aivmx_path.name}",
             "style_id": int(style_id),
             "texts": list(texts),
+            "warmup_texts": list(warmup_texts),
             "warmup_runs": args.warmup_runs,
             "runs": args.runs,
             "tempo_dynamics_scale": args.tempo_dynamics_scale,
@@ -776,15 +762,9 @@ def main() -> None:
             "ggml_vulkan_precision": args.ggml_vulkan_precision,
             "ggml_vulkan_math_mode": args.ggml_vulkan_math_mode,
             "ggml_default_synthesis_converter_version": DEFAULT_GGUF_CONVERTER_VERSION,
-            "ggml_f32_synthesis_converter_version": F32_GGUF_CONVERTER_VERSION,
             "ggml_jp_bert_gguf_path": (
                 f"<local-gguf-dir>/{args.ggml_jp_bert_gguf_path.name}"
                 if args.ggml_jp_bert_gguf_path is not None
-                else None
-            ),
-            "ggml_jp_bert_fp32_gguf_path": (
-                f"<local-gguf-dir>/{args.ggml_jp_bert_fp32_gguf_path.name}"
-                if args.ggml_jp_bert_fp32_gguf_path is not None
                 else None
             ),
         },

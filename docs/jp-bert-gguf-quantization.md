@@ -204,6 +204,9 @@ The fixed `noise_scale=0` and `noise_scale_w=0` settings below are for
 deterministic candidate parity checks only. Do not use them to generate
 qualitative audio previews.
 
+Warmup texts must be different from the measured benchmark texts so the timed
+runs do not reuse text-specific frontend or graph caches.
+
 ```bash
 GGML_VK_VISIBLE_DEVICES=<vulkan-device-index> \
 uv run python tools/benchmark_onnx_ggml_provider.py \
@@ -211,6 +214,9 @@ uv run python tools/benchmark_onnx_ggml_provider.py \
   --style_id 888753760 \
   --backend onnx-ggml-vulkan \
   --warmup_runs 1 \
+  --warmup_text "測定用ではない短い文です。" \
+  --warmup_text "ウォームアップのために別の文章を読み上げます。" \
+  --warmup_text "測定対象とは異なる長めのウォームアップ文章です。バックエンドの初回処理だけを先に済ませます。" \
   --runs 1 \
   --tempo_dynamics_scale 1.0 \
   --noise_scale 0 \
