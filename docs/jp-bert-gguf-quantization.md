@@ -133,6 +133,20 @@ keeps audio parity. It is the default JP-BERT GGUF used by the ONNX GGML Plugin
 EP cache. Q8_0 and Q4_0 should not be used as a default JP-BERT quantization
 path without a more selective mixed-precision recipe.
 
+The latest Linux RTX 3060 ONNX GGML benchmark also compares JP-BERT FP32
+against the adopted JP-BERT F16 `linear` artifact while crossing both with
+voice FP16/FP32 caches. JP-BERT FP32 did not improve RTF there:
+
+| JP-BERT GGUF | voice GGUF | short RTF | medium RTF | long RTF |
+| --- | --- | ---: | ---: | ---: |
+| F16 `linear` | FP16 voices | `0.120` | `0.089` | `0.062` |
+| F16 `linear` | FP32 voices | `0.121` | `0.092` | `0.062` |
+| FP32 | FP16 voices | `0.121` | `0.091` | `0.061` |
+| FP32 | FP32 voices | `0.122` | `0.091` | `0.062` |
+
+Raw results and audio previews are in
+[ONNX GGML Plugin EP Benchmark](onnx-ggml-plugin-benchmark.md).
+
 ## Reproduction
 
 Build the TTS.cpp quantizer:

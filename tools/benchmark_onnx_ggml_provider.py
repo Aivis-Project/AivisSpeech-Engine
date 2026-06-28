@@ -79,6 +79,8 @@ class _BackendSpec:
     preferred_onnx_provider: BuiltinOnnxProvider | None = None
     onnx_plugin_ep: OnnxPluginExecutionProviderConfig | None = None
     ggml_synthesis_converter_version: str | None = None
+    ggml_jp_bert_precision_label: str | None = None
+    ggml_jp_bert_gguf_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -133,6 +135,10 @@ def _parse_args() -> argparse.Namespace:
             "onnx-ggml-vulkan",
             "onnx-ggml-vulkan-fp16",
             "onnx-ggml-vulkan-fp32",
+            "onnx-ggml-vulkan-jpbert-fp16-voices-fp16",
+            "onnx-ggml-vulkan-jpbert-fp16-voices-fp32",
+            "onnx-ggml-vulkan-jpbert-fp32-voices-fp16",
+            "onnx-ggml-vulkan-jpbert-fp32-voices-fp32",
         ),
         action="append",
         default=None,
@@ -202,6 +208,15 @@ def _parse_args() -> argparse.Namespace:
         help=(
             "Optional prepared JP-BERT GGUF path for the Plugin EP run. "
             "When omitted, the Engine cache prepares or fetches the default bundle."
+        ),
+    )
+    parser.add_argument(
+        "--ggml_jp_bert_fp32_gguf_path",
+        type=Path,
+        default=None,
+        help=(
+            "Prepared all-FP32 JP-BERT GGUF path used by the explicit "
+            "jpbert-fp32 benchmark backends."
         ),
     )
     parser.add_argument(
@@ -308,6 +323,9 @@ def _build_audio_query(
 
 def _build_ggml_plugin_config(
     args: argparse.Namespace,
+    *,
+    jp_bert_gguf_path: Path | None = None,
+    inherit_global_jp_bert_gguf_path: bool = True,
 ) -> OnnxPluginExecutionProviderConfig:
     if args.ggml_native_library_path is None:
         raise RuntimeError("onnx-ggml-vulkan requires --ggml_native_library_path.")
@@ -322,14 +340,29 @@ def _build_ggml_plugin_config(
     }
     if args.ggml_vulkan_device is not None:
         provider_options["device"] = args.ggml_vulkan_device
-    if args.ggml_jp_bert_gguf_path is not None:
-        provider_options["jp_bert_gguf_path"] = str(args.ggml_jp_bert_gguf_path)
+    configured_jp_bert_gguf_path = jp_bert_gguf_path
+    if configured_jp_bert_gguf_path is None and inherit_global_jp_bert_gguf_path:
+        configured_jp_bert_gguf_path = args.ggml_jp_bert_gguf_path
+    if configured_jp_bert_gguf_path is not None:
+        provider_options["jp_bert_gguf_path"] = str(configured_jp_bert_gguf_path)
     return OnnxPluginExecutionProviderConfig(
         provider_name="AivisGgmlExecutionProvider",
         provider_options=provider_options,
         library_path=_resolve_default_onnx_ep_library_path(args.onnx_ep_library_path),
         strict=True,
     )
+
+
+def _require_jp_bert_fp32_gguf_path(args: argparse.Namespace) -> Path:
+    jp_bert_path = args.ggml_jp_bert_fp32_gguf_path
+    if jp_bert_path is None:
+        raise RuntimeError(
+            "jpbert-fp32 benchmark backends require "
+            "--ggml_jp_bert_fp32_gguf_path."
+        )
+    if not jp_bert_path.is_file():
+        raise RuntimeError(f"JP-BERT FP32 GGUF does not exist: {jp_bert_path}")
+    return jp_bert_path
 
 
 def _build_backend_specs(args: argparse.Namespace) -> list[_BackendSpec]:
@@ -339,6 +372,36 @@ def _build_backend_specs(args: argparse.Namespace) -> list[_BackendSpec]:
         "onnx-ggml-vulkan",
     ]
     specs: list[_BackendSpec] = []
+
+    def add_ggml_spec(
+        *,
+        name: str,
+        synthesis_converter_version: str | None = None,
+        jp_bert_precision_label: str | None = None,
+        jp_bert_gguf_path: Path | None = None,
+        inherit_global_jp_bert_gguf_path: bool = True,
+    ) -> None:
+        configured_jp_bert_gguf_path = jp_bert_gguf_path
+        if configured_jp_bert_gguf_path is None and inherit_global_jp_bert_gguf_path:
+            configured_jp_bert_gguf_path = args.ggml_jp_bert_gguf_path
+        specs.append(
+            _BackendSpec(
+                name=name,
+                use_gpu=False,
+                required_provider="AivisGgmlExecutionProvider",
+                onnx_plugin_ep=_build_ggml_plugin_config(
+                    args,
+                    jp_bert_gguf_path=jp_bert_gguf_path,
+                    inherit_global_jp_bert_gguf_path=(
+                        inherit_global_jp_bert_gguf_path
+                    ),
+                ),
+                ggml_synthesis_converter_version=synthesis_converter_version,
+                ggml_jp_bert_precision_label=jp_bert_precision_label,
+                ggml_jp_bert_gguf_path=configured_jp_bert_gguf_path,
+            )
+        )
+
     for backend in requested_backends:
         if backend == "onnx-cpu":
             specs.append(
@@ -367,33 +430,46 @@ def _build_backend_specs(args: argparse.Namespace) -> list[_BackendSpec]:
                 )
             )
         elif backend == "onnx-ggml-vulkan":
-            specs.append(
-                _BackendSpec(
-                    name=backend,
-                    use_gpu=False,
-                    required_provider="AivisGgmlExecutionProvider",
-                    onnx_plugin_ep=_build_ggml_plugin_config(args),
-                )
-            )
+            add_ggml_spec(name=backend)
         elif backend == "onnx-ggml-vulkan-fp16":
-            specs.append(
-                _BackendSpec(
-                    name=backend,
-                    use_gpu=False,
-                    required_provider="AivisGgmlExecutionProvider",
-                    onnx_plugin_ep=_build_ggml_plugin_config(args),
-                    ggml_synthesis_converter_version=DEFAULT_GGUF_CONVERTER_VERSION,
-                )
+            add_ggml_spec(
+                name=backend,
+                synthesis_converter_version=DEFAULT_GGUF_CONVERTER_VERSION,
             )
         elif backend == "onnx-ggml-vulkan-fp32":
-            specs.append(
-                _BackendSpec(
-                    name=backend,
-                    use_gpu=False,
-                    required_provider="AivisGgmlExecutionProvider",
-                    onnx_plugin_ep=_build_ggml_plugin_config(args),
-                    ggml_synthesis_converter_version=F32_GGUF_CONVERTER_VERSION,
-                )
+            add_ggml_spec(
+                name=backend,
+                synthesis_converter_version=F32_GGUF_CONVERTER_VERSION,
+            )
+        elif backend == "onnx-ggml-vulkan-jpbert-fp16-voices-fp16":
+            add_ggml_spec(
+                name=backend,
+                synthesis_converter_version=DEFAULT_GGUF_CONVERTER_VERSION,
+                jp_bert_precision_label="fp16-linear",
+                inherit_global_jp_bert_gguf_path=False,
+            )
+        elif backend == "onnx-ggml-vulkan-jpbert-fp16-voices-fp32":
+            add_ggml_spec(
+                name=backend,
+                synthesis_converter_version=F32_GGUF_CONVERTER_VERSION,
+                jp_bert_precision_label="fp16-linear",
+                inherit_global_jp_bert_gguf_path=False,
+            )
+        elif backend == "onnx-ggml-vulkan-jpbert-fp32-voices-fp16":
+            add_ggml_spec(
+                name=backend,
+                synthesis_converter_version=DEFAULT_GGUF_CONVERTER_VERSION,
+                jp_bert_precision_label="fp32",
+                jp_bert_gguf_path=_require_jp_bert_fp32_gguf_path(args),
+                inherit_global_jp_bert_gguf_path=False,
+            )
+        elif backend == "onnx-ggml-vulkan-jpbert-fp32-voices-fp32":
+            add_ggml_spec(
+                name=backend,
+                synthesis_converter_version=F32_GGUF_CONVERTER_VERSION,
+                jp_bert_precision_label="fp32",
+                jp_bert_gguf_path=_require_jp_bert_fp32_gguf_path(args),
+                inherit_global_jp_bert_gguf_path=False,
             )
     return specs
 
@@ -492,6 +568,14 @@ def _benchmark_backend(
             provider_evidence["ggml_synthesis_converter_version"] = (
                 spec.ggml_synthesis_converter_version
             )
+        if spec.ggml_jp_bert_precision_label is not None:
+            provider_evidence["ggml_jp_bert_precision"] = (
+                spec.ggml_jp_bert_precision_label
+            )
+        if spec.ggml_jp_bert_gguf_path is not None:
+            provider_evidence["ggml_jp_bert_gguf_path"] = (
+                f"<local-gguf-dir>/{spec.ggml_jp_bert_gguf_path.name}"
+            )
         for run_index in range(runs):
             started_at = time.perf_counter()
             wave = engine.synthesize_wave(
@@ -578,6 +662,16 @@ def main() -> None:
             "ggml_vulkan_precision": args.ggml_vulkan_precision,
             "ggml_default_synthesis_converter_version": DEFAULT_GGUF_CONVERTER_VERSION,
             "ggml_f32_synthesis_converter_version": F32_GGUF_CONVERTER_VERSION,
+            "ggml_jp_bert_gguf_path": (
+                f"<local-gguf-dir>/{args.ggml_jp_bert_gguf_path.name}"
+                if args.ggml_jp_bert_gguf_path is not None
+                else None
+            ),
+            "ggml_jp_bert_fp32_gguf_path": (
+                f"<local-gguf-dir>/{args.ggml_jp_bert_fp32_gguf_path.name}"
+                if args.ggml_jp_bert_fp32_gguf_path is not None
+                else None
+            ),
         },
         "provider_evidence": provider_evidence,
         "summary": [asdict(summary) for summary in summaries],
