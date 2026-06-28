@@ -125,10 +125,11 @@ Interpretation:
   `tempoDynamicsScale=1.0` SDP run on this RTX 3060, raising short and medium
   RTF above `1.0` even though CUDA was active.
 - GGML Plugin EP Vulkan uses `precision=fast` in this run, which opts into the
-  TTS.cpp Vulkan fast conv1d lowering while keeping ggml-vulkan F16/coopmat
-  disabled. The four GGML columns differ only in JP-BERT GGUF storage and
-  synthesis voice GGUF storage. `precision=accurate` remains the conservative
-  direct-F32-conv mode and is not the performance number shown in this table.
+  TTS.cpp Vulkan fast conv1d lowering. This recorded run predates the current
+  `vulkan_math_mode=coopmat` default and used the earlier F32 Vulkan math path.
+  The four GGML columns differ only in JP-BERT GGUF storage and synthesis voice
+  GGUF storage. `precision=accurate` remains the conservative direct-F32-conv
+  mode and is not the performance number shown in this table.
 - With the CUDA convolution search fix and CUDA 12 libraries available, ONNX
   CUDA is the fastest path on this RTX 3060 run. GGML Plugin EP Vulkan is still
   faster than ONNX CPU for all three text lengths and does not require NVIDIA
@@ -186,15 +187,17 @@ is retained only as precision-path decision history.
 
 | GGML path | Vulkan math | short RTF | medium RTF | long RTF | sample-count delta vs ONNX CPU | decision |
 | --- | --- | ---: | ---: | ---: | --- | --- |
-| `precision=accurate` | direct F32 conv, F16/coopmat disabled | `0.168` | `0.166` | `0.148` | `0 / 0 / 0` | Too slow for the performance target |
-| `precision=fast` | fast conv lowering, F16/coopmat disabled | `0.116` | `0.092` | `0.061` | `0 / 0 / 0` | Adopted path |
-| experimental true-F16 fast | fast conv lowering, F16/coopmat enabled | `0.078` | `0.060` | `0.042` | `-2 / +528 / +723` | Rejected: changes duration |
+| `precision=accurate`, `vulkan_math_mode=f32` | direct F32 conv, F16/coopmat disabled | `0.168` | `0.166` | `0.148` | `0 / 0 / 0` | Too slow for the performance target |
+| `precision=fast`, `vulkan_math_mode=f32` | fast conv lowering, F16/coopmat disabled | `0.116` | `0.092` | `0.061` | `0 / 0 / 0` | Historical adopted path |
+| `precision=fast`, `vulkan_math_mode=fp16-coopmat` | fast conv lowering, F16/coopmat enabled | `0.078` | `0.060` | `0.042` | `-2 / +528 / +723` | Rejected: changes duration |
 
 Audio PCM deltas for the adopted `precision=fast` path against ONNX CPU were:
 short `rmse=0.00088`, medium `rmse=0.00448`, and long `rmse=0.00332`, with
 identical output sample counts for all three texts. This points to the conv
-lowering as the correct performance lever; enabling ggml-vulkan F16/coopmat is
-not safe for this model because it changes duration.
+lowering as the correct performance lever; enabling ggml-vulkan runtime F16
+with coopmat is not safe for this model because it changes duration. Current
+Linux Lunar Lake testing enables coopmat without Vulkan runtime F16 by default
+(`vulkan_math_mode=coopmat`).
 
 ### GGML Vulkan Profile Run (Historical, 2026-06-28)
 
@@ -544,6 +547,7 @@ uv run python tools/benchmark_onnx_ggml_provider.py \
   --ggml_jp_bert_fp32_gguf_path "$JP_BERT_FP32_GGUF_PATH" \
   --ggml_vulkan_device 0 \
   --ggml_vulkan_precision fast \
+  --ggml_vulkan_math_mode coopmat \
   --tempo_dynamics_scale 1.0 \
   --warmup_runs 1 \
   --runs 3 \

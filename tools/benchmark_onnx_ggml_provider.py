@@ -243,6 +243,15 @@ def _parse_args() -> argparse.Namespace:
         help="Provider option precision for Vulkan.",
     )
     parser.add_argument(
+        "--ggml_vulkan_math_mode",
+        choices=("f32", "coopmat", "fp16", "fp16-coopmat"),
+        default="coopmat",
+        help=(
+            "Provider option controlling ggml-vulkan F16 and cooperative "
+            "matrix use."
+        ),
+    )
+    parser.add_argument(
         "--output_json",
         type=Path,
         default=None,
@@ -357,6 +366,7 @@ def _build_ggml_plugin_config(
         "eager_load_model": "1",
         "n_threads": "0",
         "precision": args.ggml_vulkan_precision,
+        "vulkan_math_mode": args.ggml_vulkan_math_mode,
         "tts_cpp_library_path": str(args.ggml_native_library_path),
     }
     if args.ggml_vulkan_device is not None:
@@ -764,6 +774,7 @@ def main() -> None:
             "noise_scale_w": args.noise_scale_w,
             "truth_comparison_enabled": not args.skip_truth_comparison,
             "ggml_vulkan_precision": args.ggml_vulkan_precision,
+            "ggml_vulkan_math_mode": args.ggml_vulkan_math_mode,
             "ggml_default_synthesis_converter_version": DEFAULT_GGUF_CONVERTER_VERSION,
             "ggml_f32_synthesis_converter_version": F32_GGUF_CONVERTER_VERSION,
             "ggml_jp_bert_gguf_path": (

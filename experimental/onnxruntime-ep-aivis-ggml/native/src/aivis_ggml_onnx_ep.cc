@@ -68,6 +68,7 @@ constexpr size_t kExpectedInitializerCount = 948;
 constexpr size_t kExpectedOptimizedInitializerCount = 949;
 constexpr const char* kDefaultBackend = "vulkan";
 constexpr const char* kDefaultPrecision = "accurate";
+constexpr const char* kDefaultVulkanMathMode = "coopmat";
 constexpr int64_t kExpectedJpBertOpsetVersion = 17;
 constexpr size_t kExpectedJpBertInputCount = 2;
 constexpr size_t kExpectedJpBertOutputCount = 1;
@@ -254,6 +255,7 @@ struct AivisGgmlEpConfig {
   std::string backend = kDefaultBackend;
   std::string device;
   std::string precision = kDefaultPrecision;
+  std::string vulkan_math_mode = kDefaultVulkanMathMode;
   std::string cache_dir;
   std::string cache_manifest_path;
   std::string gguf_path;
@@ -353,6 +355,7 @@ AivisGgmlEpConfig ReadEpConfig(const OrtSessionOptions* session_options) {
   config.backend = ReadEpOption(session_options, "backend", kDefaultBackend);
   config.device = ReadEpOption(session_options, "device", "");
   config.precision = ReadEpOption(session_options, "precision", kDefaultPrecision);
+  config.vulkan_math_mode = ReadEpOption(session_options, "vulkan_math_mode", kDefaultVulkanMathMode);
   config.cache_dir = ReadEpOption(session_options, "cache_dir", "");
   config.cache_manifest_path = ReadEpOption(session_options, "cache_manifest_path", "");
   config.gguf_path = ReadEpOption(session_options, "gguf_path", "");
@@ -402,6 +405,10 @@ bool IsSupportedPrecision(const std::string& precision) {
   return precision == "accurate" || precision == "fast";
 }
 
+bool IsSupportedVulkanMathMode(const std::string& mode) {
+  return mode == "f32" || mode == "coopmat" || mode == "fp16" || mode == "fp16-coopmat";
+}
+
 bool PathExists(const std::string& path) {
   if (path.empty()) {
     return false;
@@ -444,6 +451,12 @@ OrtStatus* ValidateEpConfig(const OrtApi& api, const AivisGgmlEpConfig& config) 
         api,
         ORT_INVALID_ARGUMENT,
         "AivisGgmlExecutionProvider option precision must be one of: accurate, fast.");
+  }
+  if (!IsSupportedVulkanMathMode(config.vulkan_math_mode)) {
+    return CreateStatus(
+        api,
+        ORT_INVALID_ARGUMENT,
+        "AivisGgmlExecutionProvider option vulkan_math_mode must be one of: f32, coopmat, fp16, fp16-coopmat.");
   }
   try {
     if (!config.cache_manifest_path.empty()) {
@@ -527,6 +540,7 @@ std::string ConfigSummary(const AivisGgmlEpConfig& config) {
   out << "backend=" << config.backend
       << ", device=" << (config.device.empty() ? "default" : config.device)
       << ", precision=" << config.precision
+      << ", vulkan_math_mode=" << config.vulkan_math_mode
       << ", cache_dir_set=" << (config.cache_dir.empty() ? "false" : "true")
       << ", cache_manifest_set=" << (config.cache_manifest_path.empty() ? "false" : "true")
       << ", gguf_path_set=" << (config.gguf_path.empty() ? "false" : "true")
@@ -634,6 +648,14 @@ class ScopedEnvironment final {
     entry.name = std::move(name);
     entry.had_value = ReadProcessEnv(entry.name, entry.old_value);
     SetProcessEnv(entry.name, value);
+    entries_.push_back(std::move(entry));
+  }
+
+  void Unset(std::string name) {
+    Entry entry;
+    entry.name = std::move(name);
+    entry.had_value = ReadProcessEnv(entry.name, entry.old_value);
+    UnsetProcessEnv(entry.name);
     entries_.push_back(std::move(entry));
   }
 
@@ -1045,11 +1067,26 @@ class TtsCppRuntime final {
       env.Set("STYLE_BERT_VITS2_VULKAN_PRECISION", config_.precision);
       env.Set("STYLE_BERT_VITS2_JP_BERT_VULKAN_PRECISION", config_.precision);
       // ggml-vulkan treats these switches as disabled when the variable exists,
-      // regardless of value. Keep both accurate and fast modes on the F32 Vulkan
-      // math path; fast only changes the Style-Bert conv lowering.
-      env.Set("GGML_VK_DISABLE_F16", "1");
-      env.Set("GGML_VK_DISABLE_COOPMAT", "1");
-      env.Set("GGML_VK_DISABLE_COOPMAT2", "1");
+      // regardless of value. Vulkan math modes must therefore actively
+      // remove inherited disables instead of setting them to "0".
+      const bool enable_fp16 =
+          config_.vulkan_math_mode == "fp16" ||
+          config_.vulkan_math_mode == "fp16-coopmat";
+      const bool enable_coopmat =
+          config_.vulkan_math_mode == "coopmat" ||
+          config_.vulkan_math_mode == "fp16-coopmat";
+      if (enable_fp16) {
+        env.Unset("GGML_VK_DISABLE_F16");
+      } else {
+        env.Set("GGML_VK_DISABLE_F16", "1");
+      }
+      if (enable_coopmat) {
+        env.Unset("GGML_VK_DISABLE_COOPMAT");
+        env.Unset("GGML_VK_DISABLE_COOPMAT2");
+      } else {
+        env.Set("GGML_VK_DISABLE_COOPMAT", "1");
+        env.Set("GGML_VK_DISABLE_COOPMAT2", "1");
+      }
     }
     return env;
   }
@@ -1121,6 +1158,7 @@ std::string BuildRuntimeRegistryKey(const AivisGgmlEpConfig& config) {
       << "\nbackend=" << config.backend
       << "\ndevice=" << config.device
       << "\nprecision=" << config.precision
+      << "\nvulkan_math_mode=" << config.vulkan_math_mode
       << "\nn_threads=" << config.n_threads
       << "\ntts_cpp_library_path=" << NormalizeRuntimeRegistryPath(config.tts_cpp_library_path)
       << "\ngguf_path=" << NormalizeRuntimeRegistryPath(config.gguf_path)
@@ -1302,6 +1340,7 @@ std::string BuildEpContextPayload(
   out << ",\"backend\":\"" << JsonEscape(config.backend) << "\"";
   out << ",\"device\":\"" << JsonEscape(config.device) << "\"";
   out << ",\"precision\":\"" << JsonEscape(config.precision) << "\"";
+  out << ",\"vulkan_math_mode\":\"" << JsonEscape(config.vulkan_math_mode) << "\"";
   out << ",\"n_threads\":" << config.n_threads;
   out << ",\"artifacts\":{";
   out << "\"cache_manifest_path\":\""
@@ -2316,6 +2355,7 @@ struct EpContextPayload {
   std::string backend;
   std::string device;
   std::string precision;
+  std::string vulkan_math_mode;
   std::string cache_manifest_path;
   std::string gguf_path;
   std::string jp_bert_gguf_path;
@@ -2366,6 +2406,7 @@ EpContextPayload ParseEpContextPayload(
   ExtractJsonStringField(payload, "backend", parsed.backend);
   ExtractJsonStringField(payload, "device", parsed.device);
   ExtractJsonStringField(payload, "precision", parsed.precision);
+  ExtractJsonStringField(payload, "vulkan_math_mode", parsed.vulkan_math_mode);
   ExtractJsonIntField(payload, "n_threads", parsed.n_threads);
 
   const std::filesystem::path base_directory =
@@ -2406,6 +2447,9 @@ AivisGgmlEpConfig BuildConfigFromEpContextPayload(
   }
   if (!payload.precision.empty()) {
     runtime_config.precision = payload.precision;
+  }
+  if (!payload.vulkan_math_mode.empty()) {
+    runtime_config.vulkan_math_mode = payload.vulkan_math_mode;
   }
   if (runtime_config.n_threads == 0 && payload.n_threads > 0) {
     runtime_config.n_threads = payload.n_threads;
@@ -2587,6 +2631,7 @@ std::string BuildCompiledModelCompatibilityInfo(
   out << ",\"backend\":\"" << JsonEscape(config.backend) << "\"";
   out << ",\"device\":\"" << JsonEscape(config.device) << "\"";
   out << ",\"precision\":\"" << JsonEscape(config.precision) << "\"";
+  out << ",\"vulkan_math_mode\":\"" << JsonEscape(config.vulkan_math_mode) << "\"";
   out << "}";
   return out.str();
 }
@@ -2676,6 +2721,10 @@ OrtCompiledModelCompatibility ValidateAivisCompiledModelCompatibilityInfo(
     }
     if (ExtractJsonStringField(payload, "precision", value) &&
         !IsSupportedPrecision(value)) {
+      return OrtCompiledModelCompatibility_EP_UNSUPPORTED;
+    }
+    if (ExtractJsonStringField(payload, "vulkan_math_mode", value) &&
+        !IsSupportedVulkanMathMode(value)) {
       return OrtCompiledModelCompatibility_EP_UNSUPPORTED;
     }
 
@@ -3276,8 +3325,10 @@ struct AivisGgmlEpFactory final : OrtEpFactory {
       factory->ort_api_.AddKeyValuePair(ep_metadata, "registration_name", factory->registration_name_.c_str());
       factory->ort_api_.AddKeyValuePair(ep_metadata, "aivis.supported_backends", "vulkan,metal,cpu");
       factory->ort_api_.AddKeyValuePair(ep_metadata, "aivis.supported_precision", "accurate,fast");
+      factory->ort_api_.AddKeyValuePair(ep_metadata, "aivis.supported_vulkan_math_modes", "f32,coopmat,fp16,fp16-coopmat");
       factory->ort_api_.AddKeyValuePair(ep_options, "backend", kDefaultBackend);
       factory->ort_api_.AddKeyValuePair(ep_options, "precision", kDefaultPrecision);
+      factory->ort_api_.AddKeyValuePair(ep_options, "vulkan_math_mode", kDefaultVulkanMathMode);
       factory->ort_api_.AddKeyValuePair(ep_options, "eager_load_model", "0");
       factory->ort_api_.AddKeyValuePair(ep_options, "claim_synthesis_graph", "0");
       factory->ort_api_.AddKeyValuePair(ep_options, "claim_jp_bert_graph", "0");
