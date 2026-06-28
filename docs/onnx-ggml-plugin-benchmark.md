@@ -272,6 +272,128 @@ GGML Vulkan precision matrix:
 | medium | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp16-voices-fp16_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp16-voices-fp16_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp16-voices-fp32_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp16-voices-fp32_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp32-voices-fp16_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp32-voices-fp16_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp32-voices-fp32_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp32-voices-fp32_medium.m4a) |
 | long | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp16-voices-fp16_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp16-voices-fp16_long.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp16-voices-fp32_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp16-voices-fp32_long.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp32-voices-fp16_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp32-voices-fp16_long.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp32-voices-fp32_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-jpbert-fp32-voices-fp32_long.m4a) |
 
+## Windows Intel Arc B580 FP16 Matrix Local Run (2026-06-28)
+
+Raw results are stored in
+[windows-arc-b580-fp16-matrix.json](res/onnx-ggml-plugin-benchmark/windows-arc-b580-fp16-matrix.json).
+
+### Scope
+
+- Measurement date: 2026-06-28, Asia/Tokyo
+- Profile: `warmup_runs=1`, `runs=3`
+- Benchmark harness: one Python process per backend. This avoids repeated ONNX
+  Runtime Plugin EP registration and ggml runtime teardown inside the harness;
+  each backend still uses the same provider options and timing profile.
+- AudioQuery: `tempoDynamicsScale=1.0`, matching the Engine `/audio_query`
+  default used by the app
+- Style-Bert-VITS2 noise settings: benchmark arguments leave
+  `noise_scale` and `noise_scale_w` unset, so synthesis uses the model defaults
+  (`noise=0.6`, `noise_w=0.8`) for qualitative audio preview.
+- OS: Microsoft Windows 11 Home `10.0.26200`, 64-bit
+- CPU: AMD Ryzen 5 5600, 6 cores / 12 threads
+- GPU: Intel(R) Arc(TM) B580 Graphics, driver `32.0.101.8826`
+- ONNX Runtime: `onnxruntime-directml 1.24.4`; providers include
+  `DmlExecutionProvider`, `CPUExecutionProvider`
+- Engine: `b231a0bcacaf` on `feat/onnx-ggml-minimal-upstream`
+- TTS.cpp: `94792ed25996`; ggml submodule `a78c352bb70b`
+- Model: AIVMX/ONNX Mao model, version `1.2.0`
+- Style: `888753760`
+- GGML provider options: `backend=vulkan`, `precision=fast`,
+  `claim_synthesis_graph=1`, `claim_jp_bert_graph=1`, `eager_load_model=1`
+- GGML Vulkan device pin: `GGML_VK_VISIBLE_DEVICES=1`; the Vulkan probe saw
+  one device, `Intel(R) Arc(TM) B580 Graphics`, with `fp16: 0` and
+  `matrix cores: none`
+
+### RTF Results
+
+| text length | ONNX CPU RTF | ONNX DirectML RTF | JP-BERT FP16 + voices FP16 | JP-BERT FP16 + voices FP32 | JP-BERT FP32 + voices FP16 | JP-BERT FP32 + voices FP32 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| short | `0.437` | `1.790` | `0.108` | `0.108` | `0.109` | `0.109` |
+| medium | `0.351` | `1.223` | `0.090` | `0.091` | `0.091` | `0.094` |
+| long | `0.287` | `0.443` | `0.055` | `0.056` | `0.056` | `0.056` |
+| overall mean | `0.358` | `1.152` | `0.085` | `0.085` | `0.085` | `0.086` |
+
+Provider evidence from the run:
+
+```json
+{
+  "onnx-cpu": {
+    "active_providers": ["CPUExecutionProvider"]
+  },
+  "onnx-directml": {
+    "active_providers": ["DmlExecutionProvider", "CPUExecutionProvider"]
+  },
+  "onnx-ggml-vulkan-jpbert-fp16-voices-fp16": {
+    "active_providers": ["AivisGgmlExecutionProvider", "CPUExecutionProvider"],
+    "ggml_synthesis_converter_version": "tts-cpp-style-bert-vits2-converter-f16-no-embed-norm-no-ups-v1",
+    "ggml_jp_bert_precision": "fp16-linear"
+  },
+  "onnx-ggml-vulkan-jpbert-fp16-voices-fp32": {
+    "active_providers": ["AivisGgmlExecutionProvider", "CPUExecutionProvider"],
+    "ggml_synthesis_converter_version": "tts-cpp-style-bert-vits2-converter-f32-v1",
+    "ggml_jp_bert_precision": "fp16-linear"
+  },
+  "onnx-ggml-vulkan-jpbert-fp32-voices-fp16": {
+    "active_providers": ["AivisGgmlExecutionProvider", "CPUExecutionProvider"],
+    "ggml_synthesis_converter_version": "tts-cpp-style-bert-vits2-converter-f16-no-embed-norm-no-ups-v1",
+    "ggml_jp_bert_precision": "fp32",
+    "ggml_jp_bert_gguf_path": "<local-gguf-dir>/style-bert-vits2-jp-bert.gguf"
+  },
+  "onnx-ggml-vulkan-jpbert-fp32-voices-fp32": {
+    "active_providers": ["AivisGgmlExecutionProvider", "CPUExecutionProvider"],
+    "ggml_synthesis_converter_version": "tts-cpp-style-bert-vits2-converter-f32-v1",
+    "ggml_jp_bert_precision": "fp32",
+    "ggml_jp_bert_gguf_path": "<local-gguf-dir>/style-bert-vits2-jp-bert.gguf"
+  }
+}
+```
+
+Interpretation:
+
+- The refreshed TTS.cpp build restores the expected Intel Arc B580 GGML Vulkan
+  performance level: the long sample is about `0.056` RTF across the four GGML
+  precision combinations.
+- The four GGML precision combinations have nearly identical RTF on this B580
+  run. JP-BERT FP32 and voice FP32 do not provide a speed benefit, so the
+  smaller JP-BERT FP16 `linear` plus FP16 voice cache remains the default.
+- ONNX DirectML is active, but this run shows it is still very shape-sensitive
+  for the Style-Bert-VITS2 app-default path. It is slower than ONNX CPU for all
+  three warm-run text lengths here, and much slower than GGML Vulkan.
+- The current Windows audio preview uses natural Style-Bert-VITS2 stochastic
+  defaults. The JSON records `noise_scale=null`, `noise_scale_w=null`, and
+  `truth_comparison_enabled=false`; run deterministic validation separately
+  when PCM parity is the goal.
+
+### GGUF Precision Matrix
+
+| JP-BERT GGUF | voice GGUF | JP-BERT size | voice size | short samples | medium samples | long samples |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| FP16 `linear` | FP16 voices | `710,407,072` bytes | `129,814,912` bytes | `53,363` | `84,596` | `330,266` |
+| FP16 `linear` | FP32 voices | `710,407,072` bytes | `248,036,704` bytes | `53,363` | `84,596` | `330,266` |
+| FP32 | FP16 voices | `1,314,386,784` bytes | `129,814,912` bytes | `53,363` | `84,596` | `330,266` |
+| FP32 | FP32 voices | `1,314,386,784` bytes | `248,036,704` bytes | `53,363` | `84,596` | `330,266` |
+
+### Audio Preview
+
+These WAV files are representative outputs for qualitative review. They are not
+included in the RTF timing window.
+
+Baseline ONNX outputs:
+
+| text length | ONNX CPU | ONNX DirectML |
+| --- | --- | --- |
+| short | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-cpu_short.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-cpu_short.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-directml_short.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-directml_short.wav) |
+| medium | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-cpu_medium.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-cpu_medium.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-directml_medium.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-directml_medium.wav) |
+| long | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-cpu_long.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-cpu_long.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-directml_long.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-directml_long.wav) |
+
+GGML Vulkan precision matrix:
+
+| text length | JP-BERT FP16 + voices FP16 | JP-BERT FP16 + voices FP32 | JP-BERT FP32 + voices FP16 | JP-BERT FP32 + voices FP32 |
+| --- | --- | --- | --- | --- |
+| short | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp16-voices-fp16_short.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp16-voices-fp16_short.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp16-voices-fp32_short.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp16-voices-fp32_short.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp32-voices-fp16_short.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp32-voices-fp16_short.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp32-voices-fp32_short.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp32-voices-fp32_short.wav) |
+| medium | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp16-voices-fp16_medium.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp16-voices-fp16_medium.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp16-voices-fp32_medium.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp16-voices-fp32_medium.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp32-voices-fp16_medium.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp32-voices-fp16_medium.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp32-voices-fp32_medium.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp32-voices-fp32_medium.wav) |
+| long | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp16-voices-fp16_long.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp16-voices-fp16_long.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp16-voices-fp32_long.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp16-voices-fp32_long.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp32-voices-fp16_long.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp32-voices-fp16_long.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp32-voices-fp32_long.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/windows-arc-b580-fp16/onnx-ggml-vulkan-jpbert-fp32-voices-fp32_long.wav) |
+
 ## Historical Windows Intel Arc B580 Local Run (2026-06-27)
 
 This local Windows run adds DirectML to the same CPU/GGML comparison. Raw

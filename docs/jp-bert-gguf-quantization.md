@@ -151,6 +151,17 @@ improve RTF there:
 | FP32 | FP16 voices | `0.133` | `0.093` | `0.063` |
 | FP32 | FP32 voices | `0.131` | `0.094` | `0.064` |
 
+The latest Windows Intel Arc B580 refresh, rerun with TTS.cpp `94792ed25996`,
+also shows that JP-BERT FP32 and voice FP32 do not improve RTF over the default
+FP16 `linear` JP-BERT plus FP16 voice cache:
+
+| JP-BERT GGUF | voice GGUF | short RTF | medium RTF | long RTF |
+| --- | --- | ---: | ---: | ---: |
+| F16 `linear` | FP16 voices | `0.108` | `0.090` | `0.055` |
+| F16 `linear` | FP32 voices | `0.108` | `0.091` | `0.056` |
+| FP32 | FP16 voices | `0.109` | `0.091` | `0.056` |
+| FP32 | FP32 voices | `0.109` | `0.094` | `0.056` |
+
 Raw results and audio previews are in
 [ONNX GGML Plugin EP Benchmark](onnx-ggml-plugin-benchmark.md).
 
