@@ -38,6 +38,7 @@ def write_tts_cpp_style_bert_vits2_gguf(
     style_vectors_path: str | Path,
     mapping_report: TensorMappingReport,
     readiness: dict[str, Any],
+    store_f16_weights: bool = True,
 ) -> GgufWriteResult:
     """
     Write a TTS.cpp-compatible GGUF from mapped ONNX initializers.
@@ -104,7 +105,13 @@ def write_tts_cpp_style_bert_vits2_gguf(
                 target_name=target_name,
                 array=array,
             )
-            stored_dtype = _add_tensor(gguf, writer, target_name, array)
+            stored_dtype = _add_tensor(
+                gguf,
+                writer,
+                target_name,
+                array,
+                store_f16_weights=store_f16_weights,
+            )
             tensor_count += 1
             tensor_f16_count += 1 if stored_dtype == "F16" else 0
             tensor_f32_count += 1 if stored_dtype == "F32" else 0
@@ -116,7 +123,13 @@ def write_tts_cpp_style_bert_vits2_gguf(
             weight_g = source_arrays[f"{base_name}.weight_g"]
             weight_v = source_arrays[f"{base_name}.weight_v"]
             array = materialize_weight_norm(weight_g=weight_g, weight_v=weight_v)
-            stored_dtype = _add_tensor(gguf, writer, target_name, array)
+            stored_dtype = _add_tensor(
+                gguf,
+                writer,
+                target_name,
+                array,
+                store_f16_weights=store_f16_weights,
+            )
             tensor_count += 1
             tensor_f16_count += 1 if stored_dtype == "F16" else 0
             tensor_f32_count += 1 if stored_dtype == "F32" else 0
@@ -131,6 +144,7 @@ def write_tts_cpp_style_bert_vits2_gguf(
                 writer,
                 "style_bert_vits2.style_vectors",
                 style_vectors,
+                store_f16_weights=store_f16_weights,
             )
             tensor_count += 1
             tensor_f16_count += 1 if stored_dtype == "F16" else 0
@@ -249,7 +263,9 @@ def _weight_norm_targets(mapping_report: TensorMappingReport) -> dict[str, str]:
     }
 
 
-def _store_as_f16(name: str) -> bool:
+def _store_as_f16(name: str, *, enabled: bool = True) -> bool:
+    if not enabled:
+        return False
     if not name.startswith("style_bert_vits2."):
         return False
     if "embedding" in name:
@@ -261,11 +277,18 @@ def _store_as_f16(name: str) -> bool:
     return name.endswith(".weight") or name.endswith(".w")
 
 
-def _add_tensor(gguf: Any, writer: Any, name: str, array: Any) -> str:
+def _add_tensor(
+    gguf: Any,
+    writer: Any,
+    name: str,
+    array: Any,
+    *,
+    store_f16_weights: bool,
+) -> str:
     import numpy as np
 
     quant_types = getattr(gguf, "GGMLQuantizationType", None)
-    if _store_as_f16(name):
+    if _store_as_f16(name, enabled=store_f16_weights):
         raw_dtype = getattr(quant_types, "F16", None)
         tensor = np.ascontiguousarray(np.asarray(array, dtype=np.float16))
         stored_dtype = "F16"

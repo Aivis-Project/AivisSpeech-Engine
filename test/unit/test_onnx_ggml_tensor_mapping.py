@@ -45,6 +45,10 @@ def test_synthesis_gguf_writer_uses_safe_f16_weight_scope() -> None:
     assert _store_as_f16("style_bert_vits2.decoder.conv_pre.weight")
     assert _store_as_f16("style_bert_vits2.te.enc.ffn.0.c1.w")
 
+    assert not _store_as_f16(
+        "style_bert_vits2.decoder.conv_pre.weight",
+        enabled=False,
+    )
     assert not _store_as_f16("style_bert_vits2.text_encoder.token_embedding.weight")
     assert not _store_as_f16("style_bert_vits2.text_encoder.norm_layers_1.0.gamma")
     assert not _store_as_f16("style_bert_vits2.decoder.ups.0.weight")

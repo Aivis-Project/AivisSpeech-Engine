@@ -43,6 +43,7 @@ PROVIDER_VERSION = "0.1.0"
 DEFAULT_CONVERTER_VERSION = (
     "tts-cpp-style-bert-vits2-converter-f16-no-embed-norm-no-ups-v1"
 )
+F32_CONVERTER_VERSION = "tts-cpp-style-bert-vits2-converter-f32-v1"
 TESTED_ORT_RUNTIME_VERSION = "1.26.0"
 ORT_PLUGIN_EP_API_VERSION = 26
 EXPECTED_TTS_CPP_RUNTIME_ABI_VERSION = 1
@@ -205,6 +206,7 @@ def prepare_ggml_cache(
             style_vectors_path=style_vectors_path,
             mapping_report=mapping_report,
             readiness=manifest["converter"]["readiness"],
+            store_f16_weights=_converter_stores_f16_weights(converter_version),
         )
         manifest = build_cache_manifest(
             source_path=source_path,
@@ -257,6 +259,10 @@ def build_cache_key(
     }
     raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return sha256(raw.encode()).hexdigest()
+
+
+def _converter_stores_f16_weights(converter_version: str) -> bool:
+    return "f16" in converter_version.lower()
 
 
 def build_cache_manifest(

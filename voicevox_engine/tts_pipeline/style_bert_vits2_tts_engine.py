@@ -40,7 +40,11 @@ from style_bert_vits2.nlp.japanese.normalizer import normalize_text
 from style_bert_vits2.nlp.symbols import PUNCTUATIONS
 from style_bert_vits2.tts_model import TTSModel
 
-from ..aivm_gguf_cache import AivmGgufCache, JpBertGgufCache
+from ..aivm_gguf_cache import (
+    DEFAULT_GGUF_CONVERTER_VERSION,
+    AivmGgufCache,
+    JpBertGgufCache,
+)
 from ..aivm_manager import AivmManager
 from ..core.core_adapter import CoreAdapter, DeviceSupport
 from ..dev.core.mock import MockCoreWrapper
@@ -399,6 +403,7 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         preferred_onnx_provider: BuiltinOnnxProvider | None = None,
         onnx_plugin_ep: OnnxPluginExecutionProviderConfig | None = None,
         ggml_model_cache_dir: Path | None = None,
+        ggml_synthesis_converter_version: str | None = None,
     ) -> None:
         self.aivm_manager = aivm_manager
         self.use_gpu = use_gpu
@@ -412,7 +417,13 @@ class StyleBertVITS2TTSEngine(TTSEngine):
             else None
         )
         self._onnx_plugin_gguf_cache = (
-            AivmGgufCache(cache_dir=ggml_model_cache_dir)
+            AivmGgufCache(
+                cache_dir=ggml_model_cache_dir,
+                converter_version=(
+                    ggml_synthesis_converter_version
+                    or DEFAULT_GGUF_CONVERTER_VERSION
+                ),
+            )
             if onnx_plugin_ep is not None
             else None
         )

@@ -26,6 +26,10 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from run import _resolve_default_onnx_ep_library_path
+from voicevox_engine.aivm_gguf_cache import (
+    DEFAULT_GGUF_CONVERTER_VERSION,
+    F32_GGUF_CONVERTER_VERSION,
+)
 from voicevox_engine.aivm_manager import AivmManager
 from voicevox_engine.metas.metas import StyleId
 from voicevox_engine.model import AudioQuery
@@ -74,6 +78,7 @@ class _BackendSpec:
     required_provider: str
     preferred_onnx_provider: BuiltinOnnxProvider | None = None
     onnx_plugin_ep: OnnxPluginExecutionProviderConfig | None = None
+    ggml_synthesis_converter_version: str | None = None
 
 
 @dataclass(frozen=True)
@@ -121,7 +126,14 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--backend",
-        choices=("onnx-cpu", "onnx-directml", "onnx-cuda", "onnx-ggml-vulkan"),
+        choices=(
+            "onnx-cpu",
+            "onnx-directml",
+            "onnx-cuda",
+            "onnx-ggml-vulkan",
+            "onnx-ggml-vulkan-fp16",
+            "onnx-ggml-vulkan-fp32",
+        ),
         action="append",
         default=None,
         help="Backend to benchmark. Repeat to select multiple backends.",
@@ -363,6 +375,26 @@ def _build_backend_specs(args: argparse.Namespace) -> list[_BackendSpec]:
                     onnx_plugin_ep=_build_ggml_plugin_config(args),
                 )
             )
+        elif backend == "onnx-ggml-vulkan-fp16":
+            specs.append(
+                _BackendSpec(
+                    name=backend,
+                    use_gpu=False,
+                    required_provider="AivisGgmlExecutionProvider",
+                    onnx_plugin_ep=_build_ggml_plugin_config(args),
+                    ggml_synthesis_converter_version=DEFAULT_GGUF_CONVERTER_VERSION,
+                )
+            )
+        elif backend == "onnx-ggml-vulkan-fp32":
+            specs.append(
+                _BackendSpec(
+                    name=backend,
+                    use_gpu=False,
+                    required_provider="AivisGgmlExecutionProvider",
+                    onnx_plugin_ep=_build_ggml_plugin_config(args),
+                    ggml_synthesis_converter_version=F32_GGUF_CONVERTER_VERSION,
+                )
+            )
     return specs
 
 
@@ -431,6 +463,7 @@ def _benchmark_backend(
         preferred_onnx_provider=spec.preferred_onnx_provider,
         onnx_plugin_ep=spec.onnx_plugin_ep,
         ggml_model_cache_dir=ggml_model_cache_dir,
+        ggml_synthesis_converter_version=spec.ggml_synthesis_converter_version,
     )
 
     records: list[_BenchmarkRecord] = []
@@ -455,6 +488,10 @@ def _benchmark_backend(
             model_uuid=model_uuid,
             spec=spec,
         )
+        if spec.ggml_synthesis_converter_version is not None:
+            provider_evidence["ggml_synthesis_converter_version"] = (
+                spec.ggml_synthesis_converter_version
+            )
         for run_index in range(runs):
             started_at = time.perf_counter()
             wave = engine.synthesize_wave(
@@ -539,6 +576,8 @@ def main() -> None:
             "noise_scale": args.noise_scale,
             "noise_scale_w": args.noise_scale_w,
             "ggml_vulkan_precision": args.ggml_vulkan_precision,
+            "ggml_default_synthesis_converter_version": DEFAULT_GGUF_CONVERTER_VERSION,
+            "ggml_f32_synthesis_converter_version": F32_GGUF_CONVERTER_VERSION,
         },
         "provider_evidence": provider_evidence,
         "summary": [asdict(summary) for summary in summaries],

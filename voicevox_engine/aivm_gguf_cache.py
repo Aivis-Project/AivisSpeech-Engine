@@ -21,6 +21,7 @@ from voicevox_engine.utility.path_utility import ensure_directory_exists, get_sa
 DEFAULT_GGUF_CONVERTER_VERSION = (
     "tts-cpp-style-bert-vits2-converter-f16-no-embed-norm-no-ups-v1"
 )
+F32_GGUF_CONVERTER_VERSION = "tts-cpp-style-bert-vits2-converter-f32-v1"
 DEFAULT_GGUF_SCHEMA_VERSION = "style-bert-vits2-gguf-v1"
 DEFAULT_JP_BERT_GGUF_CONVERTER_VERSION = "tts-cpp-style-bert-vits2-jp-bert-f16-linear-v1"
 DEFAULT_JP_BERT_GGUF_SCHEMA_VERSION = "style-bert-vits2-jp-bert-gguf-v1"
@@ -245,16 +246,32 @@ class AivmGgufCache:
         for gguf_path in self.cache_dir.glob(f"{aivm_model_uuid}-*.gguf"):
             if gguf_path == keep_gguf_path:
                 continue
+            if self._is_different_converter_entry(gguf_path.with_suffix(".json")):
+                continue
             paths_to_delete.add(gguf_path)
             paths_to_delete.add(gguf_path.with_suffix(".json"))
         for manifest_path in self.cache_dir.glob(f"{aivm_model_uuid}-*.json"):
             if manifest_path == keep_manifest_path:
+                continue
+            if self._is_different_converter_entry(manifest_path):
                 continue
             paths_to_delete.add(manifest_path)
             paths_to_delete.add(manifest_path.with_suffix(".gguf"))
 
         for path in paths_to_delete:
             path.unlink(missing_ok=True)
+
+    def _is_different_converter_entry(self, manifest_path: Path) -> bool:
+        if not manifest_path.exists():
+            return False
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return False
+        converter_version = manifest.get("converter_version")
+        return isinstance(converter_version, str) and (
+            converter_version != self.converter_version
+        )
 
     def _converter_kind(self, aivm_metadata: AivmMetadata) -> str:
         if aivm_metadata.manifest.model_format == ModelFormat.ONNX:

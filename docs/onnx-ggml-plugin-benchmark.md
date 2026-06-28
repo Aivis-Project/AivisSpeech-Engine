@@ -6,8 +6,11 @@ GGML Plugin EP integration:
 - ONNX CPU: existing `StyleBertVITS2TTSEngine` ONNX path with `CPUExecutionProvider`
 - ONNX DirectML: existing ONNX path with `DmlExecutionProvider`
 - ONNX CUDA: existing ONNX path with `CUDAExecutionProvider`
-- ONNX GGML Vulkan: existing ONNX path with `AivisGgmlExecutionProvider`
-  claiming the synthesis and JP-BERT ONNX graphs
+- ONNX GGML Vulkan FP16 voices: existing ONNX path with
+  `AivisGgmlExecutionProvider` claiming the synthesis and JP-BERT ONNX graphs;
+  synthesis GGUF uses the default safe FP16 voice-weight recipe
+- ONNX GGML Vulkan FP32 voices: same Plugin EP path, but synthesis GGUF stores
+  all voice tensors as FP32 for direct comparison against the FP16 cache
 
 RTF is `elapsed_seconds / output_duration_seconds`; lower is better. Audio
 encoding is intentionally excluded from measured runs.
@@ -24,13 +27,15 @@ Raw results are stored in
 - AudioQuery: `tempoDynamicsScale=1.0`, matching the Engine `/audio_query`
   default used by the app
 - Engine: `feat/onnx-ggml-minimal-upstream` with ONNX Runtime `1.26.0`
-  compatibility and FP16 GGUF cache defaults
+  compatibility, FP16 GGUF cache defaults, and an explicit FP32 voice-GGUF
+  benchmark selector
 - TTS.cpp: `a053e7270261`; ggml submodule `a78c352bb70b`
 - CUDA provider option: `cudnn_conv_algo_search=HEURISTIC`
 - Model: AIVMX/ONNX `コハク` model, version `1.1.0`
 - Style: `1878365376` (`ノーマル`)
 - GGML model path: AIVMX/ONNX is converted to synthesis GGUF by the Plugin EP
-  cache path using the F16 `no-embed-norm-no-ups` recipe; JP-BERT uses
+  cache path using either the F16 `no-embed-norm-no-ups` recipe or the all-F32
+  voice recipe; JP-BERT uses
   `kevinzhow/style-bert-vits2-gguf`
   `frontend/style-bert-vits2-jp-bert.gguf` with the F16 `linear` recipe
   documented in [JP-BERT GGUF Quantization Notes](jp-bert-gguf-quantization.md).
@@ -57,12 +62,12 @@ Raw results are stored in
 
 ### RTF Results
 
-| text length | ONNX CPU RTF | ONNX CUDA RTF | ONNX GGML Plugin EP Vulkan RTF |
-| --- | ---: | ---: | ---: |
-| short | `0.324` | `0.033` | `0.119` |
-| medium | `0.277` | `0.027` | `0.089` |
-| long | `0.211` | `0.020` | `0.061` |
-| overall mean | `0.270` | `0.027` | `0.090` |
+| text length | ONNX CPU RTF | ONNX CUDA RTF | ONNX GGML Vulkan FP16 voices RTF | ONNX GGML Vulkan FP32 voices RTF |
+| --- | ---: | ---: | ---: | ---: |
+| short | `0.317` | `0.033` | `0.118` | `0.120` |
+| medium | `0.232` | `0.027` | `0.089` | `0.090` |
+| long | `0.205` | `0.020` | `0.061` | `0.062` |
+| overall mean | `0.251` | `0.026` | `0.090` | `0.091` |
 
 Provider evidence from the run:
 
@@ -74,8 +79,13 @@ Provider evidence from the run:
   "onnx-cuda": {
     "active_providers": ["CUDAExecutionProvider", "CPUExecutionProvider"]
   },
-  "onnx-ggml-vulkan": {
-    "active_providers": ["AivisGgmlExecutionProvider", "CPUExecutionProvider"]
+  "onnx-ggml-vulkan-fp16": {
+    "active_providers": ["AivisGgmlExecutionProvider", "CPUExecutionProvider"],
+    "ggml_synthesis_converter_version": "tts-cpp-style-bert-vits2-converter-f16-no-embed-norm-no-ups-v1"
+  },
+  "onnx-ggml-vulkan-fp32": {
+    "active_providers": ["AivisGgmlExecutionProvider", "CPUExecutionProvider"],
+    "ggml_synthesis_converter_version": "tts-cpp-style-bert-vits2-converter-f32-v1"
   }
 }
 ```
@@ -93,15 +103,32 @@ Interpretation:
   RTF above `1.0` even though CUDA was active.
 - GGML Plugin EP Vulkan uses `precision=fast` in this run, which opts into the
   TTS.cpp Vulkan fast conv1d lowering while keeping ggml-vulkan F16/coopmat
-  disabled. `precision=accurate` remains the conservative direct-F32-conv mode
+  disabled. Both GGML columns differ only in the synthesis voice GGUF storage
+  format. `precision=accurate` remains the conservative direct-F32-conv mode
   and is not the performance number shown in this table.
 - With the CUDA convolution search fix and CUDA 12 libraries available, ONNX
   CUDA is the fastest path on this RTX 3060 run. GGML Plugin EP Vulkan is still
   faster than ONNX CPU for all three text lengths and does not require NVIDIA
   CUDA runtime libraries.
-- The current GGML Plugin EP Vulkan result uses the default FP16 GGUF cache
-  path: synthesis `574 F32 / 326 F16` tensors and JP-BERT `250 F32 / 144 F16`
-  tensors.
+- FP16 voices are slightly faster than FP32 voices in this run, but the speedup
+  is small because the remaining ceiling is decoder execution rather than model
+  file size. The larger practical win is memory and disk footprint.
+
+### Voice GGUF Precision Comparison
+
+The synthesis voice GGUF files were generated from the same AIVMX/ONNX `コハク`
+model in the same benchmark run. JP-BERT is shared and remains the F16 `linear`
+GGUF described above.
+
+| voice GGUF path | converter version | file size | tensor storage | short samples | medium samples | long samples |
+| --- | --- | ---: | --- | ---: | ---: | ---: |
+| FP16 voices | `tts-cpp-style-bert-vits2-converter-f16-no-embed-norm-no-ups-v1` | `129,812,864` bytes | `574 F32 / 326 F16` | `56,962` | `90,261` | `345,994` |
+| FP32 voices | `tts-cpp-style-bert-vits2-converter-f32-v1` | `248,034,656` bytes | `900 F32` | `56,960` | `90,261` | `345,994` |
+
+The FP16 voice cache is about `47.7%` smaller than the FP32 voice cache. On this
+RTX 3060 Vulkan run, FP16 voice storage changes only the short sample count by
+`+2` samples compared with the FP32 voice cache under the app-default
+`tempoDynamicsScale=1.0` settings used here.
 
 ### Precision Path Validation
 
@@ -181,11 +208,11 @@ duration parity.
 These AAC files are representative outputs for qualitative review. They are not
 included in the RTF timing window.
 
-| text length | ONNX CPU | ONNX CUDA | ONNX GGML Plugin EP Vulkan |
-| --- | --- | --- | --- |
-| short | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_short.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_short.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan_short.m4a) |
-| medium | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan_medium.m4a) |
-| long | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_long.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_long.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan_long.m4a) |
+| text length | ONNX CPU | ONNX CUDA | GGML Vulkan FP16 voices | GGML Vulkan FP32 voices |
+| --- | --- | --- | --- | --- |
+| short | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_short.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_short.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-fp16_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-fp16_short.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-fp32_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-fp32_short.m4a) |
+| medium | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-fp16_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-fp16_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-fp32_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-fp32_medium.m4a) |
+| long | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_long.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_long.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-fp16_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-fp16_long.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-fp32_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-ggml-vulkan-fp32_long.m4a) |
 
 ## Windows Intel Arc B580 Local Run (2026-06-27)
 
@@ -311,7 +338,8 @@ export BENCHMARK_OUTPUT_JSON="docs/res/onnx-ggml-plugin-benchmark/linux-rtx3060-
 export BENCHMARK_AUDIO_WAV_DIR="<path-to-temporary-wav-output-dir>"
 ```
 
-Run ONNX CPU, ONNX CUDA, and ONNX GGML Plugin EP Vulkan in one process:
+Run ONNX CPU, ONNX CUDA, and both ONNX GGML Plugin EP Vulkan voice-GGUF
+variants in one process:
 
 ```bash
 LD_LIBRARY_PATH="${TTS_CPP_NATIVE_LIBRARY_DIRS}:${CUDA12_NVIDIA_LIBS}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
@@ -321,7 +349,8 @@ uv run python tools/benchmark_onnx_ggml_provider.py \
   --style_id "$STYLE_ID" \
   --backend onnx-cpu \
   --backend onnx-cuda \
-  --backend onnx-ggml-vulkan \
+  --backend onnx-ggml-vulkan-fp16 \
+  --backend onnx-ggml-vulkan-fp32 \
   --text "テストです。" \
   --text "今日はいい天気ですね。" \
   --text "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。" \
@@ -355,7 +384,8 @@ Strict provider checks:
 - `onnx-cpu` must select `CPUExecutionProvider`
 - `onnx-directml` must select `DmlExecutionProvider`
 - `onnx-cuda` must select `CUDAExecutionProvider`
-- `onnx-ggml-vulkan` must select `AivisGgmlExecutionProvider`
+- `onnx-ggml-vulkan-fp16` must select `AivisGgmlExecutionProvider`
+- `onnx-ggml-vulkan-fp32` must select `AivisGgmlExecutionProvider`
 
 If ONNX Runtime silently falls back to CPU, the script fails instead of
 recording a misleading GPU result.
