@@ -14,15 +14,15 @@ minimal GGML Plugin EP integration:
 RTF is `elapsed_seconds / output_duration_seconds`; lower is better. Audio
 encoding is intentionally excluded from measured runs.
 
-The Linux Intel Arc OpenVINO Native/Split run below is a follow-up backend
+The Linux Intel Arc OpenVINO Native run below is a follow-up backend
 experiment. It bypasses ONNX Runtime's OpenVINO Execution Provider and compiles
 selected AIVMX subgraphs directly with `openvino.Core`, so it is listed
 separately from the GGML Plugin EP tables.
 
-## Linux Intel Arc OpenVINO Native/Split Run (2026-06-29)
+## Linux Intel Arc OpenVINO Native Run (2026-06-29)
 
 Raw results are stored in
-[linux-intel-arc-openvino-native-split.json](res/onnx-ggml-plugin-benchmark/linux-intel-arc-openvino-native-split.json).
+[linux-intel-arc-openvino-native.json](res/onnx-ggml-plugin-benchmark/linux-intel-arc-openvino-native.json).
 
 ### Scope
 
@@ -66,22 +66,20 @@ Raw results are stored in
 | `onnx-cpu` | ONNX Runtime CPU | ONNX Runtime CPU | ONNX Runtime CPU |
 | `openvino-native-gpu` | OpenVINO GPU | OpenVINO CPU | OpenVINO GPU |
 | `openvino-native-npu` | OpenVINO NPU | OpenVINO CPU | OpenVINO NPU |
-| `openvino-native-split-gpu` | ONNX Runtime CPU | OpenVINO CPU | OpenVINO GPU |
-| `openvino-native-split-npu` | ONNX Runtime CPU | OpenVINO CPU | OpenVINO NPU |
 
 The complete synthesis graph is not used for NPU here because the full
 Style-Bert-VITS2 graph still contains data-dependent duration, alignment, and
-output-length subgraphs. The split backend freezes the decoder input shapes per
-sentence and compiles only that decoder subgraph for GPU/NPU.
+output-length subgraphs. The native backend compiles JP-BERT and the static
+decoder subgraph for GPU/NPU while keeping the front graph on CPU.
 
 ### RTF Results
 
-| text length | ONNX CPU | native GPU | native NPU | split GPU | split NPU |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| short | `0.949` | `0.089` | `0.129` | `0.269` | `0.300` |
-| medium | `0.667` | `0.046` | `0.094` | `0.193` | `0.234` |
-| long | `0.338` | `0.046` | `0.089` | `0.108` | `0.138` |
-| overall mean | `0.651` | `0.061` | `0.104` | `0.190` | `0.224` |
+| text length | ONNX CPU | native GPU | native NPU |
+| --- | ---: | ---: | ---: |
+| short | `0.949` | `0.089` | `0.129` |
+| medium | `0.667` | `0.046` | `0.094` |
+| long | `0.338` | `0.046` | `0.089` |
+| overall mean | `0.651` | `0.061` | `0.104` |
 
 Provider evidence from the run:
 
@@ -113,28 +111,25 @@ Interpretation:
 - `openvino-native-npu` is slower than GPU for all three sentences in the
   `runs=3` mean. NPU decoder compile is fast, but the full native NPU path has
   weaker PCM parity on the medium sentence.
-- The split GPU/NPU paths are slower because JP-BERT remains ONNX CPU, but they
-  provide the closest float32 PCM parity against ONNX CPU and are useful as
-  validation baselines.
 
 ### Correctness vs ONNX CPU
 
 All OpenVINO paths produced identical output sample counts to ONNX CPU for all
 three texts.
 
-| text length | native GPU corr / RMSE | native NPU corr / RMSE | split GPU corr / RMSE | split NPU corr / RMSE |
-| --- | ---: | ---: | ---: | ---: |
-| short | `0.999648` / `0.002107` | `0.999763` / `0.001731` | `0.999997` / `0.000245` | `0.999998` / `0.000209` |
-| medium | `0.999907` / `0.000912` | `0.993973` / `0.007272` | `0.999992` / `0.000295` | `0.999990` / `0.000315` |
-| long | `0.999745` / `0.001850` | `0.998473` / `0.004515` | `0.999991` / `0.000391` | `0.999986` / `0.000453` |
+| text length | native GPU corr / RMSE | native NPU corr / RMSE |
+| --- | ---: | ---: |
+| short | `0.999648` / `0.002107` | `0.999763` / `0.001731` |
+| medium | `0.999907` / `0.000912` | `0.993973` / `0.007272` |
+| long | `0.999745` / `0.001850` | `0.998473` / `0.004515` |
 
 ### Audio Preview
 
-| text length | ONNX CPU | native GPU | native NPU | split GPU | split NPU |
-| --- | --- | --- | --- | --- | --- |
-| short | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/onnx-cpu_short.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/onnx-cpu_short.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-gpu_short.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-gpu_short.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-npu_short.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-npu_short.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-split-gpu_short.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-split-gpu_short.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-split-npu_short.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-split-npu_short.wav) |
-| medium | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/onnx-cpu_medium.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/onnx-cpu_medium.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-gpu_medium.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-gpu_medium.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-npu_medium.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-npu_medium.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-split-gpu_medium.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-split-gpu_medium.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-split-npu_medium.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-split-npu_medium.wav) |
-| long | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/onnx-cpu_long.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/onnx-cpu_long.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-gpu_long.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-gpu_long.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-npu_long.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-npu_long.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-split-gpu_long.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-split-gpu_long.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-split-npu_long.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-split-npu_long.wav) |
+| text length | ONNX CPU | native GPU | native NPU |
+| --- | --- | --- | --- |
+| short | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/onnx-cpu_short.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/onnx-cpu_short.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-gpu_short.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-gpu_short.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-npu_short.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-npu_short.wav) |
+| medium | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/onnx-cpu_medium.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/onnx-cpu_medium.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-gpu_medium.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-gpu_medium.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-npu_medium.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-npu_medium.wav) |
+| long | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/onnx-cpu_long.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/onnx-cpu_long.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-gpu_long.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-gpu_long.wav) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-npu_long.wav"></audio><br>[WAV](res/onnx-ggml-plugin-benchmark/audio/linux-intel-arc-openvino/openvino-native-npu_long.wav) |
 
 ## Linux RTX 3060 Local Run (2026-06-28)
 
