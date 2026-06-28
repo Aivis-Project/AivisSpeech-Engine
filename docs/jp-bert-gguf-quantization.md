@@ -140,14 +140,16 @@ path without a more selective mixed-precision recipe.
 The latest Linux RTX 3060 ONNX GGML benchmark, rerun with `まお` version
 `1.2.0` / style `888753760`, also compares JP-BERT FP32 against the adopted
 JP-BERT F16 `linear` artifact while crossing both with voice FP16/FP32 caches.
-JP-BERT FP32 did not improve RTF there:
+That refreshed benchmark leaves `noise_scale` and `noise_scale_w` unset so the
+audio previews use the natural Style-Bert-VITS2 defaults. JP-BERT FP32 did not
+improve RTF there:
 
 | JP-BERT GGUF | voice GGUF | short RTF | medium RTF | long RTF |
 | --- | --- | ---: | ---: | ---: |
-| F16 `linear` | FP16 voices | `0.124` | `0.092` | `0.061` |
-| F16 `linear` | FP32 voices | `0.125` | `0.093` | `0.063` |
-| FP32 | FP16 voices | `0.129` | `0.092` | `0.062` |
-| FP32 | FP32 voices | `0.128` | `0.093` | `0.062` |
+| F16 `linear` | FP16 voices | `0.129` | `0.093` | `0.062` |
+| F16 `linear` | FP32 voices | `0.130` | `0.094` | `0.063` |
+| FP32 | FP16 voices | `0.133` | `0.093` | `0.063` |
+| FP32 | FP32 voices | `0.131` | `0.094` | `0.064` |
 
 Raw results and audio previews are in
 [ONNX GGML Plugin EP Benchmark](onnx-ggml-plugin-benchmark.md).
@@ -186,6 +188,10 @@ Generate candidates from the F32 JP-BERT GGUF:
 ```
 
 Run the Engine benchmark with an explicit JP-BERT GGUF candidate:
+
+The fixed `noise_scale=0` and `noise_scale_w=0` settings below are for
+deterministic candidate parity checks only. Do not use them to generate
+qualitative audio previews.
 
 ```bash
 GGML_VK_VISIBLE_DEVICES=<vulkan-device-index> \

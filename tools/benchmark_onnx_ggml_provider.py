@@ -254,6 +254,15 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Optional directory for representative WAV outputs.",
     )
+    parser.add_argument(
+        "--skip_truth_comparison",
+        action="store_true",
+        help=(
+            "Skip ONNX CPU PCM truth comparison even when audio_output_dir is set. "
+            "Use this for natural stochastic preview runs where noise/noise_w are "
+            "left at Style-Bert-VITS2 defaults."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -735,9 +744,13 @@ def main() -> None:
             provider_evidence[spec.name] = evidence
 
     summaries = _summarize(all_records)
-    truth_comparison = _compare_against_onnx_cpu_truth(
-        audio_output_dir=args.audio_output_dir,
-        summaries=summaries,
+    truth_comparison = (
+        []
+        if args.skip_truth_comparison
+        else _compare_against_onnx_cpu_truth(
+            audio_output_dir=args.audio_output_dir,
+            summaries=summaries,
+        )
     )
     payload = {
         "profile": {
@@ -749,6 +762,7 @@ def main() -> None:
             "tempo_dynamics_scale": args.tempo_dynamics_scale,
             "noise_scale": args.noise_scale,
             "noise_scale_w": args.noise_scale_w,
+            "truth_comparison_enabled": not args.skip_truth_comparison,
             "ggml_vulkan_precision": args.ggml_vulkan_precision,
             "ggml_default_synthesis_converter_version": DEFAULT_GGUF_CONVERTER_VERSION,
             "ggml_f32_synthesis_converter_version": F32_GGUF_CONVERTER_VERSION,

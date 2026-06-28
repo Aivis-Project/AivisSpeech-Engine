@@ -25,6 +25,11 @@ Raw results are stored in
 - Profile: `warmup_runs=1`, `runs=3`
 - AudioQuery: `tempoDynamicsScale=1.0`, matching the Engine `/audio_query`
   default used by the app
+- Style-Bert-VITS2 noise settings: benchmark arguments leave
+  `noise_scale` and `noise_scale_w` unset, so synthesis uses the model defaults
+  (`noise=0.6`, `noise_w=0.8`). This is intentional for audio preview; forcing
+  `noise_w=0.0` was isolated as the source of the metallic/electric artifact in
+  the previous documentation audio.
 - Engine: `feat/onnx-ggml-minimal-upstream` with ONNX Runtime `1.26.0`
   compatibility, FP16 GGUF cache defaults, an explicit FP32 voice-GGUF
   benchmark selector, and an explicit JP-BERT FP32 GGUF benchmark selector
@@ -62,12 +67,12 @@ Raw results are stored in
 
 ### RTF Results
 
-| text length | ONNX CPU Truth RTF | ONNX CUDA RTF | JP-BERT FP16 + voices FP16 | JP-BERT FP16 + voices FP32 | JP-BERT FP32 + voices FP16 | JP-BERT FP32 + voices FP32 |
+| text length | ONNX CPU RTF | ONNX CUDA RTF | JP-BERT FP16 + voices FP16 | JP-BERT FP16 + voices FP32 | JP-BERT FP32 + voices FP16 | JP-BERT FP32 + voices FP32 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| short | `0.326` | `0.035` | `0.124` | `0.125` | `0.129` | `0.128` |
-| medium | `0.239` | `0.028` | `0.092` | `0.093` | `0.092` | `0.093` |
-| long | `0.209` | `0.020` | `0.061` | `0.063` | `0.062` | `0.062` |
-| overall mean | `0.258` | `0.028` | `0.092` | `0.093` | `0.094` | `0.094` |
+| short | `0.322` | `0.080` | `0.129` | `0.130` | `0.133` | `0.131` |
+| medium | `0.240` | `0.114` | `0.093` | `0.094` | `0.093` | `0.094` |
+| long | `0.207` | `0.034` | `0.062` | `0.063` | `0.063` | `0.064` |
+| overall mean | `0.256` | `0.076` | `0.095` | `0.096` | `0.096` | `0.096` |
 
 Provider evidence from the run:
 
@@ -108,6 +113,10 @@ Interpretation:
 
 - The Plugin EP path keeps the normal ONNX frontend and replaces only the
   supported synthesis and JP-BERT ONNX graphs with TTS.cpp GGML execution.
+- This Linux refresh uses natural Style-Bert-VITS2 stochastic defaults for the
+  saved audio previews. The current JSON records `noise_scale=null`,
+  `noise_scale_w=null`, and `truth_comparison_enabled=false`; deterministic PCM
+  comparison should be run separately with fixed noise parameters.
 - ONNX CUDA is active and not silently falling back to CPU. This run required
   CUDA 12 runtime libraries to be present in `LD_LIBRARY_PATH`; without them,
   the benchmark fails instead of recording a CPU fallback as a CUDA result.
@@ -131,8 +140,8 @@ Interpretation:
 - FP16 voices are slightly faster than FP32 voices in this run, but the speedup
   is small because the remaining ceiling is decoder execution rather than model
   file size. The larger practical win is memory and disk footprint.
-- ONNX CPU is the truth baseline for accuracy checks below. The RTF table is a
-  speed comparison; precision decisions should use the truth comparison table.
+- Saved audio preview files are AAC transcodes of the representative WAV output
+  from this same run and are not included in the RTF timing window.
 
 ### GGUF Precision Matrix
 
@@ -143,47 +152,29 @@ remains the HF F16 `linear` GGUF.
 
 | JP-BERT GGUF | voice GGUF | JP-BERT size / tensors | voice size / tensors | short samples | medium samples | long samples |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| FP16 `linear` | FP16 voices | `710,407,072` bytes / `250 F32 + 144 F16` | `129,814,912` bytes / `574 F32 + 326 F16` | `52,851` | `84,596` | `338,604` |
-| FP16 `linear` | FP32 voices | `710,407,072` bytes / `250 F32 + 144 F16` | `248,036,704` bytes / `900 F32` | `52,851` | `84,596` | `338,604` |
-| FP32 | FP16 voices | `1,314,386,784` bytes / `394 F32` | `129,814,912` bytes / `574 F32 + 326 F16` | `52,851` | `84,596` | `338,604` |
-| FP32 | FP32 voices | `1,314,386,784` bytes / `394 F32` | `248,036,704` bytes / `900 F32` | `52,851` | `84,596` | `338,603` |
+| FP16 `linear` | FP16 voices | `710,407,072` bytes / `250 F32 + 144 F16` | `129,814,912` bytes / `574 F32 + 326 F16` | `51,314` | `83,060` | `331,583` |
+| FP16 `linear` | FP32 voices | `710,407,072` bytes / `250 F32 + 144 F16` | `248,036,704` bytes / `900 F32` | `51,826` | `83,572` | `334,963` |
+| FP32 | FP16 voices | `1,314,386,784` bytes / `394 F32` | `129,814,912` bytes / `574 F32 + 326 F16` | `51,314` | `84,084` | `331,891` |
+| FP32 | FP32 voices | `1,314,386,784` bytes / `394 F32` | `248,036,704` bytes / `900 F32` | `51,510` | `85,618` | `330,185` |
 
 The FP16 voice cache is about `47.7%` smaller than the FP32 voice cache, and the
 JP-BERT F16 `linear` cache is about `45.9%` smaller than the JP-BERT FP32
-baseline. Under the app-default `tempoDynamicsScale=1.0` settings used here,
-the adopted JP-BERT F16 `linear` + FP16 voices path matches ONNX CPU sample
-counts exactly for all three texts.
+baseline. With stochastic noise left at the Style-Bert-VITS2 defaults, output
+sample counts are expected to vary between providers and runs; use the
+deterministic validation path below for PCM/sample-count parity checks.
 
-### ONNX CPU Truth Comparison
+### Audio Quality Fix
 
-The same-run ONNX CPU PCM output is treated as the truth baseline. Metrics below
-compare the first saved WAV for each backend before AAC encoding, so they are
-not affected by the documentation audio-preview codec.
+The previous documentation audio forced `noise_scale=0.0` and
+`noise_scale_w=0.0` while keeping `tempoDynamicsScale=1.0`. That setting is not
+the app's natural synthesis path and was isolated as the cause of the audible
+metallic/electric artifact, especially in the long sample. The current Linux
+preview audio therefore leaves both noise arguments unset and records that state
+in the JSON as `noise_scale=null` and `noise_scale_w=null`.
 
-Sample-count delta versus ONNX CPU truth:
-
-| backend | short | medium | long |
-| --- | ---: | ---: | ---: |
-| ONNX CUDA | `0` | `0` | `0` |
-| JP-BERT FP16 + voices FP16 | `0` | `0` | `0` |
-| JP-BERT FP16 + voices FP32 | `0` | `0` | `0` |
-| JP-BERT FP32 + voices FP16 | `0` | `0` | `0` |
-| JP-BERT FP32 + voices FP32 | `0` | `0` | `-1` |
-
-PCM RMSE / correlation versus ONNX CPU truth:
-
-| backend | short | medium | long |
-| --- | ---: | ---: | ---: |
-| ONNX CUDA | `0.001822 / 0.999906` | `0.007855 / 0.998921` | `0.004312 / 0.999512` |
-| JP-BERT FP16 + voices FP16 | `0.005618 / 0.999110` | `0.006145 / 0.999340` | `0.009864 / 0.997452` |
-| JP-BERT FP16 + voices FP32 | `0.002013 / 0.999889` | `0.004940 / 0.999574` | `0.011819 / 0.996347` |
-| JP-BERT FP32 + voices FP16 | `0.006218 / 0.998904` | `0.005589 / 0.999459` | `0.005774 / 0.999125` |
-| JP-BERT FP32 + voices FP32 | `0.002180 / 0.999867` | `0.004352 / 0.999671` | `0.007179 / 0.998648` |
-
-The current default JP-BERT F16 `linear` + FP16 voices matches ONNX CPU output
-length for short, medium, and long while reducing voice GGUF size by about
-`47.7%`. JP-BERT FP32 is not a better default: it costs about `604 MB` more
-than JP-BERT F16 `linear` and does not improve the truth comparison.
+For deterministic provider parity checks, rerun the benchmark with fixed noise
+parameters and treat those WAV files as validation artifacts only, not as the
+qualitative preview audio.
 
 ### Precision Path Validation (Historical)
 
@@ -267,7 +258,7 @@ included in the RTF timing window.
 
 Baseline ONNX outputs:
 
-| text length | ONNX CPU Truth | ONNX CUDA |
+| text length | ONNX CPU | ONNX CUDA |
 | --- | --- | --- |
 | short | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_short.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_short.m4a) |
 | medium | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cpu_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/onnx-cuda_medium.m4a) |
@@ -407,7 +398,9 @@ export BENCHMARK_AUDIO_WAV_DIR="<path-to-temporary-wav-output-dir>"
 ```
 
 Run ONNX CPU, ONNX CUDA, and the ONNX GGML Plugin EP Vulkan JP-BERT/voice
-precision matrix in one process:
+precision matrix in one process. Leave `noise_scale` and `noise_scale_w`
+unset for the qualitative audio-preview run; use deterministic noise overrides
+only for separate provider parity validation.
 
 ```bash
 LD_LIBRARY_PATH="${TTS_CPP_NATIVE_LIBRARY_DIRS}:${CUDA12_NVIDIA_LIBS}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
@@ -433,7 +426,8 @@ uv run python tools/benchmark_onnx_ggml_provider.py \
   --warmup_runs 1 \
   --runs 3 \
   --output_json "$BENCHMARK_OUTPUT_JSON" \
-  --audio_output_dir "$BENCHMARK_AUDIO_WAV_DIR"
+  --audio_output_dir "$BENCHMARK_AUDIO_WAV_DIR" \
+  --skip_truth_comparison
 ```
 
 Convert the representative WAV files to AAC/M4A for the Markdown audio preview:
