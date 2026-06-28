@@ -151,9 +151,9 @@ improve RTF there:
 | FP32 | FP16 voices | `0.133` | `0.093` | `0.063` |
 | FP32 | FP32 voices | `0.131` | `0.094` | `0.064` |
 
-The latest Windows Intel Arc B580 refresh, rerun with TTS.cpp `94792ed25996`,
-also shows that JP-BERT FP32 and voice FP32 do not improve RTF over the default
-FP16 `linear` JP-BERT plus FP16 voice cache:
+The 2026-06-28 Windows Intel Arc B580 precision-matrix refresh, rerun with
+TTS.cpp `94792ed25996`, also showed that JP-BERT FP32 and voice FP32 did not
+improve RTF over the default FP16 `linear` JP-BERT plus FP16 voice cache:
 
 | JP-BERT GGUF | voice GGUF | short RTF | medium RTF | long RTF |
 | --- | --- | ---: | ---: | ---: |
