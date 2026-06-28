@@ -21,6 +21,8 @@ class GgufWriteResult:
     size_bytes: int
     sha256: str
     tensor_count: int
+    tensor_f32_count: int
+    tensor_f16_count: int
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation."""
@@ -89,6 +91,8 @@ def write_tts_cpp_style_bert_vits2_gguf(
 
     writer = gguf.GGUFWriter(path=None, arch=STYLE_BERT_VITS2_ARCHITECTURE)
     tensor_count = 0
+    tensor_f32_count = 0
+    tensor_f16_count = 0
     written_targets: set[str] = set()
     try:
         for source_name, target_name in mapped_targets.items():
@@ -100,8 +104,10 @@ def write_tts_cpp_style_bert_vits2_gguf(
                 target_name=target_name,
                 array=array,
             )
-            _add_tensor(gguf, writer, target_name, array)
+            stored_dtype = _add_tensor(gguf, writer, target_name, array)
             tensor_count += 1
+            tensor_f16_count += 1 if stored_dtype == "F16" else 0
+            tensor_f32_count += 1 if stored_dtype == "F32" else 0
             written_targets.add(target_name)
 
         for base_name, target_name in weight_norm_targets.items():
@@ -110,23 +116,32 @@ def write_tts_cpp_style_bert_vits2_gguf(
             weight_g = source_arrays[f"{base_name}.weight_g"]
             weight_v = source_arrays[f"{base_name}.weight_v"]
             array = materialize_weight_norm(weight_g=weight_g, weight_v=weight_v)
-            _add_tensor(gguf, writer, target_name, array)
+            stored_dtype = _add_tensor(gguf, writer, target_name, array)
             tensor_count += 1
+            tensor_f16_count += 1 if stored_dtype == "F16" else 0
+            tensor_f32_count += 1 if stored_dtype == "F32" else 0
             written_targets.add(target_name)
 
         style_vectors = np.ascontiguousarray(
             np.load(style_vectors_path).astype(np.float32)
         )
         if "style_bert_vits2.style_vectors" not in written_targets:
-            _add_tensor(
+            stored_dtype = _add_tensor(
                 gguf,
                 writer,
                 "style_bert_vits2.style_vectors",
                 style_vectors,
             )
             tensor_count += 1
+            tensor_f16_count += 1 if stored_dtype == "F16" else 0
+            tensor_f32_count += 1 if stored_dtype == "F32" else 0
 
-        _add_style_bert_vits2_metadata(gguf, writer, config)
+        _add_style_bert_vits2_metadata(
+            gguf,
+            writer,
+            config,
+            has_f16_tensors=tensor_f16_count > 0,
+        )
         gguf_path.parent.mkdir(parents=True, exist_ok=True)
         writer.write_header_to_file(path=gguf_path)
         writer.write_kv_data_to_file()
@@ -139,6 +154,8 @@ def write_tts_cpp_style_bert_vits2_gguf(
         size_bytes=gguf_path.stat().st_size,
         sha256=_file_sha256(gguf_path),
         tensor_count=tensor_count,
+        tensor_f32_count=tensor_f32_count,
+        tensor_f16_count=tensor_f16_count,
     )
 
 
@@ -232,16 +249,40 @@ def _weight_norm_targets(mapping_report: TensorMappingReport) -> dict[str, str]:
     }
 
 
-def _add_tensor(gguf: Any, writer: Any, name: str, array: Any) -> None:
-    raw_dtype = getattr(getattr(gguf, "GGMLQuantizationType", None), "F32", None)
-    if raw_dtype is None:
-        writer.add_tensor(name, array)
+def _store_as_f16(name: str) -> bool:
+    if not name.startswith("style_bert_vits2."):
+        return False
+    if "embedding" in name:
+        return False
+    if ".norm" in name or "norm_" in name:
+        return False
+    if name.startswith("style_bert_vits2.decoder.ups."):
+        return False
+    return name.endswith(".weight") or name.endswith(".w")
+
+
+def _add_tensor(gguf: Any, writer: Any, name: str, array: Any) -> str:
+    import numpy as np
+
+    quant_types = getattr(gguf, "GGMLQuantizationType", None)
+    if _store_as_f16(name):
+        raw_dtype = getattr(quant_types, "F16", None)
+        tensor = np.ascontiguousarray(np.asarray(array, dtype=np.float16))
+        stored_dtype = "F16"
     else:
-        writer.add_tensor(name, array, raw_dtype=raw_dtype)
+        raw_dtype = getattr(quant_types, "F32", None)
+        tensor = np.ascontiguousarray(np.asarray(array, dtype=np.float32))
+        stored_dtype = "F32"
+
+    if raw_dtype is None:
+        writer.add_tensor(name, tensor)
+    else:
+        writer.add_tensor(name, tensor, raw_dtype=raw_dtype)
+    return stored_dtype
 
 
 def _add_style_bert_vits2_metadata(
-    gguf: Any, writer: Any, config: dict[str, Any]
+    gguf: Any, writer: Any, config: dict[str, Any], *, has_f16_tensors: bool
 ) -> None:
     arch = STYLE_BERT_VITS2_ARCHITECTURE
     model_config = dict(config.get("model", {}))
@@ -250,7 +291,12 @@ def _add_style_bert_vits2_metadata(
     gguf_type = getattr(getattr(gguf, "GGUFType", None), "MODEL", None)
     if gguf_type is not None:
         writer.add_type(gguf_type)
-    file_type = getattr(getattr(gguf, "LlamaFileType", None), "ALL_F32", None)
+    llama_file_type = getattr(gguf, "LlamaFileType", None)
+    file_type = getattr(
+        llama_file_type,
+        "MOSTLY_F16" if has_f16_tensors else "ALL_F32",
+        None,
+    )
     if file_type is not None:
         writer.add_file_type(file_type)
     quant_version = getattr(gguf, "GGML_QUANT_VERSION", None)

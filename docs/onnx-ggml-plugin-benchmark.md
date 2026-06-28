@@ -12,32 +12,36 @@ GGML Plugin EP integration:
 RTF is `elapsed_seconds / output_duration_seconds`; lower is better. Audio
 encoding is intentionally excluded from measured runs.
 
-## Linux RTX 3060 Local Run (2026-06-27)
+## Linux RTX 3060 Local Run (2026-06-28)
 
 Raw results are stored in
 [linux-rtx3060-cuda-ggml-cpu.json](res/onnx-ggml-plugin-benchmark/linux-rtx3060-cuda-ggml-cpu.json).
 
 ### Scope
 
-- Measurement date: 2026-06-27, Asia/Tokyo
+- Measurement date: 2026-06-28, Asia/Tokyo
 - Profile: `warmup_runs=1`, `runs=3`
 - AudioQuery: `tempoDynamicsScale=1.0`, matching the Engine `/audio_query`
   default used by the app
-- Engine: `feat/onnx-ggml-minimal-upstream` with Plugin EP precision env propagation
-- TTS.cpp: `a053e7270261`
+- Engine: `feat/onnx-ggml-minimal-upstream` with ONNX Runtime `1.26.0`
+  compatibility and FP16 GGUF cache defaults
+- TTS.cpp: `a053e7270261`; ggml submodule `a78c352bb70b`
 - CUDA provider option: `cudnn_conv_algo_search=HEURISTIC`
 - Model: AIVMX/ONNX `コハク` model, version `1.1.0`
 - Style: `1878365376` (`ノーマル`)
 - GGML model path: AIVMX/ONNX is converted to synthesis GGUF by the Plugin EP
-  cache path; JP-BERT uses `kevinzhow/style-bert-vits2-gguf`
-  `frontend/style-bert-vits2-jp-bert.gguf`
+  cache path using the F16 `no-embed-norm-no-ups` recipe; JP-BERT uses
+  `kevinzhow/style-bert-vits2-gguf`
+  `frontend/style-bert-vits2-jp-bert.gguf` with the F16 `linear` recipe
+  documented in [JP-BERT GGUF Quantization Notes](jp-bert-gguf-quantization.md).
 - GGML provider options: `backend=vulkan`, `precision=fast`,
-  `claim_synthesis_graph=1`, `claim_jp_bert_graph=1`, `eager_load_model=1`
+  `device=0`, `claim_synthesis_graph=1`, `claim_jp_bert_graph=1`,
+  `eager_load_model=1`
 
 | label | text | chars |
 | --- | --- | ---: |
 | short | `テストです。` | 6 |
-| medium | `今日はいい天気です。` | 10 |
+| medium | `今日はいい天気ですね。` | 11 |
 | long | `これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。` | 41 |
 
 ### Device Parameters
@@ -55,10 +59,10 @@ Raw results are stored in
 
 | text length | ONNX CPU RTF | ONNX CUDA RTF | ONNX GGML Plugin EP Vulkan RTF |
 | --- | ---: | ---: | ---: |
-| short | `0.304` | `0.163` | `0.122` |
-| medium | `0.246` | `0.088` | `0.098` |
-| long | `0.196` | `0.033` | `0.063` |
-| overall mean | `0.249` | `0.095` | `0.095` |
+| short | `0.324` | `0.033` | `0.119` |
+| medium | `0.277` | `0.027` | `0.089` |
+| long | `0.211` | `0.020` | `0.061` |
+| overall mean | `0.270` | `0.027` | `0.090` |
 
 Provider evidence from the run:
 
@@ -91,11 +95,13 @@ Interpretation:
   TTS.cpp Vulkan fast conv1d lowering while keeping ggml-vulkan F16/coopmat
   disabled. `precision=accurate` remains the conservative direct-F32-conv mode
   and is not the performance number shown in this table.
-- With the CUDA convolution search fix, ONNX CUDA remains fastest for the
-  medium and long samples, while GGML Plugin EP Vulkan is faster on the short
-  sample in this run. Their overall mean RTF is effectively tied here. GGML
-  Plugin EP Vulkan is faster than ONNX CPU for all three text lengths and does
-  not require NVIDIA CUDA runtime libraries.
+- With the CUDA convolution search fix and CUDA 12 libraries available, ONNX
+  CUDA is the fastest path on this RTX 3060 run. GGML Plugin EP Vulkan is still
+  faster than ONNX CPU for all three text lengths and does not require NVIDIA
+  CUDA runtime libraries.
+- The current GGML Plugin EP Vulkan result uses the default FP16 GGUF cache
+  path: synthesis `574 F32 / 326 F16` tensors and JP-BERT `250 F32 / 144 F16`
+  tensors.
 
 ### Precision Path Validation
 
@@ -115,6 +121,60 @@ short `rmse=0.00088`, medium `rmse=0.00448`, and long `rmse=0.00332`, with
 identical output sample counts for all three texts. This points to the conv
 lowering as the correct performance lever; enabling ggml-vulkan F16/coopmat is
 not safe for this model because it changes duration.
+
+### GGML Vulkan Profile Run (2026-06-28)
+
+This profile keeps the performance-oriented mixed-precision synthesis GGUF
+cache: F16 for Style-Bert-VITS2 weights except embeddings, norms, decoder
+upsample weights, biases, and style vectors. The generated synthesis GGUF for
+this run was `129,812,864` bytes with `574 F32` tensors and `326 F16` tensors.
+The decoder upsample exception is intentional: allowing those tensors to become
+F16 moved a `CONV_TRANSPOSE_1D` decoder node to CPU and regressed RTF.
+
+Strict backend validation passed with `TTS_BACKEND_STRICT=1`, confirming the
+short-sentence decoder graph stayed on `Vulkan0` instead of falling back to CPU.
+
+Run settings:
+
+- Measurement date: 2026-06-28, Asia/Tokyo
+- Profile: `warmup_runs=1`, `runs=1`
+- Backend: `onnx-ggml-vulkan`, `precision=fast`
+- Device pin: `GGML_VK_VISIBLE_DEVICES=1`
+- TTS settings: `tempoDynamicsScale=1.0`, `noise_scale=0.0`,
+  `noise_scale_w=0.0`
+- Profile env: `STYLE_BERT_VITS2_DEBUG_TIMINGS=1`,
+  `STYLE_BERT_VITS2_PROFILE_DECODER_NODES=1`
+
+RTF results:
+
+| text length | RTF | output samples |
+| --- | ---: | ---: |
+| short | `0.134` | `56,962` |
+| medium | `0.099` | `90,261` |
+| long | `0.064` | `345,994` |
+
+Measured-run phase timings:
+
+| text length | text encoder | duration predictor | SDP condition | SDP reverse | latent | decoder |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| short | `4.539 ms` | `1.232 ms` | `1.068 ms` | `2.307 ms` | `51.503 ms` | `68.486 ms` |
+| medium | `4.454 ms` | `1.155 ms` | `1.218 ms` | `2.428 ms` | `44.964 ms` | `94.897 ms` |
+| long | `10.334 ms` | `1.533 ms` | `2.050 ms` | `4.189 ms` | `98.597 ms` | `309.778 ms` |
+
+Decoder hot operators from the measured runs:
+
+| text length | top decoder operators |
+| --- | --- |
+| short | `MUL_MAT 18.746 ms`, `IM2COL 16.202 ms`, `CONV_TRANSPOSE_1D 10.173 ms`, `ADD 10.004 ms`, `RESHAPE 7.076 ms` |
+| medium | `MUL_MAT 29.390 ms`, `IM2COL 25.576 ms`, `CONV_TRANSPOSE_1D 16.568 ms`, `ADD 8.843 ms`, `RESHAPE 6.932 ms` |
+| long | `IM2COL 93.853 ms`, `MUL_MAT 90.215 ms`, `CONV_TRANSPOSE_1D 75.883 ms`, `ADD 24.709 ms`, `LEAKY_RELU 13.740 ms` |
+
+Conclusion: the remaining performance ceiling is synthesis decoder execution,
+especially decoder `IM2COL`, `MUL_MAT`, and `CONV_TRANSPOSE_1D`. JP-BERT,
+duration predictor, and SDP condition/reverse are not the dominant runtime
+costs on this RTX 3060 Vulkan path. Full synthesis FP16 is not the next lever
+unless ggml-vulkan can keep those decoder kernels on Vulkan and preserve output
+duration parity.
 
 ### Audio Preview
 
@@ -154,7 +214,7 @@ results are stored in
 | label | text | chars |
 | --- | --- | ---: |
 | short | `テストです。` | 6 |
-| medium | `今日はいい天気です。` | 10 |
+| medium | `今日はいい天気ですね。` | 11 |
 | long | `これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。` | 41 |
 
 ### RTF Results
@@ -219,7 +279,7 @@ uv run python tools\benchmark_onnx_ggml_provider.py `
   --backend onnx-directml `
   --backend onnx-ggml-vulkan `
   --text "テストです。" `
-  --text "今日はいい天気です。" `
+  --text "今日はいい天気ですね。" `
   --text "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。" `
   --ggml_native_library_path "C:\path\to\tts.dll" `
   --onnx_ep_library_path "C:\path\to\aivis_ggml_onnx_ep.dll" `
@@ -246,6 +306,7 @@ export STYLE_ID="1878365376"
 export CUDA12_NVIDIA_LIBS="<colon-separated CUDA 12/cuDNN library dirs>"
 export AIVIS_GGML_ONNX_EP_LIBRARY_PATH="<path-to-libaivis_ggml_onnx_ep.so>"
 export TTS_CPP_NATIVE_LIBRARY_PATH="<path-to-libtts.so>"
+export TTS_CPP_NATIVE_LIBRARY_DIRS="<colon-separated dirs containing libtts.so and ggml libs>"
 export BENCHMARK_OUTPUT_JSON="docs/res/onnx-ggml-plugin-benchmark/linux-rtx3060-cuda-ggml-cpu.json"
 export BENCHMARK_AUDIO_WAV_DIR="<path-to-temporary-wav-output-dir>"
 ```
@@ -253,7 +314,7 @@ export BENCHMARK_AUDIO_WAV_DIR="<path-to-temporary-wav-output-dir>"
 Run ONNX CPU, ONNX CUDA, and ONNX GGML Plugin EP Vulkan in one process:
 
 ```bash
-LD_LIBRARY_PATH="${CUDA12_NVIDIA_LIBS}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
+LD_LIBRARY_PATH="${TTS_CPP_NATIVE_LIBRARY_DIRS}:${CUDA12_NVIDIA_LIBS}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
 GGML_VK_VISIBLE_DEVICES=1 \
 uv run python tools/benchmark_onnx_ggml_provider.py \
   --aivmx_path "$AIVMX_PATH" \
@@ -262,16 +323,31 @@ uv run python tools/benchmark_onnx_ggml_provider.py \
   --backend onnx-cuda \
   --backend onnx-ggml-vulkan \
   --text "テストです。" \
-  --text "今日はいい天気です。" \
+  --text "今日はいい天気ですね。" \
   --text "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。" \
   --onnx_ep_library_path "$AIVIS_GGML_ONNX_EP_LIBRARY_PATH" \
   --ggml_native_library_path "$TTS_CPP_NATIVE_LIBRARY_PATH" \
+  --ggml_vulkan_device 0 \
   --ggml_vulkan_precision fast \
   --tempo_dynamics_scale 1.0 \
   --warmup_runs 1 \
   --runs 3 \
   --output_json "$BENCHMARK_OUTPUT_JSON" \
   --audio_output_dir "$BENCHMARK_AUDIO_WAV_DIR"
+```
+
+Convert the representative WAV files to AAC/M4A for the Markdown audio preview:
+
+```bash
+for wav in "$BENCHMARK_AUDIO_WAV_DIR"/*.wav; do
+  base="$(basename "$wav" .wav)"
+  ffmpeg -y -hide_banner -loglevel error \
+    -i "$wav" \
+    -c:a aac \
+    -b:a 128k \
+    -movflags +faststart \
+    "docs/res/onnx-ggml-plugin-benchmark/audio/linux-rtx3060/${base}.m4a"
+done
 ```
 
 Strict provider checks:

@@ -16,6 +16,7 @@
 #include <sstream>
 #include <string>
 #include <system_error>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -339,6 +340,14 @@ int ParseNonNegativeIntOption(const std::string& value, int default_value, const
   return static_cast<int>(parsed);
 }
 
+int ResolveRuntimeThreadCount(int requested) {
+  if (requested > 0) {
+    return requested;
+  }
+  const unsigned int detected = std::thread::hardware_concurrency();
+  return detected > 0 ? static_cast<int>(detected) : 1;
+}
+
 AivisGgmlEpConfig ReadEpConfig(const OrtSessionOptions* session_options) {
   AivisGgmlEpConfig config;
   config.backend = ReadEpOption(session_options, "backend", kDefaultBackend);
@@ -381,6 +390,7 @@ AivisGgmlEpConfig ReadEpConfig(const OrtSessionOptions* session_options) {
       ReadEpOption(session_options, "n_threads", "0"),
       0,
       "n_threads");
+  config.n_threads = ResolveRuntimeThreadCount(config.n_threads);
   return config;
 }
 

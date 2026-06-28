@@ -184,6 +184,15 @@ def _parse_args() -> argparse.Namespace:
         help="Optional GGUF cache directory for the Plugin EP run.",
     )
     parser.add_argument(
+        "--ggml_jp_bert_gguf_path",
+        type=Path,
+        default=None,
+        help=(
+            "Optional prepared JP-BERT GGUF path for the Plugin EP run. "
+            "When omitted, the Engine cache prepares or fetches the default bundle."
+        ),
+    )
+    parser.add_argument(
         "--ggml_vulkan_device",
         default=None,
         help="Provider option device id for Vulkan.",
@@ -301,6 +310,8 @@ def _build_ggml_plugin_config(
     }
     if args.ggml_vulkan_device is not None:
         provider_options["device"] = args.ggml_vulkan_device
+    if args.ggml_jp_bert_gguf_path is not None:
+        provider_options["jp_bert_gguf_path"] = str(args.ggml_jp_bert_gguf_path)
     return OnnxPluginExecutionProviderConfig(
         provider_name="AivisGgmlExecutionProvider",
         provider_options=provider_options,
