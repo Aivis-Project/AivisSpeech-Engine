@@ -11,14 +11,14 @@ dependencies = [
   "psutil>=6.1.1",
   "pydantic>=2.7.3",
   "pyopenjtalk-plus>=0.4.1.post8,<1.0.0",
-  "python-multipart>=0.0.27,<1.0.0", # NOTE: required by fastapi.Form (fastapi-slim's unmanaged dependency)
+  "python-multipart>=0.0.31,<1.0.0", # NOTE: required by fastapi.Form (fastapi-slim's unmanaged dependency)
   "pyworld-prebuilt>=0.3.5.post2,<1.0.0",
   "pyyaml>=6.0.1",
   "semver>=3.0.0",
   "setuptools<82", # NOTE: pyworld が pkg_resources を使っているため
   "soundfile>=0.13.1,<1.0.0",
   "soxr>=0.5.0,<1.0.0",
-  "starlette>=0.45.3,<1.0.0",
+  "starlette>=1.0.1,<2.0.0",
   "uvicorn>=0.34.0,<1.0.0",
   # 以下は AivisSpeech Engine 独自の依存関係
   "jaconv>=0.3.4,<1.0.0",
