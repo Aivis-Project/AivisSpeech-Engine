@@ -244,7 +244,6 @@ def test_synthesize_wave_falls_back_to_accent_phrases_when_kana_is_empty(
         (0.0, 0.0),
         (1.0, DEFAULT_SDP_RATIO),
         (2.0, 1.0),
-        (-0.1, DEFAULT_SDP_RATIO),
         (2.1, DEFAULT_SDP_RATIO),
     ],
 )
@@ -270,7 +269,6 @@ def test_synthesize_wave_converts_tempo_dynamics_scale_to_sdp_ratio(
         (0.0, 0.0),
         (1.0, DEFAULT_STYLE_WEIGHT),
         (2.0, 10.0),
-        (-0.1, DEFAULT_STYLE_WEIGHT),
         (2.1, DEFAULT_STYLE_WEIGHT),
     ],
 )

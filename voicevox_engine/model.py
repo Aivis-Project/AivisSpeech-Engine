@@ -7,14 +7,94 @@ API と ENGINE 内部実装が共有するモデル
 - モデルクラスは FastAPI の制約から `BaseModel` を継承しなければならない。
 """
 
+from math import isfinite
 from pathlib import Path
+from typing import Self
 
 from aivmlib.schemas.aivm_manifest import AivmManifest
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from pydantic.json_schema import SkipJsonSchema
+from style_bert_vits2.nlp.japanese.mora_list import MORA_KATA_TO_MORA_PHONEMES
+from style_bert_vits2.nlp.nanairo_emoji import is_nanairo_emoji_symbol
+from style_bert_vits2.nlp.symbols import PUNCTUATIONS
 
 from voicevox_engine.library.model import LibrarySpeaker
-from voicevox_engine.tts_pipeline.model import AccentPhrase
+from voicevox_engine.tts_pipeline.model import AccentPhrase, Mora
+
+
+def _is_supported_synthesis_mora_text(mora_text: str) -> bool:
+    """
+    音声合成時に Style-Bert-VITS2 へ渡せるモーラ表記かどうかを返す。
+
+    Args:
+        mora_text (str): `AudioQuery.accent_phrases[].moras[].text` の値
+
+    Returns
+    -------
+    bool
+        Style-Bert-VITS2 の音素変換処理に渡せる場合は True
+    """
+
+    # 音声合成では `Mora.text` だけを基準に SBV2 用の音素列を組み立てる
+    ## `Mora.consonant` / `Mora.vowel` は VOICEVOX 互換の表現が入り得るため、SBV2 側の変換処理では採用していない
+    return (
+        mora_text in MORA_KATA_TO_MORA_PHONEMES
+        or mora_text in PUNCTUATIONS
+        or is_nanairo_emoji_symbol(mora_text) is True
+    )
+
+
+def _validate_audio_query_mora_text(
+    mora: Mora,
+    *,
+    accent_phrase_index: int,
+    mora_index: int,
+) -> None:
+    """
+    音声合成用 `AudioQuery` のモーラ表記を検証する。
+
+    Args:
+        mora (Mora): 検証するモーラ
+        accent_phrase_index (int): `AudioQuery.accent_phrases` 内の位置
+        mora_index (int): `AccentPhrase.moras` 内の位置
+    """
+
+    # SBV2 の音素表に存在しない表記は、推論直前の `kata_tone2phone_tone()` で KeyError になる
+    ## ここで 422 に変換される Pydantic エラーにしておくことで、外部連携から壊れた AudioQuery が届いても Sentry へ送られない
+    if _is_supported_synthesis_mora_text(mora.text) is False:
+        raise ValueError(
+            f"accent_phrases[{accent_phrase_index}].moras[{mora_index}].text "
+            f"に音声合成で利用できないモーラ表記が指定されています: {mora.text}"
+        )
+
+
+def _validate_non_negative_finite_number(value: float, field_name: str) -> None:
+    """
+    0 以上の有限数でなければならない `AudioQuery` フィールドを検証する。
+
+    Args:
+        value (float): 検証する値
+        field_name (str): エラーメッセージに含めるフィールド名
+    """
+
+    _validate_finite_number(value, field_name)
+
+    # 負数は NumPy の波形処理で ValueError や巨大な配列確保につながる
+    if value < 0:
+        raise ValueError(f"{field_name} には0以上の有限数を指定してください")
+
+
+def _validate_finite_number(value: float, field_name: str) -> None:
+    """
+    有限数でなければならない `AudioQuery` フィールドを検証する。
+
+    Args:
+        value (float): 検証する値
+        field_name (str): エラーメッセージに含めるフィールド名
+    """
+
+    if isfinite(value) is False:
+        raise ValueError(f"{field_name} には有限数を指定してください")
 
 
 class AudioQuery(BaseModel):
@@ -86,6 +166,68 @@ class AudioQuery(BaseModel):
             "可能な限り kana に通常の読み上げテキストを指定した上で音声合成 API に渡すことを推奨する。"
         ),
     )
+
+    @model_validator(mode="after")
+    def _validate_for_synthesis(self) -> Self:
+        # Sentry で確認された壊れた AudioQuery は、型としては正しくても SBV2 の音素変換で落ちる
+        ## `/synthesis` の入口で Pydantic エラーに変換し、クライアント起因の不正値を 422 として返す
+        for accent_phrase_index, accent_phrase in enumerate(self.accent_phrases):
+            # 空のアクセント句はアクセント位置もモーラ表記も解釈できないため不正な入力として扱う
+            if len(accent_phrase.moras) == 0:
+                raise ValueError(
+                    f"accent_phrases[{accent_phrase_index}].moras は1つ以上指定してください"
+                )
+
+            # `accent` は 1-indexed のアクセント核位置として synthesize_wave() で扱われる
+            ## 0 やモーラ数を超える値を通すと、全モーラが低音になるなど入力意図と異なる音高列が作られる
+            if not 1 <= accent_phrase.accent <= len(accent_phrase.moras):
+                raise ValueError(
+                    f"accent_phrases[{accent_phrase_index}].accent には "
+                    f"1 以上 {len(accent_phrase.moras)} 以下の値を指定してください"
+                )
+
+            # `pause_mora` は音声合成時に存在有無だけを見て固定の読点に置き換えるため、ここでは moras のみ検証する
+            for mora_index, mora in enumerate(accent_phrase.moras):
+                _validate_audio_query_mora_text(
+                    mora,
+                    accent_phrase_index=accent_phrase_index,
+                    mora_index=mora_index,
+                )
+
+        # 話速 0 は後処理の無音追加でゼロ除算になり、負数は無音波形の長さが負になる
+        if isfinite(self.speedScale) is False or self.speedScale <= 0:
+            raise ValueError("speedScale には0より大きい有限数を指定してください")
+
+        _validate_non_negative_finite_number(
+            self.intonationScale,
+            "intonationScale",
+        )
+        _validate_non_negative_finite_number(
+            self.tempoDynamicsScale,
+            "tempoDynamicsScale",
+        )
+        # pitchScale は負値も仕様上許可されるため、NaN / Inf だけを拒否する
+        _validate_finite_number(self.pitchScale, "pitchScale")
+        _validate_non_negative_finite_number(self.volumeScale, "volumeScale")
+        _validate_non_negative_finite_number(
+            self.prePhonemeLength,
+            "prePhonemeLength",
+        )
+        _validate_non_negative_finite_number(
+            self.postPhonemeLength,
+            "postPhonemeLength",
+        )
+        _validate_non_negative_finite_number(self.pauseLengthScale, "pauseLengthScale")
+
+        # pauseLength は AivisSpeech Engine では無視されるが、互換 API の入力として受けるため値の妥当性だけ確認する
+        if self.pauseLength is not None:
+            _validate_non_negative_finite_number(self.pauseLength, "pauseLength")
+
+        # resample() と WAV 書き出しに渡る値なので、0 や負数は API 入力時点で止める
+        if self.outputSamplingRate <= 0:
+            raise ValueError("outputSamplingRate には0より大きい値を指定してください")
+
+        return self
 
     def __hash__(self) -> int:
         """内容に対して一意なハッシュ値を返す。"""
