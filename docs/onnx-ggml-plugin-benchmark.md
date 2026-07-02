@@ -12,8 +12,8 @@ minimal GGML Plugin EP integration:
   `precision=fast`, and `vulkan_math_mode=coopmat`.
 - ONNX GGML Metal: existing ONNX path with `AivisGgmlExecutionProvider`
   claiming the synthesis and JP-BERT ONNX graphs on macOS. The current Metal
-  validation uses JP-BERT F16 `linear` plus an F32 synthesis voice GGUF because
-  the production FP16 voice cache hits a TTS.cpp Metal runtime assertion.
+  validation uses the same memory-saving assets as the production profile:
+  JP-BERT F16 `linear` plus the FP16 synthesis voice GGUF.
 
 RTF is `elapsed_seconds / output_duration_seconds`; lower is better. Audio
 encoding is intentionally excluded from measured runs.
@@ -314,6 +314,10 @@ included in the RTF timing window.
 ## macOS Apple M1 Pro Metal Local Run (2026-07-02)
 
 Raw results are stored in
+[macos-m1pro-metal-fp16-appdefault.json](res/onnx-ggml-plugin-benchmark/macos-m1pro-metal-fp16-appdefault.json)
+and
+[macos-m1pro-metal-fp16-consistency.json](res/onnx-ggml-plugin-benchmark/macos-m1pro-metal-fp16-consistency.json).
+The previous F32 synthesis-weight comparison remains available as
 [macos-m1pro-metal-f32-appdefault.json](res/onnx-ggml-plugin-benchmark/macos-m1pro-metal-f32-appdefault.json)
 and
 [macos-m1pro-metal-f32-consistency.json](res/onnx-ggml-plugin-benchmark/macos-m1pro-metal-f32-consistency.json).
@@ -335,8 +339,9 @@ and
 - GPU: Apple M1 Pro, 14 GPU cores, Metal 4
 - ONNX Runtime: `onnxruntime 1.26.0`; built-in providers include
   `CoreMLExecutionProvider` and `CPUExecutionProvider`
-- Engine: `384112fe` on `feat/onnx-ggml-minimal-upstream`
-- TTS.cpp: latest `main` at `7562414`, with `GGML_METAL=ON` and shared
+- Engine: `06affa3d` on `feat/onnx-ggml-minimal-upstream`
+- TTS.cpp: latest `main` at `7562414`, with local ggml changes for FP16
+  `GGML_OP_KOKORO_CONV_1D` weights, `GGML_METAL=ON`, and shared
   `libtts.dylib` rebuilt before the benchmark
 - Model: AIVMX/ONNX `まお` model, version `1.2.0`
 - Style: `888753760` (`ノーマル`)
@@ -344,29 +349,28 @@ and
   `vulkan_math_mode=coopmat`, `claim_synthesis_graph=1`,
   `claim_jp_bert_graph=1`, `eager_load_model=1`
 - GGML assets: JP-BERT uses the local F16 `linear` GGUF artifact. Synthesis
-  uses the F32 converter recipe
-  `tts-cpp-style-bert-vits2-converter-f32-v1`.
+  uses the production/default FP16 converter recipe
+  `tts-cpp-style-bert-vits2-converter-f16-no-embed-norm-no-ups-v1`.
 
 The Metal runtime log reported `simdgroup matrix mul. = true`,
 `use fusion = true`, `use concurrency = true`, and `use graph optimize = true`
 on Apple M1 Pro. It also reported `has tensor = false`; the newer Metal tensor
 API path is disabled for this pre-M5/pre-A19 device.
 
-The production FP16 synthesis voice GGUF recipe is not runnable on this Metal
-runtime today. A one-text smoke run with the default FP16 synthesis converter
-aborted at `ggml_kokoro_conv_1d_ex` with
-`GGML_ASSERT(weight->type == GGML_TYPE_F32)`. The RTF table below therefore
-measures the Metal backend with F32 synthesis weights while keeping JP-BERT in
-the same F16 `linear` format used by the deployment profile.
+The FP16 synthesis voice path required a joint TTS.cpp/ggml refactor because
+the fused decoder conv1d extension previously accepted only F32 weights. The
+local change allows F16 weights at `ggml_kokoro_conv_1d_ex`, CPU fallback, Metal
+`supports_op`, Metal pipeline selection, Metal stride math, and the MSL kernel
+entry point. The smoke run compiled and used `kernel_kokoro_conv_1d_f16`.
 
 ### RTF Results
 
 | text length | ONNX CPU RTF | ONNX GGML Metal RTF |
 | --- | ---: | ---: |
-| short | `0.338` | `0.185` |
-| medium | `0.281` | `0.147` |
-| long | `0.258` | `0.128` |
-| overall mean | `0.293` | `0.154` |
+| short | `0.294` | `0.250` |
+| medium | `0.260` | `0.198` |
+| long | `0.252` | `0.173` |
+| overall mean | `0.269` | `0.207` |
 
 Provider evidence from the app-default run:
 
@@ -377,7 +381,7 @@ Provider evidence from the app-default run:
   },
   "onnx-ggml-metal": {
     "active_providers": ["AivisGgmlExecutionProvider", "CPUExecutionProvider"],
-    "ggml_synthesis_converter_version": "tts-cpp-style-bert-vits2-converter-f32-v1",
+    "ggml_synthesis_converter_version": "tts-cpp-style-bert-vits2-converter-f16-no-embed-norm-no-ups-v1",
     "ggml_jp_bert_precision": "fp16-linear"
   }
 }
@@ -390,22 +394,36 @@ The consistency run fixes `tempoDynamicsScale=0.0`, `noise_scale=0.0`, and
 
 | text length | sample-count delta vs ONNX CPU | RMSE | max abs diff | correlation | Metal RTF |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| short | `0` | `0.00421` | `0.06433` | `0.99956` | `0.172` |
-| medium | `0` | `0.00859` | `0.12561` | `0.99873` | `0.139` |
-| long | `0` | `0.00779` | `0.31821` | `0.99842` | `0.126` |
+| short | `0` | `0.00485` | `0.07620` | `0.99941` | `0.239` |
+| medium | `0` | `0.00567` | `0.09808` | `0.99945` | `0.194` |
+| long | `0` | `0.00722` | `0.27725` | `0.99864` | `0.172` |
 
 Interpretation:
 
 - Metal is active through the Plugin EP and is not silently using ONNX CPU for
   the claimed JP-BERT and synthesis graphs.
-- With F32 synthesis GGUF and JP-BERT F16 `linear`, Metal is roughly `1.8x` to
-  `2.0x` faster than ONNX CPU on this M1 Pro app-default run.
+- With FP16 synthesis GGUF and JP-BERT F16 `linear`, Metal is roughly `1.2x` to
+  `1.5x` faster than ONNX CPU on this M1 Pro app-default run.
 - Deterministic consistency preserves output duration exactly for all three
   measured texts. The remaining PCM deltas are expected backend arithmetic
   differences, not duration drift.
-- This does not validate the production FP16 synthesis voice cache on Metal.
-  The current blocker is the TTS.cpp Metal decoder convolution path requiring
-  F32 weights for `ggml_kokoro_conv_1d_ex`.
+- The previous F32 synthesis-weight JSON records a faster Metal run
+  (`0.185 / 0.147 / 0.128` RTF for short/medium/long), but that result is not
+  reproducible with the current rebuilt `libtts.dylib`: a same-command F32
+  rerun measured `0.250 / 0.200 / 0.173`. Current F32 and FP16 voice paths are
+  therefore performance-equivalent on this M1 Pro.
+- A follow-up profile found the current Metal bottleneck in
+  `GGML_OP_KOKORO_CONV_1D`: decoder node profiling reported roughly
+  `670ms / 73` `KOKORO_CONV_1D` nodes out of a `916ms` decoder pass for the
+  long text. Disabling the fused conv1d epilogue reduced raw
+  `KOKORO_CONV_1D` time but added enough separate `ADD` and `LEAKY_RELU` nodes
+  to regress end-to-end RTF, so the default full fusion remains the best tested
+  Metal mode.
+- The F16 Metal kernel now avoids an unnecessary `half -> float -> half`
+  round trip when loading FP16 conv weights. A long-text A/B after the fix
+  measured FP16 at `0.172` RTF and F32 at `0.174` RTF under the same rebuilt
+  binary; this fixes the local FP16-specific regression, while broader Metal
+  speedups still require `KOKORO_CONV_1D` kernel tuning.
 
 ### Audio Preview
 
@@ -414,9 +432,9 @@ They are not included in the RTF timing window.
 
 | text length | ONNX CPU | ONNX GGML Metal |
 | --- | --- | --- |
-| short | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-f32/onnx-cpu_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-f32/onnx-cpu_short.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-f32/onnx-ggml-metal_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-f32/onnx-ggml-metal_short.m4a) |
-| medium | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-f32/onnx-cpu_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-f32/onnx-cpu_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-f32/onnx-ggml-metal_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-f32/onnx-ggml-metal_medium.m4a) |
-| long | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-f32/onnx-cpu_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-f32/onnx-cpu_long.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-f32/onnx-ggml-metal_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-f32/onnx-ggml-metal_long.m4a) |
+| short | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-fp16/onnx-cpu_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-fp16/onnx-cpu_short.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-fp16/onnx-ggml-metal_short.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-fp16/onnx-ggml-metal_short.m4a) |
+| medium | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-fp16/onnx-cpu_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-fp16/onnx-cpu_medium.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-fp16/onnx-ggml-metal_medium.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-fp16/onnx-ggml-metal_medium.m4a) |
+| long | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-fp16/onnx-cpu_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-fp16/onnx-cpu_long.m4a) | <audio controls preload="none" src="res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-fp16/onnx-ggml-metal_long.m4a"></audio><br>[AAC](res/onnx-ggml-plugin-benchmark/audio/macos-m1pro-metal-fp16/onnx-ggml-metal_long.m4a) |
 
 ## Windows Intel Arc B580 Local Run (2026-06-29)
 
