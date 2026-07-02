@@ -27,9 +27,10 @@ Measured on a local Android physical device:
 | Android | 16 / API 36 |
 | ABI | arm64-v8a |
 | Vulkan device | Adreno (TM) 840, Qualcomm Technologies Inc. Adreno Vulkan Driver |
-| ggml-vulkan feature signal | UMA `1`, fp16 `1`, bf16 `0`, warp size `64`, shared memory `32768`, int dot `0`, matrix cores `none` |
+| ggml-vulkan feature signal, NDK `glslc` | UMA `1`, fp16 `1`, bf16 `0`, warp size `64`, shared memory `32768`, int dot `0`, matrix cores `none` |
+| ggml-vulkan feature signal, `shaderc 2026.2` `glslc` | UMA `1`, fp16 `0`, bf16 `0`, warp size `64`, shared memory `32768`, int dot `1`, matrix cores `KHR_coopmat`, then `No suitable matrix core mode found` |
 | TTS.cpp | `46099d9`; ggml submodule `a78c352b` |
-| Android build toolchain | NDK `28.2.13676358` + Khronos Vulkan-Headers `v1.3.275` |
+| Android build toolchain | NDK `28.2.13676358` + Khronos Vulkan-Headers `v1.3.275` + host `shaderc 2026.2` `glslc` |
 | Voice | `a59cb814-0083-4369-8542-f51a29e72af7` / style `888753760` |
 | Device-side production voice GGUF | `a59cb814-0083-4369-8542-f51a29e72af7-1_2_0-98004407f97f5608.gguf`, 129,814,912 bytes, F16 `no-embed-norm-no-ups` |
 | Device-side JP-BERT GGUF | `jp-bert-968bba0e105e1d10.gguf`, 710,407,072 bytes, F16 `linear` |
@@ -49,9 +50,21 @@ The important Android finding is that mobile `precision=fast` by itself is not
 the same as the Linux Plugin EP default. Bare `fast` leaves ggml-vulkan runtime
 F16 enabled on this Adreno device (`fp16: 1`), while the Linux default
 `vulkan_math_mode=coopmat` keeps runtime F16 disabled and enables cooperative
-matrix kernels only when the GPU supports them. This Adreno device reports
-`matrix cores: none`, so the closest Android match for the Linux duration-safe
-path is:
+matrix kernels only when the GPU supports them. With NDK `28.2.13676358`'s
+bundled `glslc`, ggml-vulkan compiles without `GL_KHR_cooperative_matrix` and
+`GL_EXT_integer_dot_product` shader support, so the runtime reports `int dot: 0`
+and `matrix cores: none`.
+
+Use a newer host shader compiler for the Android build. `shaderc 2026.2`
+successfully compiles ggml's `GL_KHR_cooperative_matrix` and
+`GL_EXT_integer_dot_product` feature tests while the Android target still uses
+the NDK Vulkan C headers and `libvulkan.so`. On Adreno 840, this enables
+`int dot: 1`. KHR cooperative matrix is also detected, but ggml disables it
+after probing the device shapes because Adreno exposes F16 accumulate, not the
+F16-input/F32-accumulate mode that ggml currently requires for its duration-safe
+path.
+
+The adopted Android match for the Linux duration-safe intent is therefore:
 
 ```bash
 STYLE_BERT_VITS2_VULKAN_PRECISION=fast
@@ -60,8 +73,9 @@ GGML_VK_DISABLE_F16=1
 ```
 
 Do not set `GGML_VK_DISABLE_COOPMAT` for this comparison. On this device it has
-no effect because matrix cores are not present, but leaving it unset preserves
-the same intent as Linux `vulkan_math_mode=coopmat`.
+no useful effect because ggml probes KHR cooperative matrix and disables it for
+lack of a suitable F32-accumulate mode, but leaving it unset preserves the same
+intent as Linux `vulkan_math_mode=coopmat`.
 
 Device-side JP-BERT + synthesis results against the CPU baseline use the
 production FP16 deployment assets. The RTF window includes both Android
@@ -69,9 +83,44 @@ JP-BERT GGUF feature extraction and Android synthesis GGUF execution:
 
 | Text | CPU RTF | Vulkan RTF | Vulkan JP-BERT / synthesis seconds | sample delta | PCM RMSE / corr | BERT RMSE vs host ONNX |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| short | `2.737` | `2.554` | `1.422 / 1.128` | `0` | `0.00135 / 0.99970` | `0.00177` |
-| medium | `1.686` | `1.398` | `0.850 / 1.551` | `0` | `0.00208 / 0.99953` | `0.00120` |
-| long | `1.867` | `1.000` | `1.298 / 6.190` | `0` | `0.00343 / 0.99867` | `0.00084` |
+| short | `2.737` | `1.498` | `0.768 / 0.728` | `0` | `0.00135 / 0.99970` | `0.00177` |
+| medium | `1.686` | `0.825` | `0.503 / 0.915` | `0` | `0.00208 / 0.99953` | `0.00120` |
+| long | `1.867` | `0.560` | `0.750 / 3.447` | `0` | `0.00343 / 0.99867` | `0.00084` |
+
+The earlier NDK-`glslc` all-device run used the same runtime env but compiled
+without integer-dot and cooperative-matrix shader support. It matched sample
+counts but was slower: RTF `2.554 / 1.398 / 1.000`.
+
+The Adreno 840 cooperative matrix probe reports:
+
+- `VK_KHR_cooperative_matrix=yes`, `feature.cooperativeMatrix=1`,
+  `supportedStages=compute|all`.
+- F16 modes are `M=64`, `N=64/32/16`, `K=16`, with
+  `A=B=C=Result=float16`.
+- F32 modes are `M=64`, `N=64/32/16`, `K=8`, with
+  `A=B=C=Result=float32`.
+- INT8 modes are `M=64`, `N=64/32/16`, `K=32`, with
+  `sint8/sint8 -> sint32` and `uint8/uint8 -> uint32`.
+- There is no `float16 x float16 -> float32` cooperative matrix mode and no
+  mixed `float16 x float32` mode. Forcing the local experimental
+  `GGML_VK_ALLOW_F16_COOPMAT_ONLY=1` path first failed during JP-BERT pipeline
+  creation at `matmul_f16_f32_f16acc_aligned_l` with
+  `vk::Device::createComputePipeline: ErrorUnknown`. After constraining that
+  experiment to pure F16/F16 unaligned small-tile coopmat, it ran but failed
+  consistency: device-side JP-BERT BERT RMSE was `1.32054 / 1.33430 / 1.22560`
+  for short/medium/long, and output samples changed to
+  `24576 / 51200 / 234496`. A voice-only run using bundled BERT features
+  produced the same wrong sample counts, so Adreno F16-accumulate coopmat is not
+  a duration-safe path for this model.
+- Pure F32 cooperative matrix is a separate hardware mode on Adreno 840, but it
+  is not a drop-in switch for the current ggml-vulkan build. The generated KHR
+  `cm1` matmul shader family is produced from the `fp16=true` shader generator
+  path; the true `fp16=false` F32 shader family is emitted only for non-coopmat
+  `_fp32` kernels. Enabling pure F32 coopmat would require adding a new
+  `fp16=false + COOPMAT` shader family, wiring C++ pipeline creation to those
+  arrays, and testing FP32 GGUF assets. It would also require an FP32 JP-BERT GGUF
+  for full device-side comparison; the current production assets are JP-BERT F16
+  `linear` plus FP16 synthesis voice GGUF.
 
 Bare device-side `fast` without `GGML_VK_DISABLE_F16=1` reported `fp16: 1` and
 did not produce the first measured sample after more than 90 seconds, so it is
@@ -208,11 +257,15 @@ From the repository root:
 export ANDROID_NDK_ROOT=/path/to/android-sdk/ndk/28.2.13676358
 export TTS_CPP_ROOT=/path/to/TTS.cpp
 export ANDROID_ABI=arm64-v8a
-# On macOS. Use linux-x86_64 on Linux hosts.
-export VULKAN_GLSLC_EXECUTABLE="$ANDROID_NDK_ROOT/shader-tools/darwin-x86_64/glslc"
-export SPIRV_HEADERS_DIR=/usr/share/cmake/SPIRV-Headers
-# On Homebrew macOS:
-# export SPIRV_HEADERS_DIR="$(brew --prefix spirv-headers)/share/cmake/SPIRV-Headers"
+
+# macOS/Homebrew host:
+brew install shaderc spirv-headers
+export VULKAN_GLSLC_EXECUTABLE="$(brew --prefix shaderc)/bin/glslc"
+export SPIRV_HEADERS_DIR="$(brew --prefix spirv-headers)/share/cmake/SPIRV-Headers"
+
+# On Linux, use a recent LunarG Vulkan SDK or distro shaderc package:
+# export VULKAN_GLSLC_EXECUTABLE=/path/to/recent/glslc
+# export SPIRV_HEADERS_DIR=/usr/share/cmake/SPIRV-Headers
 
 mkdir -p build/_deps
 git clone --depth 1 --branch v1.3.275 \
@@ -232,7 +285,7 @@ cmake -S experimental/android-ggml-mobile \
   -DSPIRV_HEADERS_INCLUDE_DIR="$ANDROID_NDK_ROOT/sources/third_party/shaderc/third_party/spirv-tools/external/spirv-headers/include"
 
 cmake --build "build/android-ggml-mobile-${ANDROID_ABI}" \
-  --target aivis_ggml_mobile_bench \
+  --target aivis_ggml_mobile_bench aivis_vulkan_coopmat_probe \
   -j"$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
 ```
 
@@ -241,6 +294,22 @@ cmake --build "build/android-ggml-mobile-${ANDROID_ABI}" \
 Vulkan-Headers `v1.3.275`. Do not mix NDK 28 with a newer host header such as
 Homebrew Vulkan-Headers `1.4.350`, because `vulkan.hpp` will assert a header
 version mismatch.
+
+The host `glslc` is separate from the target Vulkan headers. NDK
+`28.2.13676358`'s bundled `shader-tools` `glslc` is too old for this benchmark:
+it rejects ggml's `GL_KHR_cooperative_matrix` and `GL_EXT_integer_dot_product`
+feature tests. A newer host `glslc`, verified with Homebrew `shaderc 2026.2`,
+keeps the target headers at Vulkan `1.3.275` while enabling ggml-vulkan's
+integer-dot and cooperative-matrix shader variants.
+
+Run the probe target on device when changing phones or drivers:
+
+```bash
+adb push build/android-ggml-mobile-${ANDROID_ABI}/aivis_vulkan_coopmat_probe \
+  /data/local/tmp/aivis-ggml-mobile-real/aivis_vulkan_coopmat_probe
+adb shell 'chmod 755 /data/local/tmp/aivis-ggml-mobile-real/aivis_vulkan_coopmat_probe && \
+  /data/local/tmp/aivis-ggml-mobile-real/aivis_vulkan_coopmat_probe'
+```
 
 For an x86_64 emulator build, set `ANDROID_ABI=x86_64` and use a separate build
 directory.

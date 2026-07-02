@@ -161,9 +161,13 @@ Interpretation:
   `STYLE_BERT_VITS2_JP_BERT_VULKAN_PRECISION` switch. To match this Linux
   duration-safe intent on Android, run both components in `fast` mode with
   `GGML_VK_DISABLE_F16=1` and leave coopmat enabled when the device supports
-  matrix cores. On the tested Adreno 840 physical device, `matrix cores: none`,
-  so coopmat is effectively unavailable and the matching path is fast lowering
-  with runtime F16 disabled.
+  matrix cores. On the tested Adreno 840 physical device, NDK `28.2.13676358`'s
+  bundled `glslc` was too old and compiled ggml-vulkan without integer-dot or
+  cooperative-matrix shader support (`int dot: 0`, `matrix cores: none`).
+  Rebuilding with Homebrew `shaderc 2026.2` enabled `int dot: 1` and detected
+  `matrix cores: KHR_coopmat`, but ggml then disabled cooperative matrix because
+  Adreno exposes F16-accumulate modes instead of the F16-input/F32-accumulate
+  mode required by the current duration-safe ggml path.
 - The Android physical-device all-GGUF run on 2026-07-02 used the same
   deployment asset classes: JP-BERT F16 `linear` plus the FP16 synthesis voice
   GGUF. It still used host-generated `input_ids`/phone/tone/language/style
@@ -171,9 +175,25 @@ Interpretation:
   device. With `STYLE_BERT_VITS2_VULKAN_PRECISION=fast`,
   `STYLE_BERT_VITS2_JP_BERT_VULKAN_PRECISION=fast`, and
   `GGML_VK_DISABLE_F16=1`, Vulkan matched CPU sample counts for all three texts
-  and measured RTF `2.554 / 1.398 / 1.000` for short/medium/long. Bare Android
-  `fast` with runtime F16 enabled did not produce the first measured sample
-  after more than 90 seconds and is not a valid comparison path.
+  and measured RTF `1.498 / 0.825 / 0.560` for short/medium/long after the
+  host `glslc` fix. The older NDK-`glslc` build measured
+  `2.554 / 1.398 / 1.000` with the same runtime env. Bare Android `fast` with
+  runtime F16 enabled did not produce the first measured sample after more than
+  90 seconds and is not a valid comparison path. Forcing the local experimental
+  F16-only coopmat path first failed during JP-BERT pipeline creation at
+  `matmul_f16_f32_f16acc_aligned_l`. After constraining that experiment to pure
+  F16/F16 unaligned small-tile coopmat, it ran but failed consistency: JP-BERT
+  BERT RMSE was `1.32054 / 1.33430 / 1.22560`, and output samples changed to
+  `24576 / 51200 / 234496`. A voice-only run using bundled BERT features
+  produced the same wrong sample counts, so Adreno F16-accumulate coopmat is not
+  duration-safe for this model.
+- Pure F32 cooperative matrix is present in the Adreno 840 Vulkan properties
+  (`A=B=C=Result=float32`, `M=64`, `N=64/32/16`, `K=8`), but current ggml-vulkan
+  does not generate a true `fp16=false + COOPMAT` KHR matmul shader family. Its
+  KHR `cm1` matmul shaders are generated from the `fp16=true` path, while the
+  true F32 `_fp32` shaders are non-coopmat. Testing pure F32 acceleration would
+  therefore require new shader generation, C++ pipeline wiring, and FP32 GGUF
+  assets, including FP32 JP-BERT for a full Android device-side parity run.
 - With the CUDA convolution search fix and CUDA 12 libraries available, ONNX
   CUDA is active and still the fastest path on the long sample. GGML Plugin EP
   Vulkan is faster than ONNX CPU for all three text lengths and faster than ONNX

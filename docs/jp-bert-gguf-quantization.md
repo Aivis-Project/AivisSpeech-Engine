@@ -174,9 +174,22 @@ texts:
 
 | text length | CPU RTF | Vulkan RTF | Vulkan JP-BERT / synthesis seconds | PCM RMSE / corr vs CPU |
 | --- | ---: | ---: | ---: | ---: |
-| short | `2.737` | `2.554` | `1.422 / 1.128` | `0.00135 / 0.99970` |
-| medium | `1.686` | `1.398` | `0.850 / 1.551` | `0.00208 / 0.99953` |
-| long | `1.867` | `1.000` | `1.298 / 6.190` | `0.00343 / 0.99867` |
+| short | `2.737` | `1.498` | `0.768 / 0.728` | `0.00135 / 0.99970` |
+| medium | `1.686` | `0.825` | `0.503 / 0.915` | `0.00208 / 0.99953` |
+| long | `1.867` | `0.560` | `0.750 / 3.447` | `0.00343 / 0.99867` |
+
+This Android refresh uses a newer host `glslc` from `shaderc 2026.2` while
+keeping the Android target headers at NDK Vulkan `1.3.275`. The older NDK
+`glslc` build compiled without ggml-vulkan integer-dot/coopmat shader support
+and measured RTF `2.554 / 1.398 / 1.000` with the same runtime env.
+Adreno 840 exposes F16/F16 and pure F32 cooperative matrix modes, but not
+F16-input/F32-accumulate. The forced local F16-only coopmat path eventually ran
+after being constrained to pure F16/F16 unaligned small tiles, but it failed
+consistency with JP-BERT BERT RMSE `1.32054 / 1.33430 / 1.22560` and changed
+output samples to `24576 / 51200 / 234496`. Pure F32 coopmat is not currently a
+drop-in Android path either: ggml-vulkan does not generate a true
+`fp16=false + COOPMAT` KHR shader family, and full device-side testing would need
+an FP32 JP-BERT GGUF in addition to FP32 voice assets.
 
 Linux/Windows raw results and audio previews are in
 [ONNX GGML Plugin EP Benchmark](onnx-ggml-plugin-benchmark.md). Android

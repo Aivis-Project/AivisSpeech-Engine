@@ -18,6 +18,8 @@ if (NOT EXISTS "${TTS_CPP_ROOT}/ggml/CMakeLists.txt")
     message(FATAL_ERROR "TTS_CPP_ROOT does not look like a TTS.cpp checkout: ${TTS_CPP_ROOT}")
 endif()
 
+find_package(Vulkan REQUIRED)
+
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(GGML_NATIVE OFF CACHE BOOL "" FORCE)
 set(GGML_OPENMP OFF CACHE BOOL "" FORCE)
@@ -95,6 +97,144 @@ if (TARGET ggml-vulkan)
             AIVIS_ANDROID_GGML_VULKAN_SOURCE
             "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
         )
+        string(REPLACE
+            "            device->mul_mat_l_int[i]    = device->mul_mat_l[i];"
+            "            if (getenv(\"GGML_VK_ALLOW_F16_COOPMAT_ONLY\") != nullptr &&\n                device->coopmat_support &&\n                device->coopmat_acc_f16_support &&\n                !device->coopmat_acc_f32_support) {\n                device->mul_mat_l[i] = false;\n                device->mul_mat_m[i] = false;\n                device->mul_mat_s[i] = true;\n                device->mul_mat_id_l[i] = false;\n                device->mul_mat_id_m[i] = false;\n                device->mul_mat_id_s[i] = true;\n            }\n\n            device->mul_mat_l_int[i]    = device->mul_mat_l[i];"
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
+        string(CONCAT AIVIS_ANDROID_ALLOW_F16_ONLY_COOPMAT_REPLACEMENT
+            "            const bool aivis_allow_f16_only_coopmat = getenv(\"GGML_VK_ALLOW_F16_COOPMAT_ONLY\") != nullptr;\n"
+            "            if (device->coopmat_m == 0 || "
+            "(!device->coopmat_acc_f32_support && "
+            "!(aivis_allow_f16_only_coopmat && device->coopmat_acc_f16_support))) {"
+        )
+        string(REPLACE
+            "            if (device->coopmat_m == 0 || !device->coopmat_acc_f32_support) {"
+            "${AIVIS_ANDROID_ALLOW_F16_ONLY_COOPMAT_REPLACEMENT}"
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
+        string(REPLACE
+            "    if (device->coopmat_support) {\n        // Create 6 variants, {s,m,l}x{unaligned,aligned}"
+            "    if (device->coopmat_support) {\n        const bool aivis_f16_only_coopmat = getenv(\"GGML_VK_ALLOW_F16_COOPMAT_ONLY\") != nullptr &&\n                                                device->coopmat_acc_f16_support &&\n                                                !device->coopmat_acc_f32_support;\n        // Create 6 variants, {s,m,l}x{unaligned,aligned}"
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
+        string(REPLACE
+            "#define CREATE_MM2(TYPE, PIPELINE_NAME, NAMELC, WG_DENOMS, WARPTILE, PUSHCONST, PARAMCOUNT, ID) \\\n        if (device->coopmat_acc_f16_support) { \\\n            CREATE_MM(TYPE, PIPELINE_NAME . f16acc, NAMELC, _f16acc, WG_DENOMS, WARPTILE, PUSHCONST, PARAMCOUNT, ID) \\\n        } \\\n        if (device->coopmat_acc_f32_support) { \\\n            CREATE_MM(TYPE, PIPELINE_NAME . f32acc, NAMELC, , WG_DENOMS, WARPTILE, PUSHCONST, PARAMCOUNT, ID) \\\n        } \\"
+            "#define AIVIS_KHR_F16_ONLY_COOPMAT_NAMELC_OK(NAMELC) \\\n        (std::strcmp(#NAMELC, \"matmul_f16\") == 0 || \\\n         std::strcmp(#NAMELC, \"matmul_id_subgroup_f16\") == 0 || \\\n         std::strcmp(#NAMELC, \"matmul_id_f16\") == 0)\n#define CREATE_MM2(TYPE, PIPELINE_NAME, NAMELC, WG_DENOMS, WARPTILE, PUSHCONST, PARAMCOUNT, ID) \\\n        if (device->coopmat_acc_f16_support && (!aivis_f16_only_coopmat || AIVIS_KHR_F16_ONLY_COOPMAT_NAMELC_OK(NAMELC))) { \\\n            CREATE_MM(TYPE, PIPELINE_NAME . f16acc, NAMELC, _f16acc, WG_DENOMS, WARPTILE, PUSHCONST, PARAMCOUNT, ID) \\\n        } \\\n        if (device->coopmat_acc_f32_support) { \\\n            CREATE_MM(TYPE, PIPELINE_NAME . f32acc, NAMELC, , WG_DENOMS, WARPTILE, PUSHCONST, PARAMCOUNT, ID) \\\n        } \\"
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
+        string(REPLACE
+            "        CREATE_MM(GGML_TYPE_F32, pipeline_matmul_f32, matmul_f32_f32, , wg_denoms, warptile, vk_mat_mat_push_constants, 3, );\n        CREATE_MM(GGML_TYPE_F32, pipeline_matmul_f32_f16, matmul_f32_f16, , wg_denoms, warptile, vk_mat_mat_push_constants, 3, );"
+            "        if (!aivis_f16_only_coopmat) {\n            CREATE_MM(GGML_TYPE_F32, pipeline_matmul_f32, matmul_f32_f32, , wg_denoms, warptile, vk_mat_mat_push_constants, 3, );\n            CREATE_MM(GGML_TYPE_F32, pipeline_matmul_f32_f16, matmul_f32_f16, , wg_denoms, warptile, vk_mat_mat_push_constants, 3, );\n        }"
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
+        string(REPLACE
+            "        if (device->mul_mat ## ID ## _l[TYPE]) \\\n            ggml_vk_create_pipeline(device, device-> PIPELINE_NAME ->a_l, #NAMELC #F16ACC \"_aligned_l\", NAMELC ## _aligned ## F16ACC ## _cm1_len, NAMELC ## _aligned ## F16ACC ## _cm1_data, \"main\", PARAMCOUNT, sizeof(PUSHCONST), l_ ## WG_DENOMS, l_ ## WARPTILE, l_align, false, true);"
+            "        if (!aivis_f16_only_coopmat && device->mul_mat ## ID ## _l[TYPE]) \\\n            ggml_vk_create_pipeline(device, device-> PIPELINE_NAME ->a_l, #NAMELC #F16ACC \"_aligned_l\", NAMELC ## _aligned ## F16ACC ## _cm1_len, NAMELC ## _aligned ## F16ACC ## _cm1_data, \"main\", PARAMCOUNT, sizeof(PUSHCONST), l_ ## WG_DENOMS, l_ ## WARPTILE, l_align, false, true);"
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
+        string(REPLACE
+            "        if (device->mul_mat ## ID ## _m[TYPE]) \\\n            ggml_vk_create_pipeline(device, device-> PIPELINE_NAME ->a_m, #NAMELC #F16ACC \"_aligned_m\", NAMELC ## _aligned ## F16ACC ## _cm1_len, NAMELC ## _aligned ## F16ACC ## _cm1_data, \"main\", PARAMCOUNT, sizeof(PUSHCONST), m_ ## WG_DENOMS, m_ ## WARPTILE, m_align, false, true);"
+            "        if (!aivis_f16_only_coopmat && device->mul_mat ## ID ## _m[TYPE]) \\\n            ggml_vk_create_pipeline(device, device-> PIPELINE_NAME ->a_m, #NAMELC #F16ACC \"_aligned_m\", NAMELC ## _aligned ## F16ACC ## _cm1_len, NAMELC ## _aligned ## F16ACC ## _cm1_data, \"main\", PARAMCOUNT, sizeof(PUSHCONST), m_ ## WG_DENOMS, m_ ## WARPTILE, m_align, false, true);"
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
+        string(REPLACE
+            "        if (device->mul_mat ## ID ## _s[TYPE]) \\\n            ggml_vk_create_pipeline(device, device-> PIPELINE_NAME ->a_s, #NAMELC #F16ACC \"_aligned_s\", NAMELC ## _aligned ## F16ACC ## _cm1_len, NAMELC ## _aligned ## F16ACC ## _cm1_data, \"main\", PARAMCOUNT, sizeof(PUSHCONST), s_ ## WG_DENOMS, s_ ## WARPTILE, s_align, false, true);"
+            "        if (!aivis_f16_only_coopmat && device->mul_mat ## ID ## _s[TYPE]) \\\n            ggml_vk_create_pipeline(device, device-> PIPELINE_NAME ->a_s, #NAMELC #F16ACC \"_aligned_s\", NAMELC ## _aligned ## F16ACC ## _cm1_len, NAMELC ## _aligned ## F16ACC ## _cm1_data, \"main\", PARAMCOUNT, sizeof(PUSHCONST), s_ ## WG_DENOMS, s_ ## WARPTILE, s_align, false, true);"
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
+        string(REPLACE
+            "#undef CREATE_MM2\n#undef CREATE_MM"
+            "#undef CREATE_MM2\n#undef AIVIS_KHR_F16_ONLY_COOPMAT_NAMELC_OK\n#undef CREATE_MM"
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
+        string(REPLACE
+            "static vk_matmul_pipeline ggml_vk_get_mul_mat_mat_pipeline(ggml_backend_vk_context * ctx, ggml_type src0_type, ggml_type src1_type, ggml_prec prec) {\n    VK_LOG_DEBUG(\"ggml_vk_get_mul_mat_mat_pipeline(\" << ggml_type_name(src0_type) << \", \" << ggml_type_name(src1_type) << \", \" << prec << \")\");\n    if (src0_type == GGML_TYPE_F32 && src1_type == GGML_TYPE_F32) {\n        return ctx->device->pipeline_matmul_f32;\n    }"
+            "static vk_matmul_pipeline ggml_vk_get_mul_mat_mat_pipeline(ggml_backend_vk_context * ctx, ggml_type src0_type, ggml_type src1_type, ggml_prec prec) {\n    VK_LOG_DEBUG(\"ggml_vk_get_mul_mat_mat_pipeline(\" << ggml_type_name(src0_type) << \", \" << ggml_type_name(src1_type) << \", \" << prec << \")\");\n    const bool aivis_f16_only_coopmat = getenv(\"GGML_VK_ALLOW_F16_COOPMAT_ONLY\") != nullptr &&\n                                        ctx->device->coopmat_support &&\n                                        ctx->device->coopmat_acc_f16_support &&\n                                        !ctx->device->coopmat_acc_f32_support;\n    if (src0_type == GGML_TYPE_F32 && src1_type == GGML_TYPE_F32) {\n        return aivis_f16_only_coopmat ? nullptr : ctx->device->pipeline_matmul_f32;\n    }"
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
+        string(REPLACE
+            "    if (src0_type == GGML_TYPE_F32 && src1_type == GGML_TYPE_F16) {\n        return ctx->device->pipeline_matmul_f32_f16;\n    }"
+            "    if (src0_type == GGML_TYPE_F32 && src1_type == GGML_TYPE_F16) {\n        return aivis_f16_only_coopmat ? nullptr : ctx->device->pipeline_matmul_f32_f16;\n    }"
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
+        string(REPLACE
+            "        if (src0_type == GGML_TYPE_F16 && src1_type == GGML_TYPE_F32) {\n            return ctx->device->pipeline_matmul_f16_f32.f16acc;\n        }"
+            "        if (src0_type == GGML_TYPE_F16 && src1_type == GGML_TYPE_F32) {\n            return aivis_f16_only_coopmat ? nullptr : ctx->device->pipeline_matmul_f16_f32.f16acc;\n        }"
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
+        string(REPLACE
+            "        if (src0_type == GGML_TYPE_F16 && src1_type == GGML_TYPE_F32) {\n            return ctx->device->pipeline_matmul_f16_f32.f32acc;\n        }"
+            "        if (src0_type == GGML_TYPE_F16 && src1_type == GGML_TYPE_F32) {\n            return aivis_f16_only_coopmat ? nullptr : ctx->device->pipeline_matmul_f16_f32.f32acc;\n        }"
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
+        string(REPLACE
+            "    if (ctx->device->coopmat_support) {\n        return (ctx->device->fp16 && ctx->device->coopmat_acc_f16_support && prec == GGML_PREC_DEFAULT) ? ctx->device->pipeline_dequant_mul_mat_mat[src0_type].f16acc : ctx->device->pipeline_dequant_mul_mat_mat[src0_type].f32acc;\n    }"
+            "    if (ctx->device->coopmat_support) {\n        if (aivis_f16_only_coopmat) {\n            return nullptr;\n        }\n        return (ctx->device->fp16 && ctx->device->coopmat_acc_f16_support && prec == GGML_PREC_DEFAULT) ? ctx->device->pipeline_dequant_mul_mat_mat[src0_type].f16acc : ctx->device->pipeline_dequant_mul_mat_mat[src0_type].f32acc;\n    }"
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
+        string(REPLACE
+            "static vk_matmul_pipeline ggml_vk_get_mul_mat_mat_id_pipeline(ggml_backend_vk_context * ctx, ggml_type src0_type, ggml_type src1_type, ggml_prec prec) {\n    VK_LOG_DEBUG(\"ggml_vk_get_mul_mat_mat_id_pipeline()\");\n    if (src0_type == GGML_TYPE_F32 && src1_type == GGML_TYPE_F32) {\n        return ctx->device->pipeline_matmul_id_f32;\n    }"
+            "static vk_matmul_pipeline ggml_vk_get_mul_mat_mat_id_pipeline(ggml_backend_vk_context * ctx, ggml_type src0_type, ggml_type src1_type, ggml_prec prec) {\n    VK_LOG_DEBUG(\"ggml_vk_get_mul_mat_mat_id_pipeline()\");\n    const bool aivis_f16_only_coopmat = getenv(\"GGML_VK_ALLOW_F16_COOPMAT_ONLY\") != nullptr &&\n                                        ctx->device->coopmat_support &&\n                                        ctx->device->coopmat_acc_f16_support &&\n                                        !ctx->device->coopmat_acc_f32_support;\n    if (src0_type == GGML_TYPE_F32 && src1_type == GGML_TYPE_F32) {\n        return aivis_f16_only_coopmat ? nullptr : ctx->device->pipeline_matmul_id_f32;\n    }"
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
+        string(REPLACE
+            "        if (src0_type == GGML_TYPE_F16 && src1_type == GGML_TYPE_F32) {\n            return ctx->device->pipeline_matmul_id_f16_f32.f16acc;\n        }"
+            "        if (src0_type == GGML_TYPE_F16 && src1_type == GGML_TYPE_F32) {\n            return aivis_f16_only_coopmat ? nullptr : ctx->device->pipeline_matmul_id_f16_f32.f16acc;\n        }"
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
+        string(REPLACE
+            "        if (src0_type == GGML_TYPE_F16 && src1_type == GGML_TYPE_F32) {\n            return ctx->device->pipeline_matmul_id_f16_f32.f32acc;\n        }"
+            "        if (src0_type == GGML_TYPE_F16 && src1_type == GGML_TYPE_F32) {\n            return aivis_f16_only_coopmat ? nullptr : ctx->device->pipeline_matmul_id_f16_f32.f32acc;\n        }"
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
+        string(REPLACE
+            "    vk_matmul_pipeline2& mmp = ctx->device->pipeline_dequant_mul_mat_mat_id[src0_type];\n    // XXX TODO 'prec' is not actually allowed in mul_mat_id."
+            "    if (aivis_f16_only_coopmat) {\n        return nullptr;\n    }\n\n    vk_matmul_pipeline2& mmp = ctx->device->pipeline_dequant_mul_mat_mat_id[src0_type];\n    // XXX TODO 'prec' is not actually allowed in mul_mat_id."
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
+        string(REPLACE
+            "    const bool y_non_contig = (ctx->device->coopmat2 && src1->type == GGML_TYPE_F32) ||\n                              (src0->type == GGML_TYPE_BF16 && src1->type != GGML_TYPE_BF16) ||"
+            "    const bool aivis_f16_only_coopmat = getenv(\"GGML_VK_ALLOW_F16_COOPMAT_ONLY\") != nullptr &&\n                                        ctx->device->coopmat_support &&\n                                        ctx->device->coopmat_acc_f16_support &&\n                                        !ctx->device->coopmat_acc_f32_support;\n    const bool y_non_contig = (aivis_f16_only_coopmat && src1->type == GGML_TYPE_F32) ||\n                              (ctx->device->coopmat2 && src1->type == GGML_TYPE_F32) ||\n                              (src0->type == GGML_TYPE_BF16 && src1->type != GGML_TYPE_BF16) ||"
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
+        string(REPLACE
+            "    const bool y_non_contig = y_decode_vector_staging ||\n                              (ctx->device->coopmat2 && src1->type == GGML_TYPE_F32) ||\n                              (src0->type == GGML_TYPE_BF16 && src1->type != GGML_TYPE_BF16) ||"
+            "    const bool aivis_f16_only_coopmat_id = getenv(\"GGML_VK_ALLOW_F16_COOPMAT_ONLY\") != nullptr &&\n                                           ctx->device->coopmat_support &&\n                                           ctx->device->coopmat_acc_f16_support &&\n                                           !ctx->device->coopmat_acc_f32_support;\n    const bool y_non_contig = y_decode_vector_staging ||\n                              (aivis_f16_only_coopmat_id && src1->type == GGML_TYPE_F32) ||\n                              (ctx->device->coopmat2 && src1->type == GGML_TYPE_F32) ||\n                              (src0->type == GGML_TYPE_BF16 && src1->type != GGML_TYPE_BF16) ||"
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
+        string(REPLACE
+            "static vk_pipeline ggml_vk_guess_matmul_pipeline(ggml_backend_vk_context * ctx, vk_matmul_pipeline& mmp, uint32_t m, uint32_t n, bool aligned, ggml_type src0_type, ggml_type src1_type) {\n    VK_LOG_DEBUG(\"ggml_vk_guess_matmul_pipeline(\" << m << \", \" << n << \", \" << aligned << \", \" << ggml_type_name(src0_type) << \", \" << ggml_type_name(src1_type) << \")\");"
+            "static vk_pipeline ggml_vk_guess_matmul_pipeline(ggml_backend_vk_context * ctx, vk_matmul_pipeline& mmp, uint32_t m, uint32_t n, bool aligned, ggml_type src0_type, ggml_type src1_type) {\n    VK_LOG_DEBUG(\"ggml_vk_guess_matmul_pipeline(\" << m << \", \" << n << \", \" << aligned << \", \" << ggml_type_name(src0_type) << \", \" << ggml_type_name(src1_type) << \")\");\n    if (aligned && (mmp->a_l == nullptr || mmp->a_m == nullptr || mmp->a_s == nullptr)) {\n        aligned = false;\n    }"
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
+        string(REPLACE
+            "static vk_pipeline ggml_vk_guess_matmul_id_pipeline(ggml_backend_vk_context * ctx, vk_matmul_pipeline& mmp, uint32_t m, uint32_t n, bool aligned, ggml_type src0_type, ggml_type src1_type) {\n    VK_LOG_DEBUG(\"ggml_vk_guess_matmul_id_pipeline(\" << m << \", \" << n << \", \" << aligned << \", \" << ggml_type_name(src0_type) << \", \" << ggml_type_name(src1_type) << \")\");"
+            "static vk_pipeline ggml_vk_guess_matmul_id_pipeline(ggml_backend_vk_context * ctx, vk_matmul_pipeline& mmp, uint32_t m, uint32_t n, bool aligned, ggml_type src0_type, ggml_type src1_type) {\n    VK_LOG_DEBUG(\"ggml_vk_guess_matmul_id_pipeline(\" << m << \", \" << n << \", \" << aligned << \", \" << ggml_type_name(src0_type) << \", \" << ggml_type_name(src1_type) << \")\");\n    if (aligned && (mmp->a_l == nullptr || mmp->a_m == nullptr || mmp->a_s == nullptr)) {\n        aligned = false;\n    }"
+            AIVIS_ANDROID_GGML_VULKAN_SOURCE
+            "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}"
+        )
         file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/patched-sources")
         file(WRITE "${AIVIS_ANDROID_GGML_VULKAN_PATCHED}" "${AIVIS_ANDROID_GGML_VULKAN_SOURCE}")
         get_target_property(AIVIS_ANDROID_GGML_VULKAN_SOURCES ggml-vulkan SOURCES)
@@ -119,3 +259,8 @@ target_include_directories(aivis_ggml_mobile_bench PRIVATE
     "${TTS_CPP_ROOT}/include"
 )
 target_link_libraries(aivis_ggml_mobile_bench PRIVATE tts)
+
+add_executable(aivis_vulkan_coopmat_probe
+    src/aivis_vulkan_coopmat_probe.cpp
+)
+target_link_libraries(aivis_vulkan_coopmat_probe PRIVATE Vulkan::Vulkan)
