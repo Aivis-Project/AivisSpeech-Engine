@@ -426,7 +426,7 @@ def main() -> None:
         # ref: https://docs.sentry.io/platforms/python/integrations/fastapi/
         if not args.disable_sentry and __version__ != "latest":
             sentry_sdk.init(
-                dsn="https://ebdf5cc288b3ab31a262186329ff3a95@o4508551725383680.ingest.us.sentry.io/4508555159470080",
+                dsn="https://943843f6560b3d03b1b86dbb7ec8d363@o4508551725383680.ingest.us.sentry.io/4508555159470080",
                 release=f"AivisSpeech-Engine@{__version__}",
                 environment="production",
                 # ユーザー環境だけで発生する既知エラーは送信前に破棄する
