@@ -133,7 +133,7 @@ def parse_kana(text: str) -> list[AccentPhrase]:
     parsed_results: list[AccentPhrase] = []
     phrase_base = 0
     if len(text) == 0:
-        raise ParseKanaError(ParseKanaErrorCode.EMPTY_PHRASE, position=1)
+        raise ParseKanaError(ParseKanaErrorCode.EMPTY_PHRASE, position="1")
 
     for i in range(len(text) + 1):
         # アクセント句境界（`/`か`、`）の出現までインデックス進展

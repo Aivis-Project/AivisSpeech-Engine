@@ -64,6 +64,7 @@ from voicevox_engine.utility.path_utility import (
     engine_root,
     get_save_dir,
 )
+from voicevox_engine.utility.sentry_utility import filter_sentry_event
 from voicevox_engine.utility.user_agent_utility import collect_runtime_environment
 
 # Uvicorn でバインドするアドレスを "localhost" にすることで IPv4 (127.0.0.1) と IPv6 ([::1]) の両方でリッスンできます.
@@ -428,15 +429,12 @@ def main() -> None:
                 dsn="https://ebdf5cc288b3ab31a262186329ff3a95@o4508551725383680.ingest.us.sentry.io/4508555159470080",
                 release=f"AivisSpeech-Engine@{__version__}",
                 environment="production",
-                # Set traces_sample_rate to 1.0 to capture 100%
-                # of transactions for tracing.
-                traces_sample_rate=1.0,
-                _experiments={
-                    # Set continuous_profiling_auto_start to True
-                    # to automatically start the profiler on when
-                    # possible.
-                    "continuous_profiling_auto_start": True,
-                },
+                # ユーザー環境だけで発生する既知エラーは送信前に破棄する
+                ## Sentry 側で受信後に除外してもクォータは消費されるため、SDK 側で止める
+                before_send=filter_sentry_event,
+                # ローカルアプリではエラー以外の利用状況まで収集しない
+                ## トレースとプロファイルは別クォータだが、費用対効果が低いため明示的に無効化する
+                traces_sample_rate=0.0,
             )
 
         logger.info(f"AivisSpeech Engine version {__version__}")

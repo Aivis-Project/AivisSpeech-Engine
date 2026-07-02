@@ -52,6 +52,17 @@ class SettingHandler:
             # FIXME: 例外処理を追加する
             setting = yaml.safe_load(self.setting_file_path.read_text(encoding="utf-8"))
 
+        # 過去の設定ファイルや手編集された設定ファイルでは list が入ることがある
+        ## 内部では空白区切りの文字列として扱うため、読み込み時だけ現行形式へ寄せる
+        if isinstance(setting, dict):
+            allow_origin = setting.get("allow_origin")
+            if isinstance(allow_origin, list):
+                setting["allow_origin"] = (
+                    " ".join(str(origin) for origin in allow_origin)
+                    if len(allow_origin) > 0
+                    else None
+                )
+
         return _setting_adapter.validate_python(setting)
 
     def save(self, settings: Setting) -> None:
