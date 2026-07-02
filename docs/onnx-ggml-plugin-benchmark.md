@@ -321,6 +321,9 @@ The previous F32 synthesis-weight comparison remains available as
 [macos-m1pro-metal-f32-appdefault.json](res/onnx-ggml-plugin-benchmark/macos-m1pro-metal-f32-appdefault.json)
 and
 [macos-m1pro-metal-f32-consistency.json](res/onnx-ggml-plugin-benchmark/macos-m1pro-metal-f32-consistency.json).
+The latest TTS.cpp direct decoder kernel iteration result is stored separately
+in
+[macos-m1pro-metal-direct-decoder-20260702.json](res/onnx-ggml-plugin-benchmark/macos-m1pro-metal-direct-decoder-20260702.json).
 
 ### Scope
 
@@ -424,6 +427,79 @@ Interpretation:
   measured FP16 at `0.172` RTF and F32 at `0.174` RTF under the same rebuilt
   binary; this fixes the local FP16-specific regression, while broader Metal
   speedups still require `KOKORO_CONV_1D` kernel tuning.
+- A later direct decoder kernel iteration added a parallel epilogue for the
+  Metal fused conv1d kernel and lowered the fused-kernel default minimum output
+  length from `8192` to `4096`. This is documented in the direct decoder
+  section below because it bypasses ONNX Runtime and is not directly comparable
+  to the Engine Plugin EP RTF table above.
+
+### TTS.cpp Direct Decoder Kernel Benchmark
+
+This benchmark is for Metal kernel iteration only. It bypasses ONNX Runtime,
+does not run the Engine AudioQuery path, directly loads the rebuilt
+`libtts.dylib`, constructs deterministic decoder inputs, and times
+`style_bert_vits2_runner::decode()`.
+
+Reproduction guardrail: use this direct decoder path when validating TTS.cpp or
+ggml Metal kernel changes. Use `tools/benchmark_onnx_ggml_provider.py` only for
+formal Engine/Plugin EP measurements, and first verify that the macOS ONNX
+Runtime package has `libonnxruntime_providers_shared.dylib`. The attempted
+Plugin EP smoke on 2026-07-02 stopped before inference because the active
+`uv` environment had `onnxruntime 1.23.0`, providers
+`CoreMLExecutionProvider`, `AzureExecutionProvider`, and
+`CPUExecutionProvider`, and no `libonnxruntime_providers_shared.dylib`. That is
+an ONNX Runtime packaging/registration blocker, not a Metal backend timing
+result.
+
+Configuration:
+
+- Measurement date: 2026-07-02, Asia/Shanghai
+- Device: Apple M1 Pro; Metal reported `simdgroup matrix mul. = true` and
+  `has tensor = false`
+- Engine: `12d508d7`; TTS.cpp: `7daeaea`; ggml submodule: `023ace57`, with
+  local Metal conv1d changes
+- Build: rebuilt latest local `libtts.dylib` via
+  `cmake --build /Users/kevinzhow/Github/TTS.cpp/build-metal-shared --target tts kokoro-conv-1d-bench`
+- Runtime: `TTS_BACKEND=metal`, `TTS_BACKEND_STRICT=1`,
+  `STYLE_BERT_VITS2_METAL_FUSED_CONV1D=full`
+- Kernel tuning: default `metal_tiled_conv1d_min_output=4096`; parallel
+  epilogue enabled by default unless
+  `GGML_METAL_KOKORO_CONV_1D_EPILOGUE=0|off|serial`
+- Profile: `warmup=2`, `iters=9`, sample rate `44100`
+
+Latest direct decoder result:
+
+| precision | frames | output samples | median ms | min ms | max ms | RTF |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| FP16 | `23` | `11776` | `40.313` | `36.950` | `44.079` | `0.150970` |
+| FP16 | `64` | `32768` | `74.411` | `71.976` | `79.871` | `0.100144` |
+| FP16 | `128` | `65536` | `129.557` | `128.076` | `140.692` | `0.087181` |
+| FP16 | `294` | `150528` | `311.122` | `301.688` | `328.069` | `0.091149` |
+| FP32 | `23` | `11776` | `37.830` | `37.355` | `38.565` | `0.141669` |
+| FP32 | `64` | `32768` | `67.648` | `66.000` | `75.269` | `0.091042` |
+| FP32 | `128` | `65536` | `129.267` | `128.047` | `130.629` | `0.086986` |
+| FP32 | `294` | `150528` | `288.504` | `283.797` | `292.409` | `0.084523` |
+
+Validation:
+
+- Parallel epilogue vs serial epilogue produced bit-identical decoder output
+  for FP16 frames `23` and `294` (`max_abs=0`, `rms=0`).
+- Default `4096` threshold vs old `8192` threshold produced bit-identical FP16
+  decoder output for frames `23`, `64`, `128`, and `294`.
+- The standalone `kokoro-conv-1d-bench` passed with the same accepted numerical
+  range as before; the worst printed difference was `max_abs=0.00045099854`,
+  `rms=0.00013016167`.
+
+Interpretation:
+
+- The `4096` threshold improves short/medium synthetic decoder shapes because
+  it fuses the `5888` and `11776` output-length stages while still avoiding
+  very small `2352` output stages. The old `8192` threshold skipped too much
+  short-shape work; very high thresholds such as `32768` split more long-shape
+  graph nodes and regressed direct timing.
+- FP16 and FP32 remain close on this direct decoder harness. FP32 is slightly
+  faster in the latest run, so this result should be treated as a Metal conv1d
+  scheduling target rather than proof of an end-to-end FP16 win.
 
 ### Audio Preview
 
