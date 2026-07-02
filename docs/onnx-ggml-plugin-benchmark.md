@@ -329,7 +329,8 @@ in
 
 - Measurement date: 2026-07-02, Asia/Shanghai
 - Profile: `warmup_runs=1`, `runs=3` for the app-default RTF/audio-preview
-  run; `warmup_runs=1`, `runs=1` for the deterministic consistency run
+  run regenerated at 2026-07-02 20:28 Asia/Shanghai;
+  `warmup_runs=1`, `runs=1` for the deterministic consistency run
 - Warmup uses separate non-measured texts; measured short/medium/long samples
   are never used for warmup.
 - AudioQuery for app-default RTF/audio preview: `tempoDynamicsScale=1.0`, with
@@ -340,12 +341,20 @@ in
   qualitative preview audio.
 - OS: macOS `27.0` beta build `26A5368g`, arm64
 - GPU: Apple M1 Pro, 14 GPU cores, Metal 4
-- ONNX Runtime: `onnxruntime 1.26.0`; built-in providers include
+- ONNX Runtime: app-default/audio-preview used `onnxruntime 1.27.0` via
+  direct `.venv/bin/python`; built-in providers include
   `CoreMLExecutionProvider` and `CPUExecutionProvider`
-- Engine: `06affa3d` on `feat/onnx-ggml-minimal-upstream`
-- TTS.cpp: latest `main` at `7562414`, with local ggml changes for FP16
-  `GGML_OP_KOKORO_CONV_1D` weights, `GGML_METAL=ON`, and shared
-  `libtts.dylib` rebuilt before the benchmark
+- The project default lock still resolves macOS arm64 to `onnxruntime 1.23.0`.
+  That default package failed before inference because it does not ship
+  `libonnxruntime_providers_shared.dylib`; the official macOS `1.23.0`
+  arm64/universal2 C packages do not ship it either, and symlinking
+  `libonnxruntime.1.23.0.dylib` fails due to the missing `Provider_SetHost`
+  symbol. The regenerated preview therefore records a local ORT `1.27.0`
+  runner workaround, not default-ORT evidence.
+- Engine: `ef74ec2e` on `feat/onnx-ggml-minimal-upstream`
+- TTS.cpp: `7daeaea`; ggml submodule `023ace57`, with local ggml changes for
+  FP16 `GGML_OP_KOKORO_CONV_1D` weights, the Metal parallel epilogue, and
+  shared `libtts.dylib` rebuilt before the benchmark
 - Model: AIVMX/ONNX `まお` model, version `1.2.0`
 - Style: `888753760` (`ノーマル`)
 - GGML provider options: `backend=metal`, `precision=fast`,
@@ -370,10 +379,10 @@ entry point. The smoke run compiled and used `kernel_kokoro_conv_1d_f16`.
 
 | text length | ONNX CPU RTF | ONNX GGML Metal RTF |
 | --- | ---: | ---: |
-| short | `0.294` | `0.250` |
-| medium | `0.260` | `0.198` |
-| long | `0.252` | `0.173` |
-| overall mean | `0.269` | `0.207` |
+| short | `0.295` | `0.229` |
+| medium | `0.268` | `0.195` |
+| long | `0.253` | `0.167` |
+| overall mean | `0.272` | `0.197` |
 
 Provider evidence from the app-default run:
 
@@ -405,16 +414,16 @@ Interpretation:
 
 - Metal is active through the Plugin EP and is not silently using ONNX CPU for
   the claimed JP-BERT and synthesis graphs.
-- With FP16 synthesis GGUF and JP-BERT F16 `linear`, Metal is roughly `1.2x` to
+- With FP16 synthesis GGUF and JP-BERT F16 `linear`, Metal is roughly `1.3x` to
   `1.5x` faster than ONNX CPU on this M1 Pro app-default run.
 - Deterministic consistency preserves output duration exactly for all three
   measured texts. The remaining PCM deltas are expected backend arithmetic
   differences, not duration drift.
-- The previous F32 synthesis-weight JSON records a faster Metal run
-  (`0.185 / 0.147 / 0.128` RTF for short/medium/long), but that result is not
-  reproducible with the current rebuilt `libtts.dylib`: a same-command F32
-  rerun measured `0.250 / 0.200 / 0.173`. Current F32 and FP16 voice paths are
-  therefore performance-equivalent on this M1 Pro.
+- The regenerated FP16 app-default run after the Metal conv1d tuning measured
+  `0.229 / 0.195 / 0.167` RTF for short/medium/long. This improves the earlier
+  local FP16-specific run (`0.250 / 0.198 / 0.173`), but it is still slower
+  than the previous F32 synthesis-weight comparison (`0.185 / 0.147 / 0.128`),
+  so FP16 is not a uniform end-to-end win across every shape.
 - A follow-up profile found the current Metal bottleneck in
   `GGML_OP_KOKORO_CONV_1D`: decoder node profiling reported roughly
   `670ms / 73` `KOKORO_CONV_1D` nodes out of a `916ms` decoder pass for the
@@ -432,6 +441,10 @@ Interpretation:
   length from `8192` to `4096`. This is documented in the direct decoder
   section below because it bypasses ONNX Runtime and is not directly comparable
   to the Engine Plugin EP RTF table above.
+- The regenerated app-default run compiled and used
+  `kernel_kokoro_conv_1d_f16_parallel_epilogue`, so the audio preview files
+  below exercise the latest local Metal conv1d path rather than the older
+  serial epilogue.
 
 ### TTS.cpp Direct Decoder Kernel Benchmark
 
@@ -504,7 +517,8 @@ Interpretation:
 ### Audio Preview
 
 These AAC files are representative app-default outputs for qualitative review.
-They are not included in the RTF timing window.
+They were regenerated from the 2026-07-02 20:28 run after the Metal conv1d
+parallel-epilogue change and are not included in the RTF timing window.
 
 | text length | ONNX CPU | ONNX GGML Metal |
 | --- | --- | --- |

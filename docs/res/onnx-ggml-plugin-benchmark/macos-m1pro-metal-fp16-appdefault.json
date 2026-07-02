@@ -18,7 +18,7 @@
     "noise_scale": null,
     "noise_scale_w": null,
     "truth_comparison_enabled": false,
-    "ggml_backend": null,
+    "ggml_backend": "metal",
     "ggml_vulkan_precision": "fast",
     "ggml_vulkan_math_mode": "coopmat",
     "ggml_default_synthesis_converter_version": "tts-cpp-style-bert-vits2-converter-f16-no-embed-norm-no-ups-v1",
@@ -45,54 +45,54 @@
     {
       "backend": "onnx-cpu",
       "text_label": "long",
-      "rtf_mean": 0.25173013752324636,
-      "rtf_min": 0.2511113430983553,
-      "rtf_max": 0.252235574775858,
-      "output_duration_seconds_mean": 7.572244897959184,
-      "output_samples_last": 333939
+      "rtf_mean": 0.2526837740727746,
+      "rtf_min": 0.25057173626583096,
+      "rtf_max": 0.2551538112787065,
+      "output_duration_seconds_mean": 7.584958427815571,
+      "output_samples_last": 332401
     },
     {
       "backend": "onnx-cpu",
       "text_label": "medium",
-      "rtf_mean": 0.2604610024359632,
-      "rtf_min": 0.25992595300961147,
-      "rtf_max": 0.260964161306768,
-      "output_duration_seconds_mean": 1.9221315192743764,
-      "output_samples_last": 84083
+      "rtf_mean": 0.26844675492184983,
+      "rtf_min": 0.26239580801508455,
+      "rtf_max": 0.27641057491913196,
+      "output_duration_seconds_mean": 1.9182766439909298,
+      "output_samples_last": 83572
     },
     {
       "backend": "onnx-cpu",
       "text_label": "short",
-      "rtf_mean": 0.2938802575452302,
-      "rtf_min": 0.2702475594588117,
-      "rtf_max": 0.33725575948889003,
-      "output_duration_seconds_mean": 1.1597354497354497,
-      "output_samples_last": 52339
+      "rtf_mean": 0.29523026023260046,
+      "rtf_min": 0.271301098076235,
+      "rtf_max": 0.3375050096594092,
+      "output_duration_seconds_mean": 1.1650793650793652,
+      "output_samples_last": 52851
     },
     {
       "backend": "onnx-ggml-metal",
       "text_label": "long",
-      "rtf_mean": 0.1729045315913864,
-      "rtf_min": 0.17123324164072445,
-      "rtf_max": 0.1740802400026239,
+      "rtf_mean": 0.1672438559983899,
+      "rtf_min": 0.16644915387141374,
+      "rtf_max": 0.1678706927332241,
       "output_duration_seconds_mean": 7.5180498866213155,
       "output_samples_last": 333426
     },
     {
       "backend": "onnx-ggml-metal",
       "text_label": "medium",
-      "rtf_mean": 0.1983311067816841,
-      "rtf_min": 0.1947932751361522,
-      "rtf_max": 0.20310605930177245,
+      "rtf_mean": 0.19523670795506046,
+      "rtf_min": 0.18965538979675395,
+      "rtf_max": 0.20150737469647217,
       "output_duration_seconds_mean": 1.8989040060468634,
       "output_samples_last": 82547
     },
     {
       "backend": "onnx-ggml-metal",
       "text_label": "short",
-      "rtf_mean": 0.2495569514924805,
-      "rtf_min": 0.24584473435840612,
-      "rtf_max": 0.2516799571628743,
+      "rtf_mean": 0.2285062648575911,
+      "rtf_min": 0.22473888573933287,
+      "rtf_max": 0.23237172170416,
       "output_duration_seconds_mean": 1.1790627362055932,
       "output_samples_last": 52338
     }
@@ -104,10 +104,10 @@
       "text_label": "short",
       "text": "テストです。",
       "run_index": 0,
-      "elapsed_seconds": 0.38068604198633693,
-      "output_duration_seconds": 1.1287755102040817,
-      "output_samples": 49779,
-      "rtf": 0.33725575948889003,
+      "elapsed_seconds": 0.39272266600164585,
+      "output_duration_seconds": 1.1636054421768707,
+      "output_samples": 51315,
+      "rtf": 0.3375050096594092,
       "peak_abs": 0.999969482421875
     },
     {
@@ -115,10 +115,10 @@
       "text_label": "short",
       "text": "テストです。",
       "run_index": 1,
-      "elapsed_seconds": 0.31898783301585354,
-      "output_duration_seconds": 1.1636054421768707,
-      "output_samples": 51315,
-      "rtf": 0.27413745368798875,
+      "elapsed_seconds": 0.31376495797303505,
+      "output_duration_seconds": 1.1331972789115645,
+      "output_samples": 49974,
+      "rtf": 0.27688467296215724,
       "peak_abs": 0.999969482421875
     },
     {
@@ -126,10 +126,10 @@
       "text_label": "short",
       "text": "テストです。",
       "run_index": 2,
-      "elapsed_seconds": 0.32073666699579917,
-      "output_duration_seconds": 1.1868253968253968,
-      "output_samples": 52339,
-      "rtf": 0.2702475594588117,
+      "elapsed_seconds": 0.32513683298020624,
+      "output_duration_seconds": 1.1984353741496598,
+      "output_samples": 52851,
+      "rtf": 0.271301098076235,
       "peak_abs": 0.999969482421875
     },
     {
@@ -137,10 +137,10 @@
       "text_label": "medium",
       "text": "今日はいい天気ですね。",
       "run_index": 0,
-      "elapsed_seconds": 0.5117887920059729,
-      "output_duration_seconds": 1.9646938775510203,
-      "output_samples": 86643,
-      "rtf": 0.26049289299151007,
+      "elapsed_seconds": 0.5033477499964647,
+      "output_duration_seconds": 1.9182766439909298,
+      "output_samples": 84596,
+      "rtf": 0.26239580801508455,
       "peak_abs": 0.999969482421875
     },
     {
@@ -148,21 +148,21 @@
       "text_label": "medium",
       "text": "今日はいい天気ですね。",
       "run_index": 1,
-      "elapsed_seconds": 0.49257441598456353,
+      "elapsed_seconds": 0.5174746249977034,
+      "output_duration_seconds": 1.9414965986394557,
+      "output_samples": 85620,
+      "rtf": 0.26653388183133286,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "medium",
+      "text": "今日はいい天気ですね。",
+      "run_index": 2,
+      "elapsed_seconds": 0.5238137090054806,
       "output_duration_seconds": 1.8950566893424037,
       "output_samples": 83572,
-      "rtf": 0.25992595300961147,
-      "peak_abs": 0.999969482421875
-    },
-    {
-      "backend": "onnx-cpu",
-      "text_label": "medium",
-      "text": "今日はいい天気ですね。",
-      "run_index": 2,
-      "elapsed_seconds": 0.4975657500035595,
-      "output_duration_seconds": 1.9066439909297053,
-      "output_samples": 84083,
-      "rtf": 0.260964161306768,
+      "rtf": 0.27641057491913196,
       "peak_abs": 0.999969482421875
     },
     {
@@ -170,10 +170,10 @@
       "text_label": "long",
       "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
       "run_index": 0,
-      "elapsed_seconds": 1.8956628750020172,
-      "output_duration_seconds": 7.549092970521542,
-      "output_samples": 332915,
-      "rtf": 0.2511113430983553,
+      "elapsed_seconds": 1.9350668330152985,
+      "output_duration_seconds": 7.583922902494331,
+      "output_samples": 334451,
+      "rtf": 0.2551538112787065,
       "peak_abs": 0.999969482421875
     },
     {
@@ -181,10 +181,10 @@
       "text_label": "long",
       "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
       "run_index": 1,
-      "elapsed_seconds": 1.9158121250220574,
-      "output_duration_seconds": 7.595328798185941,
-      "output_samples": 334954,
-      "rtf": 0.252235574775858,
+      "elapsed_seconds": 1.9127430420194287,
+      "output_duration_seconds": 7.633514739229025,
+      "output_samples": 336638,
+      "rtf": 0.25057173626583096,
       "peak_abs": 0.999969482421875
     },
     {
@@ -192,10 +192,10 @@
       "text_label": "long",
       "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
       "run_index": 2,
-      "elapsed_seconds": 1.907037750002928,
-      "output_duration_seconds": 7.572312925170068,
-      "output_samples": 333939,
-      "rtf": 0.25184349469552564,
+      "elapsed_seconds": 1.9018897920032032,
+      "output_duration_seconds": 7.537437641723356,
+      "output_samples": 332401,
+      "rtf": 0.25232577467378636,
       "peak_abs": 0.999969482421875
     },
     {
@@ -203,10 +203,10 @@
       "text_label": "short",
       "text": "テストです。",
       "run_index": 0,
-      "elapsed_seconds": 0.2922350419976283,
+      "elapsed_seconds": 0.27038899998296984,
       "output_duration_seconds": 1.1636054421768707,
       "output_samples": 51315,
-      "rtf": 0.2511461629561611,
+      "rtf": 0.23237172170416,
       "peak_abs": 0.999969482421875
     },
     {
@@ -214,10 +214,10 @@
       "text_label": "short",
       "text": "テストです。",
       "run_index": 1,
-      "elapsed_seconds": 0.29176362499129027,
+      "elapsed_seconds": 0.26671562500996515,
       "output_duration_seconds": 1.1867800453514739,
       "output_samples": 52337,
-      "rtf": 0.24584473435840612,
+      "rtf": 0.22473888573933287,
       "peak_abs": 0.999969482421875
     },
     {
@@ -225,10 +225,10 @@
       "text_label": "short",
       "text": "テストです。",
       "run_index": 2,
-      "elapsed_seconds": 0.29869445800432004,
+      "elapsed_seconds": 0.27107545800390653,
       "output_duration_seconds": 1.1868027210884353,
       "output_samples": 52338,
-      "rtf": 0.2516799571628743,
+      "rtf": 0.22840818712928043,
       "peak_abs": 0.999969482421875
     },
     {
@@ -236,10 +236,10 @@
       "text_label": "medium",
       "text": "今日はいい天気ですね。",
       "run_index": 0,
-      "elapsed_seconds": 0.3825348340033088,
+      "elapsed_seconds": 0.3795238329912536,
       "output_duration_seconds": 1.8834240362811792,
       "output_samples": 83059,
-      "rtf": 0.20310605930177245,
+      "rtf": 0.20150737469647217,
       "peak_abs": 0.999969482421875
     },
     {
@@ -247,10 +247,10 @@
       "text_label": "medium",
       "text": "今日はいい天気ですね。",
       "run_index": 1,
-      "elapsed_seconds": 0.38265283399960026,
+      "elapsed_seconds": 0.3777086249901913,
       "output_duration_seconds": 1.9414739229024944,
       "output_samples": 85619,
-      "rtf": 0.19709398590712776,
+      "rtf": 0.19454735937195525,
       "peak_abs": 0.999969482421875
     },
     {
@@ -258,10 +258,10 @@
       "text_label": "medium",
       "text": "今日はいい天気ですね。",
       "run_index": 2,
-      "elapsed_seconds": 0.36461679099011235,
+      "elapsed_seconds": 0.3549996249785181,
       "output_duration_seconds": 1.871814058956916,
       "output_samples": 82547,
-      "rtf": 0.1947932751361522,
+      "rtf": 0.18965538979675395,
       "peak_abs": 0.999969482421875
     },
     {
@@ -269,10 +269,10 @@
       "text_label": "long",
       "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
       "run_index": 0,
-      "elapsed_seconds": 1.3069610839884263,
+      "elapsed_seconds": 1.2618250410014298,
       "output_duration_seconds": 7.537256235827664,
       "output_samples": 332393,
-      "rtf": 0.1734001131308108,
+      "rtf": 0.16741172139053184,
       "peak_abs": 0.999969482421875
     },
     {
@@ -280,10 +280,10 @@
       "text_label": "long",
       "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
       "run_index": 1,
-      "elapsed_seconds": 1.2979793749982491,
+      "elapsed_seconds": 1.2516796669806354,
       "output_duration_seconds": 7.456213151927438,
       "output_samples": 328819,
-      "rtf": 0.1740802400026239,
+      "rtf": 0.1678706927332241,
       "peak_abs": 0.999969482421875
     },
     {
@@ -291,10 +291,10 @@
       "text_label": "long",
       "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
       "run_index": 2,
-      "elapsed_seconds": 1.2946397920022719,
+      "elapsed_seconds": 1.2584688339848071,
       "output_duration_seconds": 7.5606802721088435,
       "output_samples": 333426,
-      "rtf": 0.17123324164072445,
+      "rtf": 0.16644915387141374,
       "peak_abs": 0.999969482421875
     }
   ]
