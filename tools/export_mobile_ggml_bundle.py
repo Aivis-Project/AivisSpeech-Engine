@@ -10,13 +10,17 @@ import tempfile
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 from uuid import UUID
 
 import aivmlib
 import numpy as np
 from style_bert_vits2.constants import Languages
-from style_bert_vits2.models.infer_onnx import get_text_onnx
+from style_bert_vits2.models.infer_onnx import (
+    clean_text_with_given_phone_tone,
+    cleaned_text_to_sequence,
+    extract_bert_feature_onnx,
+)
 from style_bert_vits2.nlp import onnx_bert_models
 from style_bert_vits2.tts_model import TTSModel
 
@@ -37,7 +41,8 @@ from voicevox_engine.tts_pipeline.style_bert_vits2_tts_engine import (  # noqa: 
 )
 
 _MAGIC = b"AIVISMB1"
-_VERSION = 1
+_VERSION = 2
+_T = TypeVar("_T")
 
 
 @dataclass(frozen=True)
@@ -56,6 +61,8 @@ class _CapturedCase:
     tone_ids: np.ndarray
     language_ids: np.ndarray
     bert: np.ndarray
+    bert_input_ids: np.ndarray
+    bert_word2ph: np.ndarray
     style_vec: np.ndarray
 
 
@@ -118,6 +125,12 @@ def _selected_bert(
     raise ValueError(f"Unsupported language: {language}")
 
 
+def _intersperse(items: list[_T], item: _T) -> list[_T]:
+    result = [item] * (len(items) * 2 + 1)
+    result[1::2] = items
+    return result
+
+
 def _capture_case(
     *,
     model: TTSModel,
@@ -137,16 +150,57 @@ def _capture_case(
         model.get_style_vector(style_id, style_weight).astype(np.float32)
     )
 
-    zh_bert, ja_bert, en_bert, phones, tones, language_ids = get_text_onnx(
+    is_jp_extra_like_model = model.hyper_parameters.is_jp_extra_like_model()
+    is_nanairo_like_model = model.hyper_parameters.is_nanairo_like_model()
+    norm_text, phone, tone, word2ph, sep_text, _, _ = clean_text_with_given_phone_tone(
         kwargs["text"],
         language,
-        model.hyper_parameters,
-        onnx_providers=model.onnx_providers,
-        assist_text=kwargs.get("assist_text"),
-        assist_text_weight=float(kwargs.get("assist_text_weight", 0.7)),
         given_phone=kwargs.get("given_phone"),
         given_tone=kwargs.get("given_tone"),
+        use_jp_extra=is_jp_extra_like_model,
+        use_nanairo=is_nanairo_like_model,
+        raise_yomi_error=False,
     )
+    phone, tone, language_ids = cleaned_text_to_sequence(
+        phone,
+        tone,
+        language,
+        use_nanairo=is_nanairo_like_model,
+    )
+
+    if model.hyper_parameters.data.add_blank:
+        phone = _intersperse(phone, 0)
+        tone = _intersperse(tone, 0)
+        language_ids = _intersperse(language_ids, 0)
+        for i in range(len(word2ph)):
+            word2ph[i] = word2ph[i] * 2
+        word2ph[0] += 1
+
+    bert_ori = extract_bert_feature_onnx(
+        norm_text,
+        word2ph,
+        language,
+        model.onnx_providers,
+        assist_text=kwargs.get("assist_text"),
+        assist_text_weight=float(kwargs.get("assist_text_weight", 0.7)),
+        sep_text=sep_text,
+        use_nanairo=is_nanairo_like_model,
+    )
+    if language == Languages.ZH:
+        zh_bert = bert_ori
+        ja_bert = np.zeros((1024, len(phone)), dtype=np.float32)
+        en_bert = np.zeros((1024, len(phone)), dtype=np.float32)
+    elif language == Languages.JP:
+        zh_bert = np.zeros((1024, len(phone)), dtype=np.float32)
+        ja_bert = bert_ori
+        en_bert = np.zeros((1024, len(phone)), dtype=np.float32)
+    elif language == Languages.EN:
+        zh_bert = np.zeros((1024, len(phone)), dtype=np.float32)
+        ja_bert = np.zeros((1024, len(phone)), dtype=np.float32)
+        en_bert = bert_ori
+    else:
+        raise ValueError(f"Unsupported language: {language}")
+
     bert = _selected_bert(
         language=language,
         zh_bert=zh_bert,
@@ -154,12 +208,33 @@ def _capture_case(
         en_bert=en_bert,
     )
     bert = np.ascontiguousarray(bert.astype(np.float32))
-    phone_ids = np.ascontiguousarray(phones.astype(np.int32))
-    tone_ids = np.ascontiguousarray(tones.astype(np.int32))
-    language_ids_i32 = np.ascontiguousarray(language_ids.astype(np.int32))
+    phone_ids = np.ascontiguousarray(np.array(phone, dtype=np.int32))
+    tone_ids = np.ascontiguousarray(np.array(tone, dtype=np.int32))
+    language_ids_i32 = np.ascontiguousarray(np.array(language_ids, dtype=np.int32))
     tokens = int(phone_ids.shape[0])
     if bert.shape != (1024, tokens):
         raise ValueError(f"{label}: expected BERT shape (1024, {tokens}), got {bert.shape}")
+
+    bert_input_ids = np.empty((0,), dtype=np.int32)
+    bert_word2ph = np.empty((0,), dtype=np.int32)
+    if language == Languages.JP:
+        tokenizer = onnx_bert_models.load_tokenizer(Languages.JP)
+        bert_text = "".join(sep_text)
+        tokenized = tokenizer(bert_text, return_tensors="np")
+        bert_input_ids = np.ascontiguousarray(
+            tokenized["input_ids"][0].astype(np.int32)  # type: ignore[index]
+        )
+        bert_word2ph = np.ascontiguousarray(np.array(word2ph, dtype=np.int32))
+        if bert_input_ids.shape[0] != bert_word2ph.shape[0]:
+            raise ValueError(
+                f"{label}: JP-BERT input_ids length {bert_input_ids.shape[0]} "
+                f"does not match word2ph length {bert_word2ph.shape[0]}"
+            )
+        if int(bert_word2ph.sum()) != tokens:
+            raise ValueError(
+                f"{label}: JP-BERT word2ph sum {int(bert_word2ph.sum())} "
+                f"does not match synthesis token count {tokens}"
+            )
 
     return _CapturedCase(
         role=role,
@@ -184,6 +259,8 @@ def _capture_case(
         tone_ids=tone_ids,
         language_ids=language_ids_i32,
         bert=bert,
+        bert_input_ids=bert_input_ids,
+        bert_word2ph=bert_word2ph,
         style_vec=style_vec,
     )
 
@@ -197,7 +274,7 @@ def _write_case(file: Any, case: _CapturedCase) -> None:
     text_bytes = case.text.encode("utf-8")
     file.write(
         struct.pack(
-            "<IIIIiIffff",
+            "<IIIIiIffffII",
             case.role,
             len(label_bytes),
             len(text_bytes),
@@ -208,6 +285,8 @@ def _write_case(file: Any, case: _CapturedCase) -> None:
             case.length_scale,
             case.noise_scale,
             case.noise_w_scale,
+            case.bert_input_ids.size,
+            case.bert_word2ph.size,
         )
     )
     _write_string(file, case.label)
@@ -216,6 +295,8 @@ def _write_case(file: Any, case: _CapturedCase) -> None:
     file.write(case.tone_ids.tobytes(order="C"))
     file.write(case.language_ids.tobytes(order="C"))
     file.write(case.bert.tobytes(order="C"))
+    file.write(case.bert_input_ids.tobytes(order="C"))
+    file.write(case.bert_word2ph.tobytes(order="C"))
     file.write(case.style_vec.tobytes(order="C"))
 
 
@@ -305,7 +386,8 @@ def main() -> None:
     for case in captured:
         print(
             f"{case.label}: role={case.role} tokens={case.tokens} "
-            f"bert={case.bert.shape} sdp={case.sdp_ratio} "
+            f"bert={case.bert.shape} bert_tokens={case.bert_input_ids.size} "
+            f"sdp={case.sdp_ratio} "
             f"length={case.length_scale} noise={case.noise_scale}/{case.noise_w_scale}"
         )
     print(f"wrote {args.output}")

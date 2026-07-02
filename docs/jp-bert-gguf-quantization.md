@@ -162,8 +162,26 @@ improve RTF over the default FP16 `linear` JP-BERT plus FP16 voice cache:
 | FP32 | FP16 voices | `0.109` | `0.091` | `0.056` |
 | FP32 | FP32 voices | `0.109` | `0.094` | `0.056` |
 
-Raw results and audio previews are in
-[ONNX GGML Plugin EP Benchmark](onnx-ggml-plugin-benchmark.md).
+The 2026-07-02 Android physical-device check also ran JP-BERT F16 `linear` and
+the FP16 synthesis voice GGUF on device. The Android bundle still supplies
+host-generated `input_ids`, `word2ph`, phone IDs, tone IDs, language IDs, and
+style vector; JP-BERT feature extraction and synthesis are the parts measured
+on device. On PLP110 / Adreno 840 with runtime Vulkan F16 disabled
+(`STYLE_BERT_VITS2_VULKAN_PRECISION=fast`,
+`STYLE_BERT_VITS2_JP_BERT_VULKAN_PRECISION=fast`,
+`GGML_VK_DISABLE_F16=1`), Vulkan matched CPU sample counts for all measured
+texts:
+
+| text length | CPU RTF | Vulkan RTF | Vulkan JP-BERT / synthesis seconds | PCM RMSE / corr vs CPU |
+| --- | ---: | ---: | ---: | ---: |
+| short | `2.737` | `2.554` | `1.422 / 1.128` | `0.00135 / 0.99970` |
+| medium | `1.686` | `1.398` | `0.850 / 1.551` | `0.00208 / 0.99953` |
+| long | `1.867` | `1.000` | `1.298 / 6.190` | `0.00343 / 0.99867` |
+
+Linux/Windows raw results and audio previews are in
+[ONNX GGML Plugin EP Benchmark](onnx-ggml-plugin-benchmark.md). Android
+physical-device reproduction details are in
+[Android GGML Mobile Benchmark](../experimental/android-ggml-mobile/README.md).
 
 ## Reproduction
 

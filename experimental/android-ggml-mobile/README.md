@@ -1,17 +1,97 @@
 # Android GGML Mobile Benchmark
 
-This experiment keeps the Aivis frontend outside the device and runs only the
-Style-Bert-VITS2 synthesis GGUF on Android through TTS.cpp. It matches the
-current ONNX GGML EP boundary: phone IDs, tone IDs, language IDs, JP-BERT
-features, style vector, and synthesis scalar parameters are precomputed on the
-host and packed into a small binary bundle.
+This experiment runs Style-Bert-VITS2 GGUF workloads on Android through
+TTS.cpp. The current benchmark supports two bundle modes:
 
-The goal is to measure the mobile GGUF synthesis path without including Python,
-OpenJTalk, tokenizer, or JP-BERT ONNX latency.
+- synthesis-only: phone IDs, tone IDs, language IDs, JP-BERT features, style
+  vector, and synthesis scalar parameters are precomputed on the host.
+- device-side JP-BERT + synthesis: phone IDs, tone IDs, language IDs, JP-BERT
+  `input_ids`, `word2ph`, style vector, and scalar parameters are packed into a
+  bundle, then Android runs JP-BERT GGUF feature extraction and synthesis GGUF.
+
+Raw text normalization, OpenJTalk/G2P, and tokenizer execution are still outside
+the Android process. Do not describe the second mode as full raw text-to-wave on
+device until those frontend pieces are ported too.
 
 ## Current Status
 
 Branch: `feat/mobile-support`
+
+### Physical Android Device Result (2026-07-02)
+
+Measured on a local Android physical device:
+
+| Item | Value |
+| --- | --- |
+| Device | PLP110 |
+| Android | 16 / API 36 |
+| ABI | arm64-v8a |
+| Vulkan device | Adreno (TM) 840, Qualcomm Technologies Inc. Adreno Vulkan Driver |
+| ggml-vulkan feature signal | UMA `1`, fp16 `1`, bf16 `0`, warp size `64`, shared memory `32768`, int dot `0`, matrix cores `none` |
+| TTS.cpp | `46099d9`; ggml submodule `a78c352b` |
+| Android build toolchain | NDK `28.2.13676358` + Khronos Vulkan-Headers `v1.3.275` |
+| Voice | `a59cb814-0083-4369-8542-f51a29e72af7` / style `888753760` |
+| Device-side production voice GGUF | `a59cb814-0083-4369-8542-f51a29e72af7-1_2_0-98004407f97f5608.gguf`, 129,814,912 bytes, F16 `no-embed-norm-no-ups` |
+| Device-side JP-BERT GGUF | `jp-bert-968bba0e105e1d10.gguf`, 710,407,072 bytes, F16 `linear` |
+| Earlier synthesis-only voice GGUF | `mao-full-sdp.gguf`, 239 MB |
+
+The physical-device result uses the deterministic consistency bundle, not the
+audio-preview bundle:
+
+- `tempoDynamicsScale=1.0`
+- `noise_scale=0.0`
+- `noise_scale_w=0.0`
+- `warmup_runs=1`
+- `runs=1`
+- warmup texts differ from measured texts
+
+The important Android finding is that mobile `precision=fast` by itself is not
+the same as the Linux Plugin EP default. Bare `fast` leaves ggml-vulkan runtime
+F16 enabled on this Adreno device (`fp16: 1`), while the Linux default
+`vulkan_math_mode=coopmat` keeps runtime F16 disabled and enables cooperative
+matrix kernels only when the GPU supports them. This Adreno device reports
+`matrix cores: none`, so the closest Android match for the Linux duration-safe
+path is:
+
+```bash
+STYLE_BERT_VITS2_VULKAN_PRECISION=fast
+STYLE_BERT_VITS2_JP_BERT_VULKAN_PRECISION=fast
+GGML_VK_DISABLE_F16=1
+```
+
+Do not set `GGML_VK_DISABLE_COOPMAT` for this comparison. On this device it has
+no effect because matrix cores are not present, but leaving it unset preserves
+the same intent as Linux `vulkan_math_mode=coopmat`.
+
+Device-side JP-BERT + synthesis results against the CPU baseline use the
+production FP16 deployment assets. The RTF window includes both Android
+JP-BERT GGUF feature extraction and Android synthesis GGUF execution:
+
+| Text | CPU RTF | Vulkan RTF | Vulkan JP-BERT / synthesis seconds | sample delta | PCM RMSE / corr | BERT RMSE vs host ONNX |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| short | `2.737` | `2.554` | `1.422 / 1.128` | `0` | `0.00135 / 0.99970` | `0.00177` |
+| medium | `1.686` | `1.398` | `0.850 / 1.551` | `0` | `0.00208 / 0.99953` | `0.00120` |
+| long | `1.867` | `1.000` | `1.298 / 6.190` | `0` | `0.00343 / 0.99867` | `0.00084` |
+
+Bare device-side `fast` without `GGML_VK_DISABLE_F16=1` reported `fp16: 1` and
+did not produce the first measured sample after more than 90 seconds, so it is
+not a valid all-device consistency path.
+
+The earlier synthesis-only physical-device consistency results below used
+host-precomputed JP-BERT features and a 239 MB full-sdp voice GGUF. They are
+kept as exploratory driver evidence, not as the production FP16 deployment
+profile:
+
+| Backend / mode | Runtime Vulkan features | short delta / RTF / RMSE | medium delta / RTF / RMSE | long delta / RTF / RMSE | Verdict |
+| --- | --- | ---: | ---: | ---: | --- |
+| ggml Vulkan `fast` | fp16 `1`, matrix cores `none` | `-512` / `6.420` / `0.05118` | `+1024` / `7.847` / `1.00069` | `+512` / `8.404` / `0.07811` | invalid |
+| ggml Vulkan `accurate` | fp16 `0`, coopmat disabled | `0` / `3.814` / `0.00069` | `0` / `0.728` / `0.00125` | `0` / `0.614` / silent output | invalid |
+| ggml Vulkan `accurate`, safe env | fp16 `0`, async/graph-opt/multi-add disabled | `0` / `1.283` / `0.00069` | `0` / `0.844` / `0.00125` | `0` / `0.937` / `0.00132` | valid fallback |
+| ggml Vulkan `fast`, `GGML_VK_DISABLE_F16=1` | fp16 `0`, matrix cores `none` | `0` / `0.940` / `0.00075` | `0` / `0.516` / `0.00166` | `0` / `0.478` / `0.00146` | adopted for Android Adreno |
+
+In that synthesis-only run, the fast-no-F16 Android Adreno path had identical
+CPU/GPU output sample counts for all three measured texts and PCM correlation
+above `0.99969`.
 
 Measured on Android Emulator x86_64 with host GPU rendering:
 
@@ -127,6 +207,12 @@ From the repository root:
 ```bash
 export ANDROID_NDK_ROOT=/path/to/android-sdk/ndk/28.2.13676358
 export TTS_CPP_ROOT=/path/to/TTS.cpp
+export ANDROID_ABI=arm64-v8a
+# On macOS. Use linux-x86_64 on Linux hosts.
+export VULKAN_GLSLC_EXECUTABLE="$ANDROID_NDK_ROOT/shader-tools/darwin-x86_64/glslc"
+export SPIRV_HEADERS_DIR=/usr/share/cmake/SPIRV-Headers
+# On Homebrew macOS:
+# export SPIRV_HEADERS_DIR="$(brew --prefix spirv-headers)/share/cmake/SPIRV-Headers"
 
 mkdir -p build/_deps
 git clone --depth 1 --branch v1.3.275 \
@@ -134,26 +220,38 @@ git clone --depth 1 --branch v1.3.275 \
   build/_deps/Vulkan-Headers-1.3.275
 
 cmake -S experimental/android-ggml-mobile \
-  -B build/android-ggml-mobile-x86_64 \
+  -B "build/android-ggml-mobile-${ANDROID_ABI}" \
   -G Ninja \
   -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake" \
-  -DANDROID_ABI=x86_64 \
+  -DANDROID_ABI="$ANDROID_ABI" \
   -DANDROID_PLATFORM=android-30 \
   -DTTS_CPP_ROOT="$TTS_CPP_ROOT" \
-  -DVulkan_GLSLC_EXECUTABLE=/usr/bin/glslc \
-  -DSPIRV-Headers_DIR=/usr/share/cmake/SPIRV-Headers \
+  -DVulkan_GLSLC_EXECUTABLE="$VULKAN_GLSLC_EXECUTABLE" \
+  -DSPIRV-Headers_DIR="$SPIRV_HEADERS_DIR" \
   -DVULKAN_HPP_INCLUDE_DIR="$PWD/build/_deps/Vulkan-Headers-1.3.275/include" \
-  -DSPIRV_HEADERS_INCLUDE_DIR=/usr/include
+  -DSPIRV_HEADERS_INCLUDE_DIR="$ANDROID_NDK_ROOT/sources/third_party/shaderc/third_party/spirv-tools/external/spirv-headers/include"
 
-cmake --build build/android-ggml-mobile-x86_64 \
+cmake --build "build/android-ggml-mobile-${ANDROID_ABI}" \
   --target aivis_ggml_mobile_bench \
-  -j"$(nproc)"
+  -j"$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
 ```
+
+`VULKAN_HPP_INCLUDE_DIR` must match the NDK Vulkan C headers. NDK
+`28.2.13676358` exposes `VK_HEADER_VERSION 275`, so use Khronos
+Vulkan-Headers `v1.3.275`. Do not mix NDK 28 with a newer host header such as
+Homebrew Vulkan-Headers `1.4.350`, because `vulkan.hpp` will assert a header
+version mismatch.
+
+For an x86_64 emulator build, set `ANDROID_ABI=x86_64` and use a separate build
+directory.
 
 ## Prepare Inputs
 
 The bundle contains warmup texts that differ from the measured short, medium,
-and long texts.
+and long texts. Keep qualitative audio preview and deterministic consistency
+validation as separate bundles.
+
+Audio preview bundle, using the model's natural stochastic defaults:
 
 ```bash
 uv run python tools/export_mobile_ggml_bundle.py \
@@ -161,6 +259,106 @@ uv run python tools/export_mobile_ggml_bundle.py \
   --style_id 888753760 \
   --output build/android-ggml-mobile-bundle/mao-default.aivis_mobile_bundle
 ```
+
+Consistency bundle, using fixed noise overrides. The current bundle format is
+v2 and includes JP-BERT `input_ids` plus `word2ph` so Android can run JP-BERT
+GGUF locally:
+
+```bash
+uv run python tools/export_mobile_ggml_bundle.py \
+  --aivmx_path "$AIVIS_AIVMX_PATH" \
+  --style_id 888753760 \
+  --tempo_dynamics_scale 1.0 \
+  --noise_scale 0 \
+  --noise_scale_w 0 \
+  --output build/android-ggml-mobile-bundle/mao-consistency-v2.aivis_mobile_bundle
+```
+
+The consistency bundle is for sample-count and PCM parity only. Do not use it
+for qualitative audio preview, because forcing `noise_w=0.0` is known to change
+the perceived audio quality.
+
+## Run On Physical Device
+
+Push benchmark assets:
+
+```bash
+adb shell 'mkdir -p /data/local/tmp/aivis-ggml-mobile-real'
+adb push build/android-ggml-mobile-arm64-v8a/aivis_ggml_mobile_bench \
+  /data/local/tmp/aivis-ggml-mobile-real/aivis_ggml_mobile_bench
+adb push build/android-ggml-mobile-bundle/mao-consistency-v2.aivis_mobile_bundle \
+  /data/local/tmp/aivis-ggml-mobile-real/mao-consistency-v2.aivis_mobile_bundle
+adb push "$VOICE_GGUF_PATH" /data/local/tmp/aivis-ggml-mobile-real/mao-voice-fp16.gguf
+adb push "$JP_BERT_GGUF_PATH" /data/local/tmp/aivis-ggml-mobile-real/jp-bert-fp16-linear.gguf
+adb shell 'chmod 755 /data/local/tmp/aivis-ggml-mobile-real/aivis_ggml_mobile_bench'
+```
+
+CPU consistency baseline, including device-side JP-BERT:
+
+```bash
+adb shell 'cd /data/local/tmp/aivis-ggml-mobile-real && \
+  TTS_BACKEND=cpu \
+  ./aivis_ggml_mobile_bench \
+    --model mao-voice-fp16.gguf \
+    --jp-bert-model jp-bert-fp16-linear.gguf \
+    --bundle mao-consistency-v2.aivis_mobile_bundle \
+    --backend cpu \
+    --cpu-only \
+    --runs 1 \
+    --warmup-runs 1 \
+    --output-json android-ggml-mobile-full-device-fp16-cpu.json \
+    --audio-dir android-ggml-mobile-full-device-fp16-cpu'
+```
+
+Android Adreno adopted Vulkan path, aligned with the Linux duration-safe intent
+and including device-side JP-BERT:
+
+```bash
+adb shell 'cd /data/local/tmp/aivis-ggml-mobile-real && \
+  TTS_BACKEND=vulkan \
+  TTS_BACKEND_STRICT=1 \
+  STYLE_BERT_VITS2_VULKAN_PRECISION=fast \
+  STYLE_BERT_VITS2_JP_BERT_VULKAN_PRECISION=fast \
+  GGML_VK_DISABLE_F16=1 \
+  ./aivis_ggml_mobile_bench \
+    --model mao-voice-fp16.gguf \
+    --jp-bert-model jp-bert-fp16-linear.gguf \
+    --bundle mao-consistency-v2.aivis_mobile_bundle \
+    --backend vulkan \
+    --precision fast \
+    --runs 1 \
+    --warmup-runs 1 \
+    --output-json android-ggml-mobile-full-device-fp16-vulkan-fast-no-f16-jpfast.json \
+    --audio-dir android-ggml-mobile-full-device-fp16-vulkan-fast-no-f16-jpfast'
+```
+
+If fast-no-F16 regresses on another Android driver, use the conservative
+fallback:
+
+```bash
+adb shell 'cd /data/local/tmp/aivis-ggml-mobile-real && \
+  TTS_BACKEND=vulkan \
+  TTS_BACKEND_STRICT=1 \
+  STYLE_BERT_VITS2_VULKAN_PRECISION=accurate \
+  STYLE_BERT_VITS2_JP_BERT_VULKAN_PRECISION=accurate \
+  GGML_VK_DISABLE_ASYNC=1 \
+  GGML_VK_DISABLE_GRAPH_OPTIMIZE=1 \
+  GGML_VK_DISABLE_MULTI_ADD=1 \
+  ./aivis_ggml_mobile_bench \
+    --model mao-voice-fp16.gguf \
+    --jp-bert-model jp-bert-fp16-linear.gguf \
+    --bundle mao-consistency-v2.aivis_mobile_bundle \
+    --backend vulkan \
+    --precision accurate \
+    --runs 1 \
+    --warmup-runs 1 \
+    --output-json android-ggml-mobile-consistency-vulkan-accurate-safe.json \
+    --audio-dir android-ggml-mobile-consistency-vulkan-accurate-safe'
+```
+
+Compare sample counts and PCM deltas against CPU before using RTF. A Vulkan run
+with different output length, saturated peaks, or silent output is invalid even
+when the raw RTF looks good.
 
 ## Run On Emulator
 

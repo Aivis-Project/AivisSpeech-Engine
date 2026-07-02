@@ -155,6 +155,25 @@ Interpretation:
   The Vulkan probe reported `matrix cores: NV_coopmat2` for the RTX 3060 and
   `matrix cores: KHR_coopmat` for the AMD 780M. Runtime F16 remains disabled in
   this mode; only cooperative matrix kernels are enabled.
+- The standalone Android TTS.cpp benchmark has a different knob surface:
+  `STYLE_BERT_VITS2_VULKAN_PRECISION=fast` enables fast conv lowering but does
+  not disable ggml-vulkan runtime F16 by itself. JP-BERT has a separate
+  `STYLE_BERT_VITS2_JP_BERT_VULKAN_PRECISION` switch. To match this Linux
+  duration-safe intent on Android, run both components in `fast` mode with
+  `GGML_VK_DISABLE_F16=1` and leave coopmat enabled when the device supports
+  matrix cores. On the tested Adreno 840 physical device, `matrix cores: none`,
+  so coopmat is effectively unavailable and the matching path is fast lowering
+  with runtime F16 disabled.
+- The Android physical-device all-GGUF run on 2026-07-02 used the same
+  deployment asset classes: JP-BERT F16 `linear` plus the FP16 synthesis voice
+  GGUF. It still used host-generated `input_ids`/phone/tone/language/style
+  bundle data, but JP-BERT feature extraction and synthesis both ran on the
+  device. With `STYLE_BERT_VITS2_VULKAN_PRECISION=fast`,
+  `STYLE_BERT_VITS2_JP_BERT_VULKAN_PRECISION=fast`, and
+  `GGML_VK_DISABLE_F16=1`, Vulkan matched CPU sample counts for all three texts
+  and measured RTF `2.554 / 1.398 / 1.000` for short/medium/long. Bare Android
+  `fast` with runtime F16 enabled did not produce the first measured sample
+  after more than 90 seconds and is not a valid comparison path.
 - With the CUDA convolution search fix and CUDA 12 libraries available, ONNX
   CUDA is active and still the fastest path on the long sample. GGML Plugin EP
   Vulkan is faster than ONNX CPU for all three text lengths and faster than ONNX

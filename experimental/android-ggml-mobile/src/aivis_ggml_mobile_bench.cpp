@@ -23,7 +23,9 @@
 namespace {
 
 constexpr char kBundleMagic[] = "AIVISMB1";
-constexpr uint32_t kBundleVersion = 1;
+constexpr uint32_t kBundleVersionMin = 1;
+constexpr uint32_t kBundleVersionMax = 2;
+constexpr uint32_t kBertHiddenSize = 1024;
 
 struct CaseInput {
     uint32_t role = 0;
@@ -40,6 +42,8 @@ struct CaseInput {
     std::vector<int32_t> tone_ids;
     std::vector<int32_t> language_ids;
     std::vector<float> bert;
+    std::vector<int32_t> bert_input_ids;
+    std::vector<int32_t> bert_word2ph;
     std::vector<float> style_vec;
 };
 
@@ -48,6 +52,9 @@ struct Record {
     std::string text;
     int run_index = 0;
     double elapsed_seconds = 0.0;
+    double jp_bert_elapsed_seconds = 0.0;
+    double synthesis_elapsed_seconds = 0.0;
+    double bert_reference_rmse = 0.0;
     double output_duration_seconds = 0.0;
     size_t output_samples = 0;
     double rtf = 0.0;
@@ -56,6 +63,7 @@ struct Record {
 
 struct Args {
     std::string model_path;
+    std::string jp_bert_model_path;
     std::string bundle_path;
     std::string output_json;
     std::string audio_dir;
@@ -112,7 +120,7 @@ std::vector<CaseInput> read_bundle(const std::string & path) {
     }
 
     const uint32_t version = read_scalar<uint32_t>(input, "bundle version");
-    if (version != kBundleVersion) {
+    if (version < kBundleVersionMin || version > kBundleVersionMax) {
         throw std::runtime_error("Unsupported bundle version.");
     }
     const uint32_t case_count = read_scalar<uint32_t>(input, "case count");
@@ -131,26 +139,51 @@ std::vector<CaseInput> read_bundle(const std::string & path) {
         item.length_scale = read_scalar<float>(input, "length scale");
         item.noise_scale = read_scalar<float>(input, "noise scale");
         item.noise_w_scale = read_scalar<float>(input, "noise w scale");
+        uint32_t bert_input_ids_count = 0;
+        uint32_t bert_word2ph_count = 0;
+        if (version >= 2) {
+            bert_input_ids_count = read_scalar<uint32_t>(input, "bert input ids count");
+            bert_word2ph_count = read_scalar<uint32_t>(input, "bert word2ph count");
+        }
         item.label = read_string(input, label_len, "label");
         item.text = read_string(input, text_len, "text");
 
         if (item.tokens == 0) {
             throw std::runtime_error("Case has zero tokens: " + item.label);
         }
-        if (item.tokens > std::numeric_limits<uint32_t>::max() / 1024U) {
+        if (item.tokens > std::numeric_limits<uint32_t>::max() / kBertHiddenSize) {
             throw std::runtime_error("Case token count overflows BERT size: " + item.label);
         }
 
         item.phone_ids.resize(item.tokens);
         item.tone_ids.resize(item.tokens);
         item.language_ids.resize(item.tokens);
-        item.bert.resize(static_cast<size_t>(item.tokens) * 1024U);
+        item.bert.resize(static_cast<size_t>(item.tokens) * kBertHiddenSize);
+        item.bert_input_ids.resize(bert_input_ids_count);
+        item.bert_word2ph.resize(bert_word2ph_count);
         item.style_vec.resize(256);
         read_exact(input, item.phone_ids.data(), item.phone_ids.size() * sizeof(int32_t), "phone ids");
         read_exact(input, item.tone_ids.data(), item.tone_ids.size() * sizeof(int32_t), "tone ids");
         read_exact(input, item.language_ids.data(), item.language_ids.size() * sizeof(int32_t), "language ids");
         read_exact(input, item.bert.data(), item.bert.size() * sizeof(float), "bert");
+        read_exact(input, item.bert_input_ids.data(), item.bert_input_ids.size() * sizeof(int32_t), "bert input ids");
+        read_exact(input, item.bert_word2ph.data(), item.bert_word2ph.size() * sizeof(int32_t), "bert word2ph");
         read_exact(input, item.style_vec.data(), item.style_vec.size() * sizeof(float), "style vec");
+        if (!item.bert_input_ids.empty()) {
+            if (item.bert_input_ids.size() != item.bert_word2ph.size()) {
+                throw std::runtime_error("JP-BERT input_ids/word2ph length mismatch: " + item.label);
+            }
+            uint64_t repeated_tokens = 0;
+            for (int32_t count : item.bert_word2ph) {
+                if (count < 0) {
+                    throw std::runtime_error("JP-BERT word2ph contains a negative count: " + item.label);
+                }
+                repeated_tokens += static_cast<uint32_t>(count);
+            }
+            if (repeated_tokens != item.tokens) {
+                throw std::runtime_error("JP-BERT word2ph sum does not match synthesis tokens: " + item.label);
+            }
+        }
         cases.push_back(std::move(item));
     }
 
@@ -185,6 +218,18 @@ float peak_abs(const float * data, size_t length) {
         peak = std::max(peak, std::fabs(data[i]));
     }
     return peak;
+}
+
+double rmse(const std::vector<float> & actual, const std::vector<float> & expected) {
+    if (actual.size() != expected.size() || actual.empty()) {
+        return 0.0;
+    }
+    double sum = 0.0;
+    for (size_t i = 0; i < actual.size(); ++i) {
+        const double diff = static_cast<double>(actual[i]) - static_cast<double>(expected[i]);
+        sum += diff * diff;
+    }
+    return std::sqrt(sum / static_cast<double>(actual.size()));
 }
 
 bool ensure_dir(const std::string & path) {
@@ -235,7 +280,61 @@ void write_wav(const std::string & path, const float * samples, size_t sample_co
     }
 }
 
-Record run_case(tts_style_bert_vits2_handle * handle, const CaseInput & item, int run_index) {
+std::vector<float> build_device_jp_bert_features(tts_style_bert_vits2_jp_bert_handle * jp_bert_handle,
+                                                 const CaseInput & item,
+                                                 double & elapsed_seconds) {
+    if (!jp_bert_handle) {
+        elapsed_seconds = 0.0;
+        return item.bert;
+    }
+    if (item.bert_input_ids.empty() || item.bert_word2ph.empty()) {
+        throw std::runtime_error("Bundle does not contain JP-BERT input_ids/word2ph for " + item.label);
+    }
+
+    tts_style_bert_vits2_float_buffer encoded{};
+    const auto started_at = std::chrono::steady_clock::now();
+    const int ok = tts_style_bert_vits2_jp_bert_encode_features(
+        jp_bert_handle,
+        item.bert_input_ids.data(),
+        item.bert_input_ids.size(),
+        &encoded);
+    const auto finished_at = std::chrono::steady_clock::now();
+    elapsed_seconds = std::chrono::duration<double>(finished_at - started_at).count();
+    if (!ok) {
+        const char * error = tts_style_bert_vits2_last_error();
+        throw std::runtime_error(std::string("JP-BERT encode failed for ") + item.label + ": " + (error ? error : "<unknown>"));
+    }
+    if (!encoded.data || encoded.hidden_size != kBertHiddenSize ||
+        encoded.length != item.bert_input_ids.size() * kBertHiddenSize) {
+        throw std::runtime_error("JP-BERT returned an unexpected feature shape for " + item.label);
+    }
+
+    std::vector<float> bert(static_cast<size_t>(item.tokens) * kBertHiddenSize);
+    uint32_t phone_index = 0;
+    for (size_t bert_token = 0; bert_token < item.bert_word2ph.size(); ++bert_token) {
+        const int32_t repeat = item.bert_word2ph[bert_token];
+        for (int32_t copy = 0; copy < repeat; ++copy) {
+            for (uint32_t hidden = 0; hidden < kBertHiddenSize; ++hidden) {
+                bert[static_cast<size_t>(hidden) * item.tokens + phone_index] =
+                    encoded.data[bert_token * kBertHiddenSize + hidden];
+            }
+            ++phone_index;
+        }
+    }
+    if (phone_index != item.tokens) {
+        throw std::runtime_error("JP-BERT repeat count mismatch for " + item.label);
+    }
+    return bert;
+}
+
+Record run_case(tts_style_bert_vits2_handle * handle,
+                tts_style_bert_vits2_jp_bert_handle * jp_bert_handle,
+                const CaseInput & item,
+                int run_index,
+                const std::string & wav_path = {}) {
+    double jp_bert_elapsed_seconds = 0.0;
+    std::vector<float> bert = build_device_jp_bert_features(jp_bert_handle, item, jp_bert_elapsed_seconds);
+
     tts_style_bert_vits2_float_buffer audio{};
     const auto started_at = std::chrono::steady_clock::now();
     const int ok = tts_style_bert_vits2_synthesize_front_with_style_vec(
@@ -244,8 +343,8 @@ Record run_case(tts_style_bert_vits2_handle * handle, const CaseInput & item, in
         item.tone_ids.data(),
         item.language_ids.data(),
         item.tokens,
-        item.bert.data(),
-        item.bert.size(),
+        bert.data(),
+        bert.size(),
         item.style_vec.data(),
         item.style_vec.size(),
         item.speaker_id,
@@ -267,11 +366,20 @@ Record run_case(tts_style_bert_vits2_handle * handle, const CaseInput & item, in
     record.label = item.label;
     record.text = item.text;
     record.run_index = run_index;
-    record.elapsed_seconds = std::chrono::duration<double>(finished_at - started_at).count();
+    record.jp_bert_elapsed_seconds = jp_bert_elapsed_seconds;
+    record.synthesis_elapsed_seconds = std::chrono::duration<double>(finished_at - started_at).count();
+    record.elapsed_seconds = record.jp_bert_elapsed_seconds + record.synthesis_elapsed_seconds;
+    record.bert_reference_rmse = jp_bert_handle ? rmse(bert, item.bert) : 0.0;
     record.output_samples = audio.length;
     record.output_duration_seconds = static_cast<double>(audio.length) / static_cast<double>(audio.sample_rate);
     record.rtf = record.elapsed_seconds / record.output_duration_seconds;
     record.peak_abs = peak_abs(audio.data, audio.length);
+    if (!wav_path.empty()) {
+        write_wav(wav_path,
+                  audio.data,
+                  audio.length,
+                  static_cast<uint32_t>(audio.sample_rate));
+    }
     return record;
 }
 
@@ -279,6 +387,7 @@ void print_usage(const char * argv0) {
     std::cerr
         << "Usage: " << argv0 << " --model model.gguf --bundle input.aivis_mobile_bundle [options]\n"
         << "Options:\n"
+        << "  --jp-bert-model model.gguf Run JP-BERT GGUF on device instead of using bundled BERT features\n"
         << "  --backend vulkan|cpu      TTS_BACKEND value (default: vulkan)\n"
         << "  --precision fast|accurate STYLE_BERT_VITS2_VULKAN_PRECISION value (default: fast)\n"
         << "  --runs N                 measured runs per text (default: 3)\n"
@@ -301,6 +410,8 @@ Args parse_args(int argc, char ** argv) {
         };
         if (key == "--model") {
             args.model_path = require_value("--model");
+        } else if (key == "--jp-bert-model") {
+            args.jp_bert_model_path = require_value("--jp-bert-model");
         } else if (key == "--bundle") {
             args.bundle_path = require_value("--bundle");
         } else if (key == "--backend") {
@@ -357,6 +468,7 @@ void write_json(const Args & args,
     output << "    \"warmup_runs\": " << args.warmup_runs << ",\n";
     output << "    \"cpu_only\": " << (args.cpu_only ? "true" : "false") << ",\n";
     output << "    \"model_path\": \"" << json_escape(args.model_path) << "\",\n";
+    output << "    \"jp_bert_model_path\": \"" << json_escape(args.jp_bert_model_path) << "\",\n";
     output << "    \"bundle_path\": \"" << json_escape(args.bundle_path) << "\"\n";
     output << "  },\n";
 
@@ -370,26 +482,39 @@ void write_json(const Args & args,
             }
         }
         double sum = 0.0;
+        double jp_bert_sum = 0.0;
+        double synthesis_sum = 0.0;
+        double bert_rmse_sum = 0.0;
         double min_rtf = std::numeric_limits<double>::infinity();
         double max_rtf = 0.0;
         double duration_sum = 0.0;
         size_t last_samples = 0;
         for (const Record * record : group) {
             sum += record->rtf;
+            jp_bert_sum += record->jp_bert_elapsed_seconds;
+            synthesis_sum += record->synthesis_elapsed_seconds;
+            bert_rmse_sum += record->bert_reference_rmse;
             min_rtf = std::min(min_rtf, record->rtf);
             max_rtf = std::max(max_rtf, record->rtf);
             duration_sum += record->output_duration_seconds;
             last_samples = record->output_samples;
         }
         const double mean = group.empty() ? 0.0 : sum / static_cast<double>(group.size());
+        const double jp_bert_mean = group.empty() ? 0.0 : jp_bert_sum / static_cast<double>(group.size());
+        const double synthesis_mean = group.empty() ? 0.0 : synthesis_sum / static_cast<double>(group.size());
+        const double bert_rmse_mean = group.empty() ? 0.0 : bert_rmse_sum / static_cast<double>(group.size());
         const double duration_mean = group.empty() ? 0.0 : duration_sum / static_cast<double>(group.size());
         output << "    {\n";
         output << "      \"text_label\": \"" << json_escape(item.label) << "\",\n";
         output << "      \"text\": \"" << json_escape(item.text) << "\",\n";
         output << "      \"tokens\": " << item.tokens << ",\n";
+        output << "      \"jp_bert_tokens\": " << item.bert_input_ids.size() << ",\n";
         output << "      \"rtf_mean\": " << mean << ",\n";
         output << "      \"rtf_min\": " << (std::isfinite(min_rtf) ? min_rtf : 0.0) << ",\n";
         output << "      \"rtf_max\": " << max_rtf << ",\n";
+        output << "      \"jp_bert_elapsed_seconds_mean\": " << jp_bert_mean << ",\n";
+        output << "      \"synthesis_elapsed_seconds_mean\": " << synthesis_mean << ",\n";
+        output << "      \"bert_reference_rmse_mean\": " << bert_rmse_mean << ",\n";
         output << "      \"output_duration_seconds_mean\": " << duration_mean << ",\n";
         output << "      \"output_samples_last\": " << last_samples << "\n";
         output << "    }" << (i + 1 == measured.size() ? "\n" : ",\n");
@@ -404,6 +529,9 @@ void write_json(const Args & args,
         output << "      \"text\": \"" << json_escape(record.text) << "\",\n";
         output << "      \"run_index\": " << record.run_index << ",\n";
         output << "      \"elapsed_seconds\": " << record.elapsed_seconds << ",\n";
+        output << "      \"jp_bert_elapsed_seconds\": " << record.jp_bert_elapsed_seconds << ",\n";
+        output << "      \"synthesis_elapsed_seconds\": " << record.synthesis_elapsed_seconds << ",\n";
+        output << "      \"bert_reference_rmse\": " << record.bert_reference_rmse << ",\n";
         output << "      \"output_duration_seconds\": " << record.output_duration_seconds << ",\n";
         output << "      \"output_samples\": " << record.output_samples << ",\n";
         output << "      \"rtf\": " << record.rtf << ",\n";
@@ -444,6 +572,13 @@ int main(int argc, char ** argv) {
             const char * error = tts_style_bert_vits2_last_error();
             throw std::runtime_error(std::string("Failed to load model: ") + (error ? error : "<unknown>"));
         }
+        tts_style_bert_vits2_jp_bert_handle * jp_bert_handle = nullptr;
+        if (!args.jp_bert_model_path.empty()) {
+            if (!tts_style_bert_vits2_jp_bert_load_model(args.jp_bert_model_path.c_str(), args.n_threads, args.cpu_only ? 1 : 0, &jp_bert_handle)) {
+                const char * error = tts_style_bert_vits2_last_error();
+                throw std::runtime_error(std::string("Failed to load JP-BERT model: ") + (error ? error : "<unknown>"));
+            }
+        }
 
         if (!args.audio_dir.empty() && !ensure_dir(args.audio_dir)) {
             throw std::runtime_error("Failed to create audio dir: " + args.audio_dir);
@@ -453,62 +588,32 @@ int main(int argc, char ** argv) {
         for (size_t i = 0; i < measured.size(); ++i) {
             const CaseInput & warmup = warmups.empty() ? measured[i] : warmups[std::min(i, warmups.size() - 1)];
             for (int w = 0; w < args.warmup_runs; ++w) {
-                (void) run_case(handle, warmup, -1);
+                (void) run_case(handle, jp_bert_handle, warmup, -1);
             }
 
             for (int run = 0; run < args.runs; ++run) {
-                tts_style_bert_vits2_float_buffer audio{};
-                const auto started_at = std::chrono::steady_clock::now();
-                const int ok = tts_style_bert_vits2_synthesize_front_with_style_vec(
-                    handle,
-                    measured[i].phone_ids.data(),
-                    measured[i].tone_ids.data(),
-                    measured[i].language_ids.data(),
-                    measured[i].tokens,
-                    measured[i].bert.data(),
-                    measured[i].bert.size(),
-                    measured[i].style_vec.data(),
-                    measured[i].style_vec.size(),
-                    measured[i].speaker_id,
-                    measured[i].sdp_ratio,
-                    measured[i].length_scale,
-                    measured[i].noise_scale,
-                    measured[i].noise_w_scale,
-                    &audio);
-                const auto finished_at = std::chrono::steady_clock::now();
-                if (!ok) {
-                    const char * error = tts_style_bert_vits2_last_error();
-                    throw std::runtime_error(std::string("Synthesis failed for ") + measured[i].label + ": " + (error ? error : "<unknown>"));
-                }
-                Record record;
-                record.label = measured[i].label;
-                record.text = measured[i].text;
-                record.run_index = run;
-                record.elapsed_seconds = std::chrono::duration<double>(finished_at - started_at).count();
-                record.output_samples = audio.length;
-                record.output_duration_seconds = static_cast<double>(audio.length) / static_cast<double>(audio.sample_rate);
-                record.rtf = record.elapsed_seconds / record.output_duration_seconds;
-                record.peak_abs = peak_abs(audio.data, audio.length);
+                const std::string wav_path =
+                    (run == 0 && !args.audio_dir.empty()) ? args.audio_dir + "/" + measured[i].label + ".wav" : std::string{};
+                Record record = run_case(handle, jp_bert_handle, measured[i], run, wav_path);
                 std::cout << record.label
                           << " run=" << run
                           << " elapsed=" << record.elapsed_seconds
+                          << " jp_bert=" << record.jp_bert_elapsed_seconds
+                          << " synthesis=" << record.synthesis_elapsed_seconds
+                          << " bert_rmse=" << record.bert_reference_rmse
                           << " duration=" << record.output_duration_seconds
                           << " rtf=" << record.rtf
                           << " samples=" << record.output_samples
                           << "\n";
-
-                if (run == 0 && !args.audio_dir.empty()) {
-                    write_wav(args.audio_dir + "/" + measured[i].label + ".wav",
-                              audio.data,
-                              audio.length,
-                              static_cast<uint32_t>(audio.sample_rate));
-                }
                 records.push_back(record);
             }
         }
 
         if (!args.output_json.empty()) {
             write_json(args, measured, records, args.output_json);
+        }
+        if (jp_bert_handle) {
+            tts_style_bert_vits2_jp_bert_free_model(jp_bert_handle);
         }
         tts_style_bert_vits2_free_model(handle);
         return 0;
