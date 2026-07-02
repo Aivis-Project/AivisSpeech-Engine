@@ -18,6 +18,43 @@ Benchmark rule: warmup synthesis must use texts that are different from the
 short/medium/long measured texts. This avoids warming text-specific frontend,
 symbol, graph, or runtime caches with the exact sample later used for timing.
 
+## Deployment Default and Memory Profile
+
+The deployable GGML path should keep the same memory-saving assets used by this
+benchmark: JP-BERT F16 `linear` and FP16 synthesis voice GGUF caches. Do not
+ship F32 voice or JP-BERT GGUF files for the production/default profile unless a
+specific parity investigation requires them. The expected deployment knobs are:
+
+- `backend=vulkan`
+- `precision=fast`
+- `vulkan_math_mode=coopmat`
+- `claim_synthesis_graph=1`
+- `claim_jp_bert_graph=1`
+- synthesis voice GGUF generated with the F16 `no-embed-norm-no-ups` recipe
+- JP-BERT GGUF from the F16 `linear` artifact
+
+This keeps resident model memory lower while preserving the duration-safe path
+validated below. Runtime Vulkan F16 remains disabled in the default profile;
+only the GGUF storage precision and cooperative matrix kernels are part of the
+deployment default.
+
+Deployment smoke validation on 2026-07-01 used the local `myoland.tts` tailnet
+debug stack with the same class of TTS.cpp Style-Bert-VITS2 GGUF assets:
+
+- host: Ubuntu 26.04, AMD Radeon 780M selected with
+  `MESA_VK_DEVICE_SELECT=1002:1900!`
+- phoneme source: `sbv2-aivis`
+- TTS.cpp decoder: `Vulkan:0`
+- TTS.cpp JP-BERT: `Vulkan:0`
+- sidecar path: `style_bert_vits2_ggml`, `ggml_path=symbol-front`
+- output: mono PCM WAV, 44.1 kHz, 8.998 s, 793,644 bytes
+- smoke RTF: `0.156`
+
+This smoke proves the deployable SBV2 -> Style-Bert GGML -> TTS.cpp Vulkan
+chain can generate audio with the FP16 GGUF deployment profile. It is not a
+replacement for the benchmark tables below; it only records that the runtime
+stack is wired correctly before documenting the deployment default.
+
 ## Linux RTX 3060 + AMD 780M Local Run (2026-06-29)
 
 Raw results are stored in
