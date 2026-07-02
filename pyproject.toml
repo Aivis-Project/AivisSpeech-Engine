@@ -46,7 +46,8 @@ dependencies = [
   ## onnxruntime (DirectML): Windows のみ
   "onnxruntime-directml>=1.24.0,<2.0.0; sys_platform == 'win32'",
   ## onnxruntime (GPU): Linux x64 のみ
-  "onnxruntime-gpu>=1.24.0,<2.0.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
+  ## 1.27.0 以降、import した時点で CUDA 13 の .so がないとエラー吐くように改悪されたので当面 1.26.x に固定
+  "onnxruntime-gpu>=1.24.0,<1.27.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
 
 [tool.uv]
