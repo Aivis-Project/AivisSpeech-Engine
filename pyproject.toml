@@ -38,7 +38,8 @@ dependencies = [
   "e2k",
   # OS に応じて適切な ONNX Runtime プラグインをインストール
   ## onnxruntime (CPU): onnxruntime-directml / onnxruntime-gpu 非対応の環境すべて
-  "onnxruntime==1.23.0; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+  ## macOS x64 のみ、Intel Mac に対応する最終バージョンである onnxruntime==1.23.2 に固定
+  "onnxruntime==1.23.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
   "onnxruntime>=1.21.0,<2.0.0; (sys_platform == 'darwin' and platform_machine != 'x86_64') or (sys_platform == 'linux' and platform_machine != 'x86_64')",
   ## onnxruntime (DirectML): Windows のみ
   "onnxruntime-directml>=1.21.0,<2.0.0; sys_platform == 'win32'",
@@ -51,7 +52,7 @@ default-groups = []
 exclude-newer = "1 week"
 
 [tool.uv.sources]
-style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "171f796f37651346bb5435afd75f2f6f3b335bb1" }
+style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "e702147d2f73a72667dac19ddf6acfe0cb4e3679" }
 e2k = { git = "https://github.com/tsukumijima/e2k", rev = "9920754e15d8c96404bef0bd81d424352fb7a48b" }
 
 [dependency-groups]
