@@ -53,10 +53,6 @@ dependencies = [
 [tool.uv]
 default-groups = []
 exclude-newer = "1 week"
-# onnxruntime の Intel Mac 向け wheel の存在を lock 時に必須化するための保険
-required-environments = [
-  "sys_platform == 'darwin' and platform_machine == 'x86_64'",
-]
 
 [tool.uv.sources]
 style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "e702147d2f73a72667dac19ddf6acfe0cb4e3679" }
