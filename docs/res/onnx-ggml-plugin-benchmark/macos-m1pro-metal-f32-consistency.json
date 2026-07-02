@@ -1,0 +1,200 @@
+{
+  "profile": {
+    "aivmx_path": "<local-model-dir>/a59cb814-0083-4369-8542-f51a29e72af7.aivmx",
+    "style_id": 888753760,
+    "texts": [
+      "テストです。",
+      "今日はいい天気ですね。",
+      "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。"
+    ],
+    "warmup_texts": [
+      "測定用ではない短い文です。",
+      "ウォームアップのために別の文章を読み上げます。",
+      "測定対象とは異なる長めのウォームアップ文章です。バックエンドの初回処理だけを先に済ませます。"
+    ],
+    "warmup_runs": 1,
+    "runs": 1,
+    "tempo_dynamics_scale": 0.0,
+    "noise_scale": 0.0,
+    "noise_scale_w": 0.0,
+    "truth_comparison_enabled": true,
+    "ggml_backend": null,
+    "ggml_vulkan_precision": "fast",
+    "ggml_vulkan_math_mode": "coopmat",
+    "ggml_default_synthesis_converter_version": "tts-cpp-style-bert-vits2-converter-f16-no-embed-norm-no-ups-v1",
+    "ggml_synthesis_converter_version": "tts-cpp-style-bert-vits2-converter-f32-v1",
+    "ggml_jp_bert_gguf_path": "<local-gguf-dir>/jp-bert-968bba0e105e1d10.gguf"
+  },
+  "provider_evidence": {
+    "onnx-cpu": {
+      "active_providers": [
+        "CPUExecutionProvider"
+      ]
+    },
+    "onnx-ggml-metal": {
+      "active_providers": [
+        "AivisGgmlExecutionProvider",
+        "CPUExecutionProvider"
+      ],
+      "ggml_synthesis_converter_version": "tts-cpp-style-bert-vits2-converter-f32-v1",
+      "ggml_jp_bert_precision": "fp16-linear",
+      "ggml_jp_bert_gguf_path": "<local-gguf-dir>/jp-bert-968bba0e105e1d10.gguf"
+    }
+  },
+  "summary": [
+    {
+      "backend": "onnx-cpu",
+      "text_label": "long",
+      "rtf_mean": 0.25562678714520864,
+      "rtf_min": 0.25562678714520864,
+      "rtf_max": 0.25562678714520864,
+      "output_duration_seconds_mean": 7.817392290249433,
+      "output_samples_last": 344747
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "medium",
+      "rtf_mean": 0.2601226214307061,
+      "rtf_min": 0.2601226214307061,
+      "rtf_max": 0.2601226214307061,
+      "output_duration_seconds_mean": 1.9298866213151928,
+      "output_samples_last": 85108
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "short",
+      "rtf_mean": 0.32077349405656486,
+      "rtf_min": 0.32077349405656486,
+      "rtf_max": 0.32077349405656486,
+      "output_duration_seconds_mean": 1.2331972789115646,
+      "output_samples_last": 54384
+    },
+    {
+      "backend": "onnx-ggml-metal",
+      "text_label": "long",
+      "rtf_mean": 0.1257232970398873,
+      "rtf_min": 0.1257232970398873,
+      "rtf_max": 0.1257232970398873,
+      "output_duration_seconds_mean": 7.817392290249433,
+      "output_samples_last": 344747
+    },
+    {
+      "backend": "onnx-ggml-metal",
+      "text_label": "medium",
+      "rtf_mean": 0.1391487401541566,
+      "rtf_min": 0.1391487401541566,
+      "rtf_max": 0.1391487401541566,
+      "output_duration_seconds_mean": 1.9298866213151928,
+      "output_samples_last": 85108
+    },
+    {
+      "backend": "onnx-ggml-metal",
+      "text_label": "short",
+      "rtf_mean": 0.17153638888579484,
+      "rtf_min": 0.17153638888579484,
+      "rtf_max": 0.17153638888579484,
+      "output_duration_seconds_mean": 1.2331972789115646,
+      "output_samples_last": 54384
+    }
+  ],
+  "truth_comparison": [
+    {
+      "backend": "onnx-ggml-metal",
+      "text_label": "long",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 344747,
+      "rmse": 0.007790183648467064,
+      "max_abs_diff": 0.318206787109375,
+      "correlation": 0.9984207153383726
+    },
+    {
+      "backend": "onnx-ggml-metal",
+      "text_label": "medium",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 85108,
+      "rmse": 0.008586091920733452,
+      "max_abs_diff": 0.1256103515625,
+      "correlation": 0.998727572050093
+    },
+    {
+      "backend": "onnx-ggml-metal",
+      "text_label": "short",
+      "truth_backend": "onnx-cpu",
+      "sample_delta": 0,
+      "compared_samples": 54384,
+      "rmse": 0.004210426472127438,
+      "max_abs_diff": 0.0643310546875,
+      "correlation": 0.9995571230129787
+    }
+  ],
+  "records": [
+    {
+      "backend": "onnx-cpu",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 0,
+      "elapsed_seconds": 0.3955770000175107,
+      "output_duration_seconds": 1.2331972789115646,
+      "output_samples": 54384,
+      "rtf": 0.32077349405656486,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "medium",
+      "text": "今日はいい天気ですね。",
+      "run_index": 0,
+      "elapsed_seconds": 0.5020071670005564,
+      "output_duration_seconds": 1.9298866213151928,
+      "output_samples": 85108,
+      "rtf": 0.2601226214307061,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-cpu",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 0,
+      "elapsed_seconds": 1.9983348750101868,
+      "output_duration_seconds": 7.817392290249433,
+      "output_samples": 344747,
+      "rtf": 0.25562678714520864,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-ggml-metal",
+      "text_label": "short",
+      "text": "テストです。",
+      "run_index": 0,
+      "elapsed_seconds": 0.21153820800827816,
+      "output_duration_seconds": 1.2331972789115646,
+      "output_samples": 54384,
+      "rtf": 0.17153638888579484,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-ggml-metal",
+      "text_label": "medium",
+      "text": "今日はいい天気ですね。",
+      "run_index": 0,
+      "elapsed_seconds": 0.268541291996371,
+      "output_duration_seconds": 1.9298866213151928,
+      "output_samples": 85108,
+      "rtf": 0.1391487401541566,
+      "peak_abs": 0.999969482421875
+    },
+    {
+      "backend": "onnx-ggml-metal",
+      "text_label": "long",
+      "text": "これは少し長めの文章です。GPUバックエンドの推論速度と音声品質を確認しています。",
+      "run_index": 0,
+      "elapsed_seconds": 0.9828283329843543,
+      "output_duration_seconds": 7.817392290249433,
+      "output_samples": 344747,
+      "rtf": 0.1257232970398873,
+      "peak_abs": 0.999969482421875
+    }
+  ]
+}

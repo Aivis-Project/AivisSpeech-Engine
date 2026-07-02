@@ -28,6 +28,7 @@ if str(_REPO_ROOT) not in sys.path:
 from run import _resolve_default_onnx_ep_library_path
 from voicevox_engine.aivm_gguf_cache import (
     DEFAULT_GGUF_CONVERTER_VERSION,
+    F32_GGUF_CONVERTER_VERSION,
 )
 from voicevox_engine.aivm_manager import AivmManager
 from voicevox_engine.metas.metas import StyleId
@@ -128,7 +129,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Benchmark Aivis Style-Bert-VITS2 ONNX CPU/CUDA and ONNX GGML "
-            "Plugin EP Vulkan paths."
+            "Plugin EP paths."
         )
     )
     parser.add_argument(
@@ -149,6 +150,8 @@ def _parse_args() -> argparse.Namespace:
             "onnx-cpu",
             "onnx-directml",
             "onnx-cuda",
+            "onnx-ggml-metal",
+            "onnx-ggml-cpu",
             "onnx-ggml-vulkan",
         ),
         action="append",
@@ -210,7 +213,7 @@ def _parse_args() -> argparse.Namespace:
         "--ggml_native_library_path",
         type=Path,
         default=None,
-        help="TTS.cpp C API shared library path. Required for onnx-ggml-vulkan.",
+        help="TTS.cpp C API shared library path. Required for ONNX GGML backends.",
     )
     parser.add_argument(
         "--onnx_ep_library_path",
@@ -225,12 +228,31 @@ def _parse_args() -> argparse.Namespace:
         help="Optional GGUF cache directory for the Plugin EP run.",
     )
     parser.add_argument(
+        "--ggml_synthesis_converter_version",
+        choices=(DEFAULT_GGUF_CONVERTER_VERSION, F32_GGUF_CONVERTER_VERSION),
+        default=DEFAULT_GGUF_CONVERTER_VERSION,
+        help=(
+            "Synthesis GGUF converter version for ONNX GGML backends. The default "
+            "is the current FP16 cache recipe; use the F32 recipe to isolate "
+            "backend/runtime performance from FP16 GGUF compatibility issues."
+        ),
+    )
+    parser.add_argument(
         "--ggml_jp_bert_gguf_path",
         type=Path,
         default=None,
         help=(
             "Optional prepared JP-BERT GGUF path for the Plugin EP run. "
             "When omitted, the Engine cache prepares or fetches the default bundle."
+        ),
+    )
+    parser.add_argument(
+        "--ggml_backend",
+        choices=("vulkan", "metal", "cpu"),
+        default=None,
+        help=(
+            "Provider option backend for ONNX GGML. When omitted, "
+            "the backend name selects vulkan/metal/cpu."
         ),
     )
     parser.add_argument(
@@ -370,13 +392,14 @@ def _build_audio_query(
 def _build_ggml_plugin_config(
     args: argparse.Namespace,
     *,
+    ggml_backend: str,
     jp_bert_gguf_path: Path | None = None,
     inherit_global_jp_bert_gguf_path: bool = True,
 ) -> OnnxPluginExecutionProviderConfig:
     if args.ggml_native_library_path is None:
-        raise RuntimeError("onnx-ggml-vulkan requires --ggml_native_library_path.")
+        raise RuntimeError("ONNX GGML backends require --ggml_native_library_path.")
     provider_options = {
-        "backend": "vulkan",
+        "backend": ggml_backend,
         "claim_jp_bert_graph": "1",
         "claim_synthesis_graph": "1",
         "eager_load_model": "1",
@@ -411,6 +434,7 @@ def _build_backend_specs(args: argparse.Namespace) -> list[_BackendSpec]:
     def add_ggml_spec(
         *,
         name: str,
+        ggml_backend: str,
         synthesis_converter_version: str | None = None,
         jp_bert_precision_label: str | None = None,
         jp_bert_gguf_path: Path | None = None,
@@ -426,6 +450,7 @@ def _build_backend_specs(args: argparse.Namespace) -> list[_BackendSpec]:
                 required_provider="AivisGgmlExecutionProvider",
                 onnx_plugin_ep=_build_ggml_plugin_config(
                     args,
+                    ggml_backend=ggml_backend,
                     jp_bert_gguf_path=jp_bert_gguf_path,
                     inherit_global_jp_bert_gguf_path=(
                         inherit_global_jp_bert_gguf_path
@@ -464,12 +489,18 @@ def _build_backend_specs(args: argparse.Namespace) -> list[_BackendSpec]:
                     preferred_onnx_provider="directml",
                 )
             )
-        elif backend == "onnx-ggml-vulkan":
+        elif backend in {"onnx-ggml-vulkan", "onnx-ggml-metal", "onnx-ggml-cpu"}:
+            inferred_ggml_backend = backend.rsplit("-", maxsplit=1)[-1]
+            ggml_backend = args.ggml_backend or inferred_ggml_backend
+            spec_name = backend
+            if args.ggml_backend is not None:
+                spec_name = f"onnx-ggml-{ggml_backend}"
             add_ggml_spec(
-                name=backend,
-                synthesis_converter_version=DEFAULT_GGUF_CONVERTER_VERSION,
+                name=spec_name,
+                ggml_backend=ggml_backend,
+                synthesis_converter_version=args.ggml_synthesis_converter_version,
                 jp_bert_precision_label="fp16-linear",
-                inherit_global_jp_bert_gguf_path=False,
+                inherit_global_jp_bert_gguf_path=True,
             )
     return specs
 
@@ -759,9 +790,11 @@ def main() -> None:
             "noise_scale": args.noise_scale,
             "noise_scale_w": args.noise_scale_w,
             "truth_comparison_enabled": not args.skip_truth_comparison,
+            "ggml_backend": args.ggml_backend,
             "ggml_vulkan_precision": args.ggml_vulkan_precision,
             "ggml_vulkan_math_mode": args.ggml_vulkan_math_mode,
             "ggml_default_synthesis_converter_version": DEFAULT_GGUF_CONVERTER_VERSION,
+            "ggml_synthesis_converter_version": args.ggml_synthesis_converter_version,
             "ggml_jp_bert_gguf_path": (
                 f"<local-gguf-dir>/{args.ggml_jp_bert_gguf_path.name}"
                 if args.ggml_jp_bert_gguf_path is not None
