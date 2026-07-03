@@ -33,7 +33,7 @@ Linux では `run.spec` が `patchelf` で TTS.cpp / ggml sidecar の rpath を
 | TTS.cpp repository | `https://github.com/Myoland/TTS.cpp.git` |
 | TTS.cpp ref | `94792ed2599656618c1d5eb3934754c391eb2a54` |
 | ggml repository | `https://github.com/Myoland/ggml.git`（TTS.cpp submodule） |
-| Vulkan SDK | `1.3.296.0` |
+| Vulkan SDK | `1.3.296.0`（検証済み。`glslc` / `glslangValidator` が必要） |
 
 ## 依存関係
 
@@ -152,17 +152,7 @@ cmake --build "$TTS_CPP_BUILD_DIR" --config Release --target tts --parallel
 
 ### 4. Engine を PyInstaller でパッケージする
 
-`run.spec` は次の環境変数から Plugin EP、TTS.cpp runtime、ggml 依存 library
-を収集します。
-
-```bash
-export AIVIS_ONNX_GGML_REQUIRED=1
-export AIVIS_TTS_CPP_LIBRARY_PATH="<libtts / tts.dll のフルパス>"
-export AIVIS_TTS_CPP_LIBRARY_DIRS="<TTS.cpp と ggml library を含むディレクトリをパス区切りで列挙>"
-
-uv run --group build pyinstaller --noconfirm run.spec
-```
-
+`run.spec` は環境変数から Plugin EP、TTS.cpp runtime、ggml 依存 library を収集します。
 Linux で上記の TTS.cpp CMake build output をそのまま使う場合:
 
 ```bash
@@ -175,14 +165,11 @@ cd "$ENGINE_DIR"
 uv run --group build pyinstaller --noconfirm run.spec
 ```
 
-Plugin EP を明示する必要がある場合だけ、次も指定します。
-
-```bash
-export AIVIS_ONNX_GGML_EP_LIBRARY_PATH="<libaivis_ggml_onnx_ep / aivis_ggml_onnx_ep.dll のフルパス>"
-```
-
 `AIVIS_ONNX_GGML_REQUIRED=1` を付けると、sidecar が不足している場合に
 ビルドが失敗します。PR レビュー用の再現では必ず付けてください。
+Windows / macOS でも同じ環境変数を使い、各 OS の `libtts` / Plugin EP library と
+依存 library directory を指定します。`AIVIS_TTS_CPP_LIBRARY_DIRS` は OS のパス区切り
+文字（Linux / macOS は `:`、Windows は `;`）で複数指定できます。
 
 ## パッケージ検証
 
@@ -228,23 +215,10 @@ env -u LD_LIBRARY_PATH ./dist/run/run \
 ```
 
 複数の Vulkan device がある Linux 環境では、driver 側で見せる device を固定してから
-Engine 側の device id を渡します。AMD Radeon 780M を使う例:
-
-```bash
-MESA_VK_DEVICE_SELECT=1002:1900! env -u LD_LIBRARY_PATH ./dist/run/run \
-  --host 127.0.0.1 \
-  --port 10109 \
-  --onnx_provider ggml \
-  --ggml_model_cache_dir benchmark-artifacts/local-linux-780m-smoke/gguf-cache \
-  --ggml_tts_server_backend vulkan \
-  --ggml_vulkan_device 0 \
-  --ggml_native_library_path lib/libtts.so \
-  --onnx_ep_library_path onnxruntime_ep_aivis_ggml/lib/libaivis_ggml_onnx_ep.so \
-  --disable_sentry
-```
-
-`--ggml_model_cache_dir` は必須ではありませんが、初回起動時の JP-BERT GGUF download
-を避けたい場合は benchmark で生成済みの cache を指定できます。
+Engine 側の device id を渡します。AMD Radeon 780M の例では、上記コマンドに
+`MESA_VK_DEVICE_SELECT=1002:1900!` と `--ggml_vulkan_device 0` を追加します。
+`--ggml_model_cache_dir` は必須ではありません。benchmark 済みの cache を再利用したい
+場合だけ、生成済み artifact 内の `gguf-cache/` を指定してください。
 
 macOS:
 
@@ -305,8 +279,8 @@ Application startup complete.
 
 `glslc` が見つからない:
 
-Linux / Windows の Vulkan build では Vulkan SDK が必要です。CI と同じ
-`1.3.296.0` を使うと差分を減らせます。
+Linux / Windows の Vulkan build では、`glslc` / `glslangValidator` を含む
+Vulkan SDK が必要です。`1.3.296.0` はこの手順で検証済みのバージョンです。
 
 Plugin EP がパッケージに入らない:
 
