@@ -43,6 +43,9 @@ import sentry_sdk
 import uvicorn
 from onnxruntime_ep_style_bert_vits2_ggml import get_ep_name
 from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
+    PluginExecutionProviderConfig as OnnxPluginExecutionProviderConfig,
+)
+from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
     build_provider_options,
     default_backend_for_platform,
     default_cpu_threads,
@@ -627,7 +630,6 @@ def main() -> None:
         # ごく稀に style_bert_vits2_tts_engine.py (が依存する onnxruntime) のインポート自体に失敗し
         # 例外が発生する環境があるようなので、例外をキャッチしてエラーログに出力できるよう、敢えてルーター初期化時にインポートする
         from voicevox_engine.tts_pipeline.style_bert_vits2_tts_engine import (
-            OnnxPluginExecutionProviderConfig,
             StyleBertVITS2TTSEngine,
         )
 
