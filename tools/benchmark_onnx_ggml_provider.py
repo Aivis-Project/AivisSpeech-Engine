@@ -522,6 +522,33 @@ def _validate_active_provider(
     return providers
 
 
+def _record_provider_evidence_once(
+    *,
+    provider_evidence: dict[str, Any],
+    engine: StyleBertVITS2TTSEngine,
+    model_uuid: str,
+    spec: _BackendSpec,
+) -> None:
+    if "active_providers" in provider_evidence:
+        return
+
+    provider_evidence["active_providers"] = _validate_active_provider(
+        engine=engine,
+        model_uuid=model_uuid,
+        spec=spec,
+    )
+    if spec.ggml_synthesis_converter_version is not None:
+        provider_evidence["ggml_synthesis_converter_version"] = (
+            spec.ggml_synthesis_converter_version
+        )
+    if spec.ggml_jp_bert_precision_label is not None:
+        provider_evidence["ggml_jp_bert_precision"] = spec.ggml_jp_bert_precision_label
+    if spec.ggml_jp_bert_gguf_path is not None:
+        provider_evidence["ggml_jp_bert_gguf_path"] = (
+            f"<local-gguf-dir>/{spec.ggml_jp_bert_gguf_path.name}"
+        )
+
+
 def _summarize(records: Sequence[_BenchmarkRecord]) -> list[_BackendSummary]:
     groups: dict[tuple[str, str], list[_BenchmarkRecord]] = {}
     for record in records:
@@ -663,6 +690,13 @@ def _benchmark_backend(
                 style_id,
                 enable_interrogative_upspeak=True,
             )
+        if warmup_runs > 0:
+            _record_provider_evidence_once(
+                provider_evidence=provider_evidence,
+                engine=engine,
+                model_uuid=model_uuid,
+                spec=spec,
+            )
 
         query = _build_audio_query(
             engine=engine,
@@ -671,23 +705,6 @@ def _benchmark_backend(
             tempo_dynamics_scale=tempo_dynamics_scale,
         )
 
-        provider_evidence["active_providers"] = _validate_active_provider(
-            engine=engine,
-            model_uuid=model_uuid,
-            spec=spec,
-        )
-        if spec.ggml_synthesis_converter_version is not None:
-            provider_evidence["ggml_synthesis_converter_version"] = (
-                spec.ggml_synthesis_converter_version
-            )
-        if spec.ggml_jp_bert_precision_label is not None:
-            provider_evidence["ggml_jp_bert_precision"] = (
-                spec.ggml_jp_bert_precision_label
-            )
-        if spec.ggml_jp_bert_gguf_path is not None:
-            provider_evidence["ggml_jp_bert_gguf_path"] = (
-                f"<local-gguf-dir>/{spec.ggml_jp_bert_gguf_path.name}"
-            )
         for run_index in range(runs):
             started_at = time.perf_counter()
             wave = engine.synthesize_wave(
@@ -696,6 +713,12 @@ def _benchmark_backend(
                 enable_interrogative_upspeak=True,
             )
             elapsed_seconds = time.perf_counter() - started_at
+            _record_provider_evidence_once(
+                provider_evidence=provider_evidence,
+                engine=engine,
+                model_uuid=model_uuid,
+                spec=spec,
+            )
             output_samples = int(wave.shape[0])
             output_duration_seconds = output_samples / query.outputSamplingRate
             records.append(

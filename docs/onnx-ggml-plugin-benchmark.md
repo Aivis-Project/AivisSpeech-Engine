@@ -72,6 +72,40 @@ uv run python tools/reproduce_onnx_ggml_benchmark.py \
 
 出力先は既定で `benchmark-artifacts/onnx-ggml-<timestamp>/` です。
 
+Linux で [ONNX GGML ビルド・検証手順](onnx-ggml-build.md) の CMake build output を
+そのまま使う場合:
+
+```bash
+ENGINE_DIR=<AivisSpeech-Engine の checkout>
+TTS_CPP_BUILD_DIR="$ENGINE_DIR/build/TTS.cpp-build"
+
+cd "$ENGINE_DIR"
+MESA_VK_DEVICE_SELECT=1002:1900! uv run python tools/reproduce_onnx_ggml_benchmark.py \
+  --aivmx-path "<downloaded-mao.aivmx>" \
+  --backend onnx-cpu \
+  --backend onnx-ggml-vulkan \
+  --ggml-native-library-path "$TTS_CPP_BUILD_DIR/src/libtts.so" \
+  --onnx-ep-library-path "$ENGINE_DIR/experimental/onnxruntime-ep-aivis-ggml/src/onnxruntime_ep_aivis_ggml/lib/libaivis_ggml_onnx_ep.so" \
+  --library-dir "$TTS_CPP_BUILD_DIR/src" \
+  --library-dir "$TTS_CPP_BUILD_DIR/ggml/src" \
+  --library-dir "$TTS_CPP_BUILD_DIR/ggml/src/ggml-vulkan" \
+  --ggml-model-cache-dir benchmark-artifacts/local-linux-780m/gguf-cache \
+  --ggml-vulkan-device 0 \
+  --warmup-runs 1 \
+  --runs 1 \
+  --output-dir benchmark-artifacts/local-linux-780m
+```
+
+`MESA_VK_DEVICE_SELECT=1002:1900!` は AMD Radeon 780M を 1 つ目の Vulkan device
+として見せる例です。実行環境に合わせて `vulkaninfo --summary` の `vendorID` /
+`deviceID` を確認するか、この指定を外してください。driver 側で device を絞った後、
+Engine には `--ggml-vulkan-device 0` を渡します。
+
+`--ggml-model-cache-dir` を固定すると、JP-BERT GGUF download と AIVMX 変換 cache を
+後続の benchmark / package smoke test で再利用できます。初回の変換とモデル load を
+性能値から外すため、性能確認では `--warmup-runs 1` 以上を使ってください。
+`--warmup-runs 0` は provider 登録と合成経路の smoke test 用です。
+
 | 生成物 | 内容 |
 | --- | --- |
 | `summary.md` | PR に貼り付けやすい RTF 表、Provider 証跡、実行環境、実行コマンド |
