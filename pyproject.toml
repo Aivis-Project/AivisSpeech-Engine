@@ -97,6 +97,8 @@ test = "uv run pytest"
 update-snapshots = "uv run pytest --snapshot-update"
 update-licenses = "bash -c \"OUTPUT_LICENSE_JSON_PATH=resources/engine_manifest_assets/dependency_licenses.json bash tools/create_venv_and_generate_licenses.bash\""
 check-licenses = "bash -c \"OUTPUT_LICENSE_JSON_PATH=/dev/null bash tools/create_venv_and_generate_licenses.bash\""
+pr-check = "bash tools/check_pr.bash"
+pr-check-lint-builders = "bash tools/check_pr.bash --lint-builders"
 build = "uv run pyinstaller --noconfirm run.spec"
 
 [tool.ruff]

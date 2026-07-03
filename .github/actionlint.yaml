@@ -1,0 +1,5 @@
+paths:
+  .github/workflows/build-engine.yml:
+    ignore:
+      - 'shellcheck reported issue in this script: SC2005:.+'
+      - 'shellcheck reported issue in this script: SC2129:.+'
