@@ -578,12 +578,6 @@ uv run task typos
 # テストを実行
 uv run task test
 
-# PR の CI と同じ検査をローカルで実行
-uv run task pr-check
-
-# PR の lint-builders job だけをローカルで実行
-uv run task pr-check-lint-builders
-
 # テストのスナップショットを更新
 uv run task update-snapshots
 

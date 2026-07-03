@@ -8,9 +8,3 @@ files:
 ignore_actions:
   - name: voicevox/merge-gatekeeper
     ref: main
-
-rules:
-  - ignore: true
-    conditions:
-      - expr: |
-          ActionName == "pypa/gh-action-pip-audit" && ActionVersion == "aad10797d60f7c941f2c511ffb70fd81d998c2a2"
