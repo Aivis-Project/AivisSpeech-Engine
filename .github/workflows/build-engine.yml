@@ -69,8 +69,9 @@ jobs:
       sed: ${{ startsWith(matrix.os, 'macos-') && 'gsed' || 'sed' }}
       split: ${{ startsWith(matrix.os, 'macos-') && 'gsplit' || 'split' }}
       AIVIS_ONNX_GGML_ORT_VERSION: "1.26.0"
-      AIVIS_ONNX_GGML_TTS_CPP_REPOSITORY: "https://github.com/clawd20130/TTS.cpp.git"
+      AIVIS_ONNX_GGML_TTS_CPP_REPOSITORY: "https://github.com/Myoland/TTS.cpp.git"
       AIVIS_ONNX_GGML_TTS_CPP_REF: "0c6678415023c44d52dcf322827c33d36a352cb2"
+      AIVIS_ONNX_GGML_GGML_REPOSITORY: "https://github.com/Myoland/ggml.git"
       VULKAN_SDK_VERSION: "1.3.296.0"
 
     steps:
@@ -171,8 +172,9 @@ jobs:
           TTS_CPP_DIR="$PWD/build/TTS.cpp"
           TTS_CPP_BUILD_DIR="$PWD/build/TTS.cpp-build"
           rm -rf "$TTS_CPP_DIR" "$TTS_CPP_BUILD_DIR"
-          git clone --recursive "$AIVIS_ONNX_GGML_TTS_CPP_REPOSITORY" "$TTS_CPP_DIR"
+          git clone "$AIVIS_ONNX_GGML_TTS_CPP_REPOSITORY" "$TTS_CPP_DIR"
           git -C "$TTS_CPP_DIR" checkout "$AIVIS_ONNX_GGML_TTS_CPP_REF"
+          git -C "$TTS_CPP_DIR" submodule set-url ggml "$AIVIS_ONNX_GGML_GGML_REPOSITORY"
           git -C "$TTS_CPP_DIR" submodule update --init --recursive
 
           cmake_args=(

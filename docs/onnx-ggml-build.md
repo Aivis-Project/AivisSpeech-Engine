@@ -30,8 +30,9 @@ CI と同じ値を使うのが再現性のある基準です。
 | 項目 | 値 |
 | --- | --- |
 | ONNX Runtime headers | `1.26.0` |
-| TTS.cpp repository | `https://github.com/clawd20130/TTS.cpp.git` |
+| TTS.cpp repository | `https://github.com/Myoland/TTS.cpp.git` |
 | TTS.cpp ref | `0c6678415023c44d52dcf322827c33d36a352cb2` |
+| ggml repository | `https://github.com/Myoland/ggml.git`（TTS.cpp submodule） |
 | Vulkan SDK | `1.3.296.0` |
 
 これらは [.github/workflows/build-engine.yml](../.github/workflows/build-engine.yml)
@@ -108,10 +109,14 @@ cmake --install build/onnx-ggml-native --config Release \
 
 ```bash
 rm -rf "$TTS_CPP_DIR" "$TTS_CPP_BUILD_DIR"
-git clone --recursive https://github.com/clawd20130/TTS.cpp.git "$TTS_CPP_DIR"
+git clone https://github.com/Myoland/TTS.cpp.git "$TTS_CPP_DIR"
 git -C "$TTS_CPP_DIR" checkout 0c6678415023c44d52dcf322827c33d36a352cb2
+git -C "$TTS_CPP_DIR" submodule set-url ggml https://github.com/Myoland/ggml.git
 git -C "$TTS_CPP_DIR" submodule update --init --recursive
 ```
+
+この pinned ref の `.gitmodules` は移転前の ggml URL を保持しているため、
+CI と同じく `submodule set-url` で移転後の URL を明示します。
 
 Linux / Windows:
 
