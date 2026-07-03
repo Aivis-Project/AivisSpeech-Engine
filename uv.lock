@@ -19,14 +19,12 @@ dependencies = [
     { name = "aivmlib" },
     { name = "e2k" },
     { name = "fastapi" },
-    { name = "gguf" },
     { name = "gputil" },
     { name = "httpx" },
     { name = "jaconv" },
     { name = "jinja2" },
     { name = "kanalizer" },
     { name = "numpy" },
-    { name = "onnx" },
     { name = "onnxruntime", version = "1.23.2", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'" },
     { name = "onnxruntime", version = "1.27.0", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and sys_platform == 'linux')" },
     { name = "onnxruntime-directml", marker = "sys_platform == 'win32'" },
@@ -40,7 +38,6 @@ dependencies = [
     { name = "python-multipart" },
     { name = "pyworld-prebuilt" },
     { name = "pyyaml" },
-    { name = "safetensors" },
     { name = "semver" },
     { name = "sentry-sdk", extra = ["fastapi"] },
     { name = "setuptools" },
@@ -81,18 +78,16 @@ requires-dist = [
     { name = "aivmlib", specifier = ">=1.2.1,<2.0.0" },
     { name = "e2k", git = "https://github.com/tsukumijima/e2k?rev=9920754e15d8c96404bef0bd81d424352fb7a48b" },
     { name = "fastapi", specifier = ">=0.115.5,<1.0.0" },
-    { name = "gguf", specifier = ">=0.17.1" },
     { name = "gputil", specifier = ">=1.4.0" },
     { name = "httpx", specifier = ">=0.28.1,<1.0.0" },
     { name = "jaconv", specifier = ">=0.3.4,<1.0.0" },
     { name = "jinja2", specifier = ">=3.1.6,<4.0.0" },
     { name = "kanalizer", specifier = ">=0.1.1" },
     { name = "numpy", specifier = ">=2.3.0" },
-    { name = "onnx", specifier = ">=1.16.0,<2.0.0" },
     { name = "onnxruntime", marker = "(platform_machine != 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and sys_platform == 'linux')", specifier = ">=1.24.0,<2.0.0" },
     { name = "onnxruntime", marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'", specifier = "==1.23.2" },
     { name = "onnxruntime-directml", marker = "sys_platform == 'win32'", specifier = ">=1.24.0,<2.0.0" },
-    { name = "onnxruntime-ep-style-bert-vits2-ggml", extras = ["convert"], git = "https://github.com/Myoland/onnxruntime-ep-style-bert-vits2-ggml?rev=8fc910dcd8b76ac45cc699f1dfe644512f995b92" },
+    { name = "onnxruntime-ep-style-bert-vits2-ggml", extras = ["convert"], git = "https://github.com/Myoland/onnxruntime-ep-style-bert-vits2-ggml?rev=52be9a3ff4705f300d5550621b5ec3d5946cb1db" },
     { name = "onnxruntime-gpu", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = ">=1.24.0,<1.27.0" },
     { name = "platformdirs", specifier = ">=4.2.0" },
     { name = "psutil", specifier = ">=6.1.1" },
@@ -102,7 +97,6 @@ requires-dist = [
     { name = "python-multipart", specifier = ">=0.0.31,<1.0.0" },
     { name = "pyworld-prebuilt", specifier = ">=0.3.5.post2,<1.0.0" },
     { name = "pyyaml", specifier = ">=6.0.1" },
-    { name = "safetensors", specifier = ">=0.4.0,<1.0.0" },
     { name = "semver", specifier = ">=3.0.0" },
     { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.19.2,<3.0.0" },
     { name = "setuptools", specifier = "<82" },
@@ -1072,11 +1066,13 @@ wheels = [
 [[package]]
 name = "onnxruntime-ep-style-bert-vits2-ggml"
 version = "0.1.0"
-source = { git = "https://github.com/Myoland/onnxruntime-ep-style-bert-vits2-ggml?rev=8fc910dcd8b76ac45cc699f1dfe644512f995b92#8fc910dcd8b76ac45cc699f1dfe644512f995b92" }
+source = { git = "https://github.com/Myoland/onnxruntime-ep-style-bert-vits2-ggml?rev=52be9a3ff4705f300d5550621b5ec3d5946cb1db#52be9a3ff4705f300d5550621b5ec3d5946cb1db" }
 
 [package.optional-dependencies]
 convert = [
+    { name = "aivmlib" },
     { name = "gguf" },
+    { name = "huggingface-hub" },
     { name = "numpy" },
     { name = "onnx" },
     { name = "safetensors" },

@@ -19,6 +19,11 @@ from fastapi import HTTPException
 from huggingface_hub import hf_hub_download
 from numpy.typing import NDArray
 from onnxruntime.capi.onnxruntime_pybind11_state import InvalidProtobuf, NoSuchFile
+from onnxruntime_ep_style_bert_vits2_ggml.engine_cache import (
+    DEFAULT_GGUF_CONVERTER_VERSION,
+    AivmGgufCache,
+    JpBertGgufCache,
+)
 from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
     PluginExecutionProviderConfig as OnnxPluginExecutionProviderConfig,
 )
@@ -59,11 +64,6 @@ from style_bert_vits2.nlp.japanese.normalizer import normalize_text
 from style_bert_vits2.nlp.symbols import PUNCTUATIONS
 from style_bert_vits2.tts_model import TTSModel
 
-from ..aivm_gguf_cache import (
-    DEFAULT_GGUF_CONVERTER_VERSION,
-    AivmGgufCache,
-    JpBertGgufCache,
-)
 from ..aivm_manager import AivmManager
 from ..core.core_adapter import CoreAdapter, DeviceSupport
 from ..dev.core.mock import MockCoreWrapper
@@ -209,7 +209,9 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         )
         self._onnx_plugin_gguf_cache = (
             AivmGgufCache(
-                cache_dir=ggml_model_cache_dir,
+                cache_dir=ggml_model_cache_dir
+                if ggml_model_cache_dir is not None
+                else get_save_dir() / "GgufModelCaches",
                 converter_version=(
                     ggml_synthesis_converter_version or DEFAULT_GGUF_CONVERTER_VERSION
                 ),
@@ -218,7 +220,11 @@ class StyleBertVITS2TTSEngine(TTSEngine):
             else None
         )
         self._onnx_plugin_jp_bert_gguf_cache = (
-            JpBertGgufCache(cache_dir=ggml_model_cache_dir)
+            JpBertGgufCache(
+                cache_dir=ggml_model_cache_dir
+                if ggml_model_cache_dir is not None
+                else get_save_dir() / "GgufModelCaches",
+            )
             if onnx_plugin_ep is not None
             else None
         )

@@ -588,8 +588,9 @@ uv run task update-licenses
 uv run task build
 ```
 
-ONNX GGML Plugin EP を含む各プラットフォーム向けパッケージの構築・検証手順は
-[ONNX GGML ビルド・検証手順](docs/onnx-ggml-build.md) を参照してください。
+ONNX GGML Plugin EP runtime の構築・検証手順は
+[onnxruntime-ep-style-bert-vits2-ggml](https://github.com/Myoland/onnxruntime-ep-style-bert-vits2-ggml)
+を参照してください。
 
 ## ライセンス
 
