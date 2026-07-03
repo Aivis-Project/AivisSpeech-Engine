@@ -58,7 +58,7 @@ exclude-newer = "1 week"
 [tool.uv.sources]
 style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "e702147d2f73a72667dac19ddf6acfe0cb4e3679" }
 e2k = { git = "https://github.com/tsukumijima/e2k", rev = "9920754e15d8c96404bef0bd81d424352fb7a48b" }
-onnxruntime-ep-style-bert-vits2-ggml = { git = "https://github.com/Myoland/onnxruntime-ep-style-bert-vits2-ggml", rev = "52be9a3ff4705f300d5550621b5ec3d5946cb1db" }
+onnxruntime-ep-style-bert-vits2-ggml = { git = "https://github.com/Myoland/onnxruntime-ep-style-bert-vits2-ggml", rev = "f8535bd379a17140b60b2186815f89441bdaca70" }
 
 [dependency-groups]
 build = [
