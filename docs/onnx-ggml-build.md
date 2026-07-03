@@ -25,9 +25,7 @@ Linux では `run.spec` が `patchelf` で TTS.cpp / ggml sidecar の rpath を
 
 ## バージョン
 
-ローカルレビュー再現では、benchmark 済みの値を使うのが基準です。特に
-TTS.cpp ref は Style-Bert Vulkan conv fallback performance fix と fast conv1d
-mode を含むものを使います。
+ローカルレビュー再現では、benchmark 済みの値を使うのが基準です。
 
 | 項目 | 値 |
 | --- | --- |
@@ -36,10 +34,6 @@ mode を含むものを使います。
 | TTS.cpp ref | `94792ed2599656618c1d5eb3934754c391eb2a54` |
 | ggml repository | `https://github.com/Myoland/ggml.git`（TTS.cpp submodule） |
 | Vulkan SDK | `1.3.296.0` |
-
-`0c6678415023c44d52dcf322827c33d36a352cb2` はビルドできますが、後続の
-Style-Bert Vulkan performance fixes を含まないため、AMD Radeon 780M の
-FP32 synthesis benchmark が `0.6` RTF 台まで落ちます。性能再現には使わないでください。
 
 ## 依存関係
 
