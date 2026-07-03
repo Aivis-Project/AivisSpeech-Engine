@@ -215,6 +215,14 @@ Windows Arc B580 と Linux RTX 3060 の short / medium / long 全てで ONNX CPU
 より高速でした。AMD 780M iGPU でも Linux Vulkan バックエンドが実時間未満で動作し、
 short `0.163`, medium `0.135`, long `0.108` RTF を記録しました。
 
+ローカル再現では [ONNX GGML ビルド・検証手順](onnx-ggml-build.md) の TTS.cpp ref
+を使ってください。`0c6678415023c44d52dcf322827c33d36a352cb2` はビルド自体は
+通りますが、Style-Bert Vulkan conv fallback performance fix と fast conv1d mode を
+含まないため、AMD Radeon 780M / FP32 synthesis の warm run が short `0.669`,
+medium `0.666`, long `0.687` RTF まで退化することを確認しています。
+benchmark 済みの `94792ed2599656618c1d5eb3934754c391eb2a54` では同じローカル条件で
+short `0.235`, medium `0.192`, long `0.143` RTF でした。
+
 ## PR に貼る benchmark 章の推奨形
 
 PR 本文には、次の順で貼るとレビュー担当者が追いやすくなります。

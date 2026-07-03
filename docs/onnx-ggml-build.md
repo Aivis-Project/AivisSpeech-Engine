@@ -25,18 +25,21 @@ Linux では `run.spec` が `patchelf` で TTS.cpp / ggml sidecar の rpath を
 
 ## バージョン
 
-CI と同じ値を使うのが再現性のある基準です。
+ローカルレビュー再現では、benchmark 済みの値を使うのが基準です。特に
+TTS.cpp ref は Style-Bert Vulkan conv fallback performance fix と fast conv1d
+mode を含むものを使います。
 
 | 項目 | 値 |
 | --- | --- |
 | ONNX Runtime headers | `1.26.0` |
 | TTS.cpp repository | `https://github.com/Myoland/TTS.cpp.git` |
-| TTS.cpp ref | `0c6678415023c44d52dcf322827c33d36a352cb2` |
+| TTS.cpp ref | `94792ed2599656618c1d5eb3934754c391eb2a54` |
 | ggml repository | `https://github.com/Myoland/ggml.git`（TTS.cpp submodule） |
 | Vulkan SDK | `1.3.296.0` |
 
-これらは [.github/workflows/build-engine.yml](../.github/workflows/build-engine.yml)
-にも定義されています。
+`0c6678415023c44d52dcf322827c33d36a352cb2` はビルドできますが、後続の
+Style-Bert Vulkan performance fixes を含まないため、AMD Radeon 780M の
+FP32 synthesis benchmark が `0.6` RTF 台まで落ちます。性能再現には使わないでください。
 
 ## 依存関係
 
@@ -51,7 +54,7 @@ macOS は TTS.cpp を `GGML_METAL=ON` でビルドします。Windows と Linux 
 
 ## 共通ビルドフロー
 
-以下の手順は CI の流れと同じです。ローカルパスは例なので、実行環境に合わせて
+以下の手順はローカル再現用の流れです。ローカルパスは例なので、実行環境に合わせて
 置き換えてください。
 
 ```bash
@@ -110,13 +113,13 @@ cmake --install build/onnx-ggml-native --config Release \
 ```bash
 rm -rf "$TTS_CPP_DIR" "$TTS_CPP_BUILD_DIR"
 git clone https://github.com/Myoland/TTS.cpp.git "$TTS_CPP_DIR"
-git -C "$TTS_CPP_DIR" checkout 0c6678415023c44d52dcf322827c33d36a352cb2
+git -C "$TTS_CPP_DIR" checkout 94792ed2599656618c1d5eb3934754c391eb2a54
 git -C "$TTS_CPP_DIR" submodule set-url ggml https://github.com/Myoland/ggml.git
 git -C "$TTS_CPP_DIR" submodule update --init --recursive
 ```
 
 この pinned ref の `.gitmodules` は移転前の ggml URL を保持しているため、
-CI と同じく `submodule set-url` で移転後の URL を明示します。
+`submodule set-url` で移転後の URL を明示します。
 
 Linux / Windows:
 
