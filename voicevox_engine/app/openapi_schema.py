@@ -12,11 +12,27 @@ from voicevox_engine.library.model import BaseLibraryInfo, VvlibManifest
 
 def simplify_operation_ids(app: FastAPI) -> FastAPI:
     """operation ID を簡略化してAPIクライアントで生成される関数名をシンプルにする。"""
-    for route in app.routes:
-        if isinstance(route, APIRoute):
-            route.operation_id = route.name
+    for route in _iter_api_routes(app.routes):
+        route.openapi_extra = {**(route.openapi_extra or {}), "operationId": route.name}
 
     return app
+
+
+def _iter_api_routes(routes: list[Any]) -> list[APIRoute]:
+    """FastAPI 0.129 以降の _IncludedRouter も含めて APIRoute を列挙する。"""
+    api_routes: list[APIRoute] = []
+    for route in routes:
+        if isinstance(route, APIRoute):
+            api_routes.append(route)
+            continue
+
+        nested_routes = getattr(route, "routes", None)
+        if nested_routes is None:
+            original_router = getattr(route, "original_router", None)
+            nested_routes = getattr(original_router, "routes", None)
+        if nested_routes is not None:
+            api_routes.extend(_iter_api_routes(nested_routes))
+    return api_routes
 
 
 def configure_openapi_schema(app: FastAPI, manage_library: bool | None) -> FastAPI:

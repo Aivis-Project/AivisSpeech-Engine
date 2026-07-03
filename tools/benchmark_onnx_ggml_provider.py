@@ -271,8 +271,7 @@ def _parse_args() -> argparse.Namespace:
         choices=("f32", "coopmat", "fp16", "fp16-coopmat"),
         default="coopmat",
         help=(
-            "Provider option controlling ggml-vulkan F16 and cooperative "
-            "matrix use."
+            "Provider option controlling ggml-vulkan F16 and cooperative matrix use."
         ),
     )
     parser.add_argument(
@@ -452,9 +451,7 @@ def _build_backend_specs(args: argparse.Namespace) -> list[_BackendSpec]:
                     args,
                     ggml_backend=ggml_backend,
                     jp_bert_gguf_path=jp_bert_gguf_path,
-                    inherit_global_jp_bert_gguf_path=(
-                        inherit_global_jp_bert_gguf_path
-                    ),
+                    inherit_global_jp_bert_gguf_path=(inherit_global_jp_bert_gguf_path),
                 ),
                 ggml_synthesis_converter_version=synthesis_converter_version,
                 ggml_jp_bert_precision_label=jp_bert_precision_label,
@@ -557,11 +554,7 @@ def _compare_against_onnx_cpu_truth(
 
     text_labels = sorted({summary.text_label for summary in summaries})
     backends = sorted(
-        {
-            summary.backend
-            for summary in summaries
-            if summary.backend != "onnx-cpu"
-        }
+        {summary.backend for summary in summaries if summary.backend != "onnx-cpu"}
     )
     comparisons: list[_TruthComparison] = []
     for text_label in text_labels:
@@ -803,9 +796,7 @@ def main() -> None:
         },
         "provider_evidence": provider_evidence,
         "summary": [asdict(summary) for summary in summaries],
-        "truth_comparison": [
-            asdict(comparison) for comparison in truth_comparison
-        ],
+        "truth_comparison": [asdict(comparison) for comparison in truth_comparison],
         "records": [asdict(record) for record in all_records],
     }
     if args.output_json is not None:

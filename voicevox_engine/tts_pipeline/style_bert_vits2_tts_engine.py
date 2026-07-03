@@ -61,6 +61,7 @@ from ..utility.path_utility import get_save_dir
 
 BuiltinOnnxProvider = Literal["cuda", "directml"]
 OnnxProviderSetting = str | tuple[str, dict[str, Any]]
+_ONNX_INFERENCE_SESSION_PATCH_LOCK = threading.RLock()
 
 
 @dataclass(frozen=True)
@@ -207,7 +208,9 @@ def _select_onnx_providers(
                 available_onnx_providers=available_onnx_providers,
                 enable_directml_fallback=False,
             )
-        logger.warning("Requested GPU (NVIDIA CUDA) is not available. Using CPU instead.")
+        logger.warning(
+            "Requested GPU (NVIDIA CUDA) is not available. Using CPU instead."
+        )
         return _cpu_onnx_providers()
 
     if preferred_onnx_provider == "directml":
@@ -253,10 +256,7 @@ def _available_onnx_ep_device_names() -> list[str]:
     if not callable(get_ep_devices):
         return []
 
-    return [
-        str(getattr(ep_device, "ep_name", ""))
-        for ep_device in get_ep_devices()
-    ]
+    return [str(getattr(ep_device, "ep_name", "")) for ep_device in get_ep_devices()]
 
 
 def _find_onnx_provider_options(
@@ -292,56 +292,57 @@ def _onnx_plugin_inference_session_scope(
         yield
         return
 
-    original_inference_session = onnxruntime.InferenceSession
+    with _ONNX_INFERENCE_SESSION_PATCH_LOCK:
+        original_inference_session = onnxruntime.InferenceSession
 
-    def plugin_aware_inference_session(
-        path_or_bytes: str | bytes | Path,
-        sess_options: Any | None = None,
-        providers: Sequence[str | tuple[str, dict[str, Any]]] | None = None,
-        provider_options: Sequence[dict[Any, Any]] | None = None,
-        **kwargs: Any,
-    ) -> Any:
-        plugin_provider_options = _find_onnx_provider_options(
-            providers=providers,
-            provider_options=provider_options,
-            provider_name=config.provider_name,
-        )
-        if plugin_provider_options is None:
+        def plugin_aware_inference_session(
+            path_or_bytes: str | bytes | Path,
+            sess_options: Any | None = None,
+            providers: Sequence[str | tuple[str, dict[str, Any]]] | None = None,
+            provider_options: Sequence[dict[Any, Any]] | None = None,
+            **kwargs: Any,
+        ) -> Any:
+            plugin_provider_options = _find_onnx_provider_options(
+                providers=providers,
+                provider_options=provider_options,
+                provider_name=config.provider_name,
+            )
+            if plugin_provider_options is None:
+                return original_inference_session(
+                    path_or_bytes,
+                    sess_options=sess_options,
+                    providers=providers,
+                    provider_options=provider_options,
+                    **kwargs,
+                )
+
+            ep_devices = _get_onnx_plugin_ep_devices(config.provider_name)
+            if not ep_devices:
+                return original_inference_session(
+                    path_or_bytes,
+                    sess_options=sess_options,
+                    providers=providers,
+                    provider_options=provider_options,
+                    **kwargs,
+                )
+
+            if sess_options is None:
+                sess_options = onnxruntime.SessionOptions()
+            sess_options.add_provider_for_devices(
+                ep_devices,
+                {key: str(value) for key, value in plugin_provider_options.items()},
+            )
             return original_inference_session(
                 path_or_bytes,
                 sess_options=sess_options,
-                providers=providers,
-                provider_options=provider_options,
                 **kwargs,
             )
 
-        ep_devices = _get_onnx_plugin_ep_devices(config.provider_name)
-        if not ep_devices:
-            return original_inference_session(
-                path_or_bytes,
-                sess_options=sess_options,
-                providers=providers,
-                provider_options=provider_options,
-                **kwargs,
-            )
-
-        if sess_options is None:
-            sess_options = onnxruntime.SessionOptions()
-        sess_options.add_provider_for_devices(
-            ep_devices,
-            {key: str(value) for key, value in plugin_provider_options.items()},
-        )
-        return original_inference_session(
-            path_or_bytes,
-            sess_options=sess_options,
-            **kwargs,
-        )
-
-    onnxruntime.InferenceSession = plugin_aware_inference_session  # type: ignore[assignment]
-    try:
-        yield
-    finally:
-        onnxruntime.InferenceSession = original_inference_session  # type: ignore[assignment]
+        onnxruntime.InferenceSession = plugin_aware_inference_session  # type: ignore[assignment]
+        try:
+            yield
+        finally:
+            onnxruntime.InferenceSession = original_inference_session  # type: ignore[assignment]
 
 
 def _replace_provider_options(
@@ -420,8 +421,7 @@ class StyleBertVITS2TTSEngine(TTSEngine):
             AivmGgufCache(
                 cache_dir=ggml_model_cache_dir,
                 converter_version=(
-                    ggml_synthesis_converter_version
-                    or DEFAULT_GGUF_CONVERTER_VERSION
+                    ggml_synthesis_converter_version or DEFAULT_GGUF_CONVERTER_VERSION
                 ),
             )
             if onnx_plugin_ep is not None
@@ -473,7 +473,9 @@ class StyleBertVITS2TTSEngine(TTSEngine):
                 available_onnx_providers=self.available_onnx_providers,
                 preferred_onnx_provider=preferred_onnx_provider,
             )
-        elif use_gpu is True and "CUDAExecutionProvider" in self.available_onnx_providers:
+        elif (
+            use_gpu is True and "CUDAExecutionProvider" in self.available_onnx_providers
+        ):
             self.onnx_providers = []
             # HEURISTIC avoids the slow CUDA convolution path seen in
             # Style-Bert-VITS2 SDP runs while keeping first-run cost bounded.
@@ -743,10 +745,6 @@ class StyleBertVITS2TTSEngine(TTSEngine):
     @property
     def supported_devices(self) -> DeviceSupport | None:
         """合成時に各デバイスが利用可能か否かの一覧を取得する。"""
-        supports_onnx_plugin_ep = (
-            self._onnx_plugin_ep is not None
-            and self._onnx_plugin_ep.provider_name in _provider_names(self.onnx_providers)
-        )
         return DeviceSupport(
             # CPU: 常にサポートされる
             cpu=True,
@@ -761,8 +759,7 @@ class StyleBertVITS2TTSEngine(TTSEngine):
             # この値が True であるからといって、必ずしも DirectML 推論が利用できるとは限らない
             dml=(
                 True
-                if supports_onnx_plugin_ep
-                or "DmlExecutionProvider" in self.available_onnx_providers
+                if "DmlExecutionProvider" in self.available_onnx_providers
                 else False
             ),
         )

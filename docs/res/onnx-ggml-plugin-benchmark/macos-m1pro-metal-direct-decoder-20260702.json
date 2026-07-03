@@ -34,7 +34,7 @@
     }
   },
   "build": {
-    "command": "cmake --build /Users/kevinzhow/Github/TTS.cpp/build-metal-shared --target tts kokoro-conv-1d-bench -j$(sysctl -n hw.ncpu)",
+    "command": "cmake --build \"$TTS_CPP_DIR/build-metal-shared\" --target tts kokoro-conv-1d-bench -j$(sysctl -n hw.ncpu)",
     "status": "succeeded",
     "noted_warnings": [
       "Existing std::move warning in model.h"

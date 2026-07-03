@@ -287,6 +287,14 @@ def _default_ggml_cpu_threads() -> int:
     return max(os.cpu_count() or 1, 1)
 
 
+def _default_ggml_tts_server_backend() -> str:
+    """Return the bundled TTS.cpp backend that matches the current platform."""
+
+    if sys.platform == "darwin":
+        return "metal"
+    return "vulkan"
+
+
 def _add_local_onnx_ep_package_src_to_path() -> None:
     package_src_path = (
         engine_root() / "experimental" / "onnxruntime-ep-aivis-ggml" / "src"
@@ -420,7 +428,7 @@ def read_cli_arguments(envs: Envs) -> _CLIArgs:
     parser.add_argument(
         "--ggml_tts_server_backend",
         choices=("vulkan", "metal", "cpu"),
-        default="vulkan",
+        default=_default_ggml_tts_server_backend(),
         help="ONNX GGML Plugin EP 内の TTS.cpp backend を指定します。",
     )
     parser.add_argument(

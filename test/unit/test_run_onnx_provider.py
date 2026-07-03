@@ -8,9 +8,10 @@ import pytest
 
 from run import (
     _build_ggml_onnx_ep_options,
+    _default_ggml_tts_server_backend,
     decide_onnx_provider_from_env,
-    engine_root,
 )
+from voicevox_engine.utility.path_utility import engine_root
 
 
 def test_decide_onnx_provider_from_env_accepts_ggml(
@@ -70,6 +71,18 @@ def test_build_ggml_onnx_ep_options_defaults_to_claiming_supported_graphs() -> N
         "precision": "accurate",
         "tts_cpp_library_path": str((engine_root() / library_path).resolve()),
     }
+
+
+def test_default_ggml_tts_server_backend_matches_platform(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The packaged default backend follows the platform-specific sidecar build."""
+
+    monkeypatch.setattr("run.sys.platform", "darwin")
+    assert _default_ggml_tts_server_backend() == "metal"
+
+    monkeypatch.setattr("run.sys.platform", "linux")
+    assert _default_ggml_tts_server_backend() == "vulkan"
 
 
 def test_build_ggml_onnx_ep_options_sets_positive_threads_for_cpu_backend(

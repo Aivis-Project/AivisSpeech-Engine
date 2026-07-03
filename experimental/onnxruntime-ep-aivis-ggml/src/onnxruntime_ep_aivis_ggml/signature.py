@@ -7,7 +7,7 @@ from collections import Counter
 from dataclasses import asdict, dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 SIGNATURE_CONTRACT_VERSION = "aivis-ggml-signature-contract-v1"
 
@@ -216,7 +216,9 @@ def match_supported_style_bert_vits2_synthesis(
         reasons.append("initializer name hash does not match supported synthesis graph")
 
     architecture = signature.metadata_model_architecture
-    expected_architectures = expected["metadata_model_architectures"]
+    expected_architectures = cast(
+        tuple[str, ...], expected["metadata_model_architectures"]
+    )
     if architecture is not None and architecture not in expected_architectures:
         reasons.append(f"metadata model_architecture {architecture!r} is unsupported")
 
@@ -263,15 +265,18 @@ def match_supported_style_bert_vits2_jp_bert(
             f"!= {expected['output_elem_type']!r}"
         )
 
-    if signature.node_count not in expected["node_counts"]:
+    node_counts = cast(tuple[int, ...], expected["node_counts"])
+    if signature.node_count not in node_counts:
         reasons.append(f"node_count {signature.node_count} is not accepted")
-    if signature.initializer_count not in expected["initializer_counts"]:
+    initializer_counts = cast(tuple[int, ...], expected["initializer_counts"])
+    if signature.initializer_count not in initializer_counts:
         reasons.append(
             f"initializer_count {signature.initializer_count} is not accepted"
         )
 
     op_types = {op_type for op_type, _count in signature.op_counts}
-    for required_op_type in expected["required_op_types"]:
+    required_op_types = cast(tuple[str, ...], expected["required_op_types"])
+    for required_op_type in required_op_types:
         if required_op_type not in op_types:
             reasons.append(f"required op type {required_op_type!r} is missing")
 
@@ -351,9 +356,9 @@ def _tensor_signature(onnx_module: Any, value_info: Any) -> TensorSignature:
 
 def _dim_signature(dim: Any) -> str | int:
     if dim.dim_param:
-        return dim.dim_param
+        return str(dim.dim_param)
     if dim.HasField("dim_value"):
-        return dim.dim_value
+        return int(dim.dim_value)
     return "?"
 
 

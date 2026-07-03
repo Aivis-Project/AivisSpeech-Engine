@@ -472,7 +472,7 @@ Configuration:
 - Engine: `12d508d7`; TTS.cpp: `7daeaea`; ggml submodule: `023ace57`, with
   local Metal conv1d changes
 - Build: rebuilt latest local `libtts.dylib` via
-  `cmake --build /Users/kevinzhow/Github/TTS.cpp/build-metal-shared --target tts kokoro-conv-1d-bench`
+  `cmake --build "$TTS_CPP_DIR/build-metal-shared" --target tts kokoro-conv-1d-bench`
 - Runtime: `TTS_BACKEND=metal`, `TTS_BACKEND_STRICT=1`,
   `STYLE_BERT_VITS2_METAL_FUSED_CONV1D=full`
 - Kernel tuning: default `metal_tiled_conv1d_min_output=4096`; parallel

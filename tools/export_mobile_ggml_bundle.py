@@ -11,7 +11,6 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar
-from uuid import UUID
 
 import aivmlib
 import numpy as np
@@ -31,8 +30,8 @@ if str(_REPO_ROOT) not in sys.path:
 from tools.benchmark_onnx_ggml_provider import (  # noqa: E402
     _DEFAULT_TEXTS,
     _DEFAULT_WARMUP_TEXTS,
-    _NoNetworkAivisHubClient,
     _build_audio_query,
+    _NoNetworkAivisHubClient,
 )
 from voicevox_engine.aivm_manager import AivmManager  # noqa: E402
 from voicevox_engine.metas.metas import StyleId  # noqa: E402
@@ -213,7 +212,9 @@ def _capture_case(
     language_ids_i32 = np.ascontiguousarray(np.array(language_ids, dtype=np.int32))
     tokens = int(phone_ids.shape[0])
     if bert.shape != (1024, tokens):
-        raise ValueError(f"{label}: expected BERT shape (1024, {tokens}), got {bert.shape}")
+        raise ValueError(
+            f"{label}: expected BERT shape (1024, {tokens}), got {bert.shape}"
+        )
 
     bert_input_ids = np.empty((0,), dtype=np.int32)
     bert_word2ph = np.empty((0,), dtype=np.int32)
@@ -310,6 +311,8 @@ def _write_bundle(path: Path, cases: Sequence[_CapturedCase]) -> None:
 
 
 def main() -> None:
+    """Export a mobile benchmark bundle from installed AIVMX models."""
+
     args = _parse_args()
     texts = tuple(args.text or _DEFAULT_TEXTS)
     warmup_texts = tuple(args.warmup_text or _DEFAULT_WARMUP_TEXTS)
@@ -320,7 +323,9 @@ def main() -> None:
     original_infer = TTSModel.infer
     pending_labels: list[tuple[int, str]] = []
 
-    def capture_infer(self: TTSModel, *infer_args: Any, **kwargs: Any) -> tuple[int, np.ndarray]:
+    def capture_infer(
+        self: TTSModel, *infer_args: Any, **kwargs: Any
+    ) -> tuple[int, np.ndarray]:
         del infer_args
         if not pending_labels:
             raise RuntimeError("No pending label for captured TTSModel.infer call.")
@@ -335,7 +340,9 @@ def main() -> None:
                 noise_scale_w=args.noise_scale_w,
             )
         )
-        silence = np.zeros(int(self.hyper_parameters.data.sampling_rate * 0.1), dtype=np.int16)
+        silence = np.zeros(
+            int(self.hyper_parameters.data.sampling_rate * 0.1), dtype=np.int16
+        )
         return self.hyper_parameters.data.sampling_rate, silence
 
     TTSModel.infer = capture_infer
@@ -351,12 +358,15 @@ def main() -> None:
                 _build_aivm_manager(tmp_path=tmp_path, models_dir=models_dir),
                 use_gpu=False,
                 load_all_models=False,
-                preferred_onnx_provider="cpu",
             )
             style_id = StyleId(args.style_id)
             labels = ("short", "medium", "long")
             for index, text in enumerate(warmup_texts):
-                label = f"warmup_{labels[index]}" if index < len(labels) else f"warmup_{index}"
+                label = (
+                    f"warmup_{labels[index]}"
+                    if index < len(labels)
+                    else f"warmup_{index}"
+                )
                 pending_labels.append((0, label))
                 query = _build_audio_query(
                     engine=engine,
@@ -364,7 +374,9 @@ def main() -> None:
                     style_id=style_id,
                     tempo_dynamics_scale=args.tempo_dynamics_scale,
                 )
-                engine.synthesize_wave(query, style_id, enable_interrogative_upspeak=True)
+                engine.synthesize_wave(
+                    query, style_id, enable_interrogative_upspeak=True
+                )
             for index, text in enumerate(texts):
                 label = labels[index] if index < len(labels) else f"text_{index}"
                 pending_labels.append((1, label))
@@ -374,7 +386,9 @@ def main() -> None:
                     style_id=style_id,
                     tempo_dynamics_scale=args.tempo_dynamics_scale,
                 )
-                engine.synthesize_wave(query, style_id, enable_interrogative_upspeak=True)
+                engine.synthesize_wave(
+                    query, style_id, enable_interrogative_upspeak=True
+                )
             if pending_labels:
                 raise RuntimeError(f"Unconsumed labels: {pending_labels}")
             if not captured:

@@ -131,7 +131,9 @@ def _update_licenses(pip_licenses: list[_PipLicense]) -> list[_License]:
         # ライセンス文が pip から取得できていない場合、pip 外から補う
         if pip_license.LicenseText == "UNKNOWN":
             if package_name in package_to_license_path:
-                pip_license.LicenseText = Path(package_to_license_path[package_name]).read_text(encoding="utf-8")
+                pip_license.LicenseText = Path(
+                    package_to_license_path[package_name]
+                ).read_text(encoding="utf-8")
             elif package_name in package_to_license_url:
                 text_url = package_to_license_url[package_name]
                 pip_license.LicenseText = _get_license_text(text_url)

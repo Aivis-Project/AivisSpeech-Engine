@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import numpy as np
+import onnxruntime
 import pytest
 from aivmlib.schemas.aivm_manifest import (
     AivmManifest,
@@ -19,7 +20,6 @@ from aivmlib.schemas.aivm_manifest import (
 from numpy.typing import NDArray
 from style_bert_vits2.constants import DEFAULT_SDP_RATIO, DEFAULT_STYLE_WEIGHT
 
-import voicevox_engine.tts_pipeline.style_bert_vits2_tts_engine as style_bert_vits2_tts_engine
 from voicevox_engine.aivm_manager import AivmManager
 from voicevox_engine.core.core_adapter import DeviceSupport
 from voicevox_engine.metas.metas import StyleId
@@ -307,17 +307,17 @@ def test_configure_onnx_plugin_execution_provider_registers_and_prepends(
         register_calls.append((registration_name, library_path))
 
     monkeypatch.setattr(
-        style_bert_vits2_tts_engine.onnxruntime,
+        onnxruntime,
         "register_execution_provider_library",
         fake_register_execution_provider_library,
     )
     monkeypatch.setattr(
-        style_bert_vits2_tts_engine.onnxruntime,
+        onnxruntime,
         "get_available_providers",
         lambda: list(available_providers),
     )
     monkeypatch.setattr(
-        style_bert_vits2_tts_engine.onnxruntime,
+        onnxruntime,
         "get_ep_devices",
         lambda: [SimpleNamespace(ep_name="AivisGgmlExecutionProvider")],
     )
@@ -354,17 +354,17 @@ def test_configure_onnx_plugin_execution_provider_raises_when_strict(
     """Strict Plugin EP setup fails startup instead of silently falling back."""
 
     monkeypatch.setattr(
-        style_bert_vits2_tts_engine.onnxruntime,
+        onnxruntime,
         "register_execution_provider_library",
         lambda _registration_name, _library_path: None,
     )
     monkeypatch.setattr(
-        style_bert_vits2_tts_engine.onnxruntime,
+        onnxruntime,
         "get_available_providers",
         lambda: ["CPUExecutionProvider"],
     )
     monkeypatch.setattr(
-        style_bert_vits2_tts_engine.onnxruntime,
+        onnxruntime,
         "get_ep_devices",
         lambda: [],
     )
@@ -422,17 +422,17 @@ def test_onnx_plugin_inference_session_scope_uses_ep_devices(
 
     ep_device = SimpleNamespace(ep_name="AivisGgmlExecutionProvider")
     monkeypatch.setattr(
-        style_bert_vits2_tts_engine.onnxruntime,
+        onnxruntime,
         "get_ep_devices",
         lambda: [ep_device],
     )
     monkeypatch.setattr(
-        style_bert_vits2_tts_engine.onnxruntime,
+        onnxruntime,
         "SessionOptions",
         FakeSessionOptions,
     )
     monkeypatch.setattr(
-        style_bert_vits2_tts_engine.onnxruntime,
+        onnxruntime,
         "InferenceSession",
         fake_inference_session,
     )
@@ -447,7 +447,7 @@ def test_onnx_plugin_inference_session_scope_uses_ep_devices(
     ]
 
     with _onnx_plugin_inference_session_scope(config):
-        session = style_bert_vits2_tts_engine.onnxruntime.InferenceSession(
+        session = onnxruntime.InferenceSession(
             "model.onnx",
             providers=providers,
         )
@@ -475,11 +475,12 @@ def test_validate_strict_session_provider_rejects_silent_cpu_fallback() -> None:
 
 
 def test_prepare_onnx_plugin_jp_bert_provider_options_fills_cache_path(
+    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     """JP-BERT GGUF path is prepared before the global BERT ONNX session opens."""
 
-    engine = cast(StyleBertVITS2TTSEngine, object.__new__(StyleBertVITS2TTSEngine))
+    engine = object.__new__(StyleBertVITS2TTSEngine)
     engine.onnx_providers = [
         (
             "AivisGgmlExecutionProvider",
@@ -492,7 +493,11 @@ def test_prepare_onnx_plugin_jp_bert_provider_options_fills_cache_path(
         "CPUExecutionProvider",
     ]
     jp_bert_onnx_path = tmp_path / "model_fp16.onnx"
-    engine._resolve_jp_bert_onnx_path = lambda: jp_bert_onnx_path  # noqa: SLF001
+    monkeypatch.setattr(
+        engine,
+        "_resolve_jp_bert_onnx_path",
+        lambda: jp_bert_onnx_path,
+    )
     jp_bert_gguf_path = tmp_path / "jp-bert.gguf"
 
     class FakeJpBertGgufCache:
@@ -533,7 +538,7 @@ def test_model_specific_onnx_providers_fills_synthesis_gguf_path(
 ) -> None:
     """Synthesis GGUF is prepared per installed AIVMX model before session load."""
 
-    engine = cast(StyleBertVITS2TTSEngine, object.__new__(StyleBertVITS2TTSEngine))
+    engine = object.__new__(StyleBertVITS2TTSEngine)
     config = OnnxPluginExecutionProviderConfig(
         provider_name="AivisGgmlExecutionProvider",
         provider_options={
@@ -575,8 +580,8 @@ def test_model_specific_onnx_providers_fills_synthesis_gguf_path(
     )
 
 
-def test_supported_devices_reports_onnx_plugin_ep_as_gpu_capable() -> None:
-    engine = cast(StyleBertVITS2TTSEngine, object.__new__(StyleBertVITS2TTSEngine))
+def test_supported_devices_does_not_report_onnx_plugin_ep_as_directml() -> None:
+    engine = object.__new__(StyleBertVITS2TTSEngine)
     config = OnnxPluginExecutionProviderConfig(
         provider_name="AivisGgmlExecutionProvider",
         provider_options={
@@ -593,11 +598,11 @@ def test_supported_devices_reports_onnx_plugin_ep_as_gpu_capable() -> None:
     ]
     engine.available_onnx_providers = ["CPUExecutionProvider"]
 
-    assert engine.supported_devices == DeviceSupport(cpu=True, cuda=False, dml=True)
+    assert engine.supported_devices == DeviceSupport(cpu=True, cuda=False, dml=False)
 
 
 def test_supported_devices_ignores_unselected_onnx_plugin_ep() -> None:
-    engine = cast(StyleBertVITS2TTSEngine, object.__new__(StyleBertVITS2TTSEngine))
+    engine = object.__new__(StyleBertVITS2TTSEngine)
     engine._onnx_plugin_ep = OnnxPluginExecutionProviderConfig(
         provider_name="AivisGgmlExecutionProvider",
         provider_options={

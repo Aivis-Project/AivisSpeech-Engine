@@ -23,7 +23,9 @@ DEFAULT_GGUF_CONVERTER_VERSION = (
 )
 F32_GGUF_CONVERTER_VERSION = "tts-cpp-style-bert-vits2-converter-f32-v1"
 DEFAULT_GGUF_SCHEMA_VERSION = "style-bert-vits2-gguf-v1"
-DEFAULT_JP_BERT_GGUF_CONVERTER_VERSION = "tts-cpp-style-bert-vits2-jp-bert-f16-linear-v1"
+DEFAULT_JP_BERT_GGUF_CONVERTER_VERSION = (
+    "tts-cpp-style-bert-vits2-jp-bert-f16-linear-v1"
+)
 DEFAULT_JP_BERT_GGUF_SCHEMA_VERSION = "style-bert-vits2-jp-bert-gguf-v1"
 DEFAULT_JP_BERT_GGUF_REPOSITORY = "kevinzhow/style-bert-vits2-gguf"
 DEFAULT_JP_BERT_GGUF_FILENAME = "frontend/style-bert-vits2-jp-bert.gguf"
@@ -193,9 +195,8 @@ class AivmGgufCache:
     ) -> dict[str, int | str]:
         stat = aivm_file_path.stat()
         return {
-            "aivm_file_path": str(aivm_file_path.resolve()),
             "aivm_file_size": stat.st_size,
-            "aivm_file_mtime_ns": stat.st_mtime_ns,
+            "aivm_file_sha256": _file_sha256(aivm_file_path),
             "aivm_manifest_uuid": str(aivm_metadata.manifest.uuid),
             "aivm_manifest_version": aivm_metadata.manifest.version,
             "aivm_model_architecture": str(aivm_metadata.manifest.model_architecture),
@@ -638,9 +639,8 @@ class JpBertGgufCache:
             "converter_kind": "jp-bert-prebuilt-gguf-bundle",
             "converter_version": self.converter_version,
             "gguf_schema_version": self.gguf_schema_version,
-            "jp_bert_onnx_path": str(onnx_path.resolve()),
             "jp_bert_onnx_size": stat.st_size,
-            "jp_bert_onnx_mtime_ns": stat.st_mtime_ns,
+            "jp_bert_onnx_sha256": _file_sha256(onnx_path),
             "prebuilt_filename": self.prebuilt_filename,
             "prebuilt_repo_id": self.prebuilt_repo_id,
             "prebuilt_revision": self.prebuilt_revision or "",
@@ -738,3 +738,11 @@ def _add_local_onnx_ep_package_src_to_path() -> bool:
     if package_src_text not in sys.path:
         sys.path.insert(0, package_src_text)
     return True
+
+
+def _file_sha256(path: Path) -> str:
+    hasher = hashlib.sha256()
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
