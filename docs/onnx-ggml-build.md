@@ -194,6 +194,18 @@ cd "$ENGINE_DIR"
 uv run --group build pyinstaller --noconfirm run.spec
 ```
 
+macOS で上記の TTS.cpp CMake build output をそのまま使う場合:
+
+```bash
+export AIVIS_ONNX_GGML_REQUIRED=1
+export AIVIS_TTS_CPP_LIBRARY_PATH="$TTS_CPP_BUILD_DIR/src/libtts.dylib"
+export AIVIS_TTS_CPP_LIBRARY_DIRS="$TTS_CPP_BUILD_DIR/src:$TTS_CPP_BUILD_DIR/ggml/src:$TTS_CPP_BUILD_DIR/ggml/src/ggml-blas:$TTS_CPP_BUILD_DIR/ggml/src/ggml-metal"
+export AIVIS_ONNX_GGML_EP_LIBRARY_PATH="$ENGINE_DIR/experimental/onnxruntime-ep-aivis-ggml/src/onnxruntime_ep_aivis_ggml/lib/libaivis_ggml_onnx_ep.dylib"
+
+cd "$ENGINE_DIR"
+uv run --group build pyinstaller --noconfirm run.spec
+```
+
 `AIVIS_ONNX_GGML_REQUIRED=1` を付けると、sidecar が不足している場合に
 ビルドが失敗します。PR レビュー用の再現では必ず付けてください。
 Windows / macOS でも同じ環境変数を使い、各 OS の `libtts` / Plugin EP library と
