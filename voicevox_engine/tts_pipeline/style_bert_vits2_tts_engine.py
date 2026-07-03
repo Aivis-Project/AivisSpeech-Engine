@@ -8,42 +8,29 @@ import time
 from collections.abc import Sequence
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Final, Literal
+from typing import Any, Final
 
 import aivmlib
 import jaconv
 import numpy as np
 import onnxruntime
-from aivmlib.schemas.aivm_manifest import AivmMetadata
 from fastapi import HTTPException
 from huggingface_hub import hf_hub_download
 from numpy.typing import NDArray
 from onnxruntime.capi.onnxruntime_pybind11_state import InvalidProtobuf, NoSuchFile
-from onnxruntime_ep_style_bert_vits2_ggml.engine_cache import (
-    DEFAULT_GGUF_CONVERTER_VERSION,
-    AivmGgufCache,
-    JpBertGgufCache,
+from onnxruntime_ep_style_bert_vits2_ggml.engine_integration import (
+    StyleBertVits2GgmlRuntime,
+    resolve_aivmx_onnx_source_path,
+    validate_session_provider,
+)
+from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
+    BuiltinProvider as BuiltinOnnxProvider,
 )
 from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
     PluginExecutionProviderConfig as OnnxPluginExecutionProviderConfig,
 )
 from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
-    ProviderSetting as OnnxProviderSetting,
-)
-from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
-    configure_execution_provider,
-)
-from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
-    inference_session_scope as _onnx_plugin_inference_session_scope,
-)
-from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
-    provider_names as _provider_names,
-)
-from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
-    remove_provider as _remove_provider,
-)
-from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
-    replace_provider_options as _replace_provider_options,
+    select_builtin_execution_providers,
 )
 from style_bert_vits2.constants import (
     DEFAULT_SDP_RATIO,
@@ -78,97 +65,6 @@ from ..tts_pipeline.tts_engine import (
 )
 from ..utility.path_utility import get_save_dir
 
-BuiltinOnnxProvider = Literal["cuda", "directml"]
-
-
-def _configure_onnx_plugin_execution_provider(
-    *,
-    base_providers: Sequence[OnnxProviderSetting],
-    config: OnnxPluginExecutionProviderConfig | None,
-) -> list[OnnxProviderSetting]:
-    return configure_execution_provider(
-        base_providers=base_providers,
-        config=config,
-        logger=logger,
-    )
-
-
-def _cpu_onnx_providers() -> list[OnnxProviderSetting]:
-    return [("CPUExecutionProvider", {"arena_extend_strategy": "kSameAsRequested"})]
-
-
-def _directml_onnx_providers() -> list[OnnxProviderSetting]:
-    return [
-        ("DmlExecutionProvider", {"device_id": 0}),
-        *_cpu_onnx_providers(),
-    ]
-
-
-def _cuda_onnx_providers(
-    *,
-    available_onnx_providers: Sequence[str],
-    enable_directml_fallback: bool,
-) -> list[OnnxProviderSetting]:
-    providers: list[OnnxProviderSetting] = [
-        (
-            "CUDAExecutionProvider",
-            {
-                "arena_extend_strategy": "kSameAsRequested",
-                "cudnn_conv_algo_search": "HEURISTIC",
-            },
-        ),
-    ]
-    if enable_directml_fallback and "DmlExecutionProvider" in available_onnx_providers:
-        providers.append(("DmlExecutionProvider", {"device_id": 0}))
-    providers.extend(_cpu_onnx_providers())
-    return providers
-
-
-def _select_onnx_providers(
-    *,
-    use_gpu: bool,
-    available_onnx_providers: Sequence[str],
-    preferred_onnx_provider: BuiltinOnnxProvider | None,
-) -> list[OnnxProviderSetting]:
-    """Select ONNX Runtime providers for Style-Bert-VITS2 inference."""
-
-    if not use_gpu:
-        logger.info("Using CPU for inference.")
-        return _cpu_onnx_providers()
-
-    if preferred_onnx_provider == "cuda":
-        if "CUDAExecutionProvider" in available_onnx_providers:
-            logger.info("Using GPU (NVIDIA CUDA) for inference.")
-            return _cuda_onnx_providers(
-                available_onnx_providers=available_onnx_providers,
-                enable_directml_fallback=False,
-            )
-        logger.warning(
-            "Requested GPU (NVIDIA CUDA) is not available. Using CPU instead."
-        )
-        return _cpu_onnx_providers()
-
-    if preferred_onnx_provider == "directml":
-        if "DmlExecutionProvider" in available_onnx_providers:
-            logger.info("Using GPU (DirectML) for inference.")
-            return _directml_onnx_providers()
-        logger.warning("Requested GPU (DirectML) is not available. Using CPU instead.")
-        return _cpu_onnx_providers()
-
-    if "CUDAExecutionProvider" in available_onnx_providers:
-        logger.info("Using GPU (NVIDIA CUDA) for inference.")
-        return _cuda_onnx_providers(
-            available_onnx_providers=available_onnx_providers,
-            enable_directml_fallback=True,
-        )
-
-    if "DmlExecutionProvider" in available_onnx_providers:
-        logger.info("Using GPU (DirectML) for inference.")
-        return _directml_onnx_providers()
-
-    logger.warning("GPU is not available. Using CPU instead.")
-    return _cpu_onnx_providers()
-
 
 class StyleBertVITS2TTSEngine(TTSEngine):
     """
@@ -199,34 +95,11 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         self.aivm_manager = aivm_manager
         self.use_gpu = use_gpu
         self.load_all_models = load_all_models
-        self._onnx_plugin_ep = onnx_plugin_ep
-        self._strict_onnx_provider_name = (
-            onnx_plugin_ep.provider_name
-            if onnx_plugin_ep is not None
-            and onnx_plugin_ep.strict
-            and onnx_plugin_ep.provider_options.get("claim_synthesis_graph") == "1"
-            else None
-        )
-        self._onnx_plugin_gguf_cache = (
-            AivmGgufCache(
-                cache_dir=ggml_model_cache_dir
-                if ggml_model_cache_dir is not None
-                else get_save_dir() / "GgufModelCaches",
-                converter_version=(
-                    ggml_synthesis_converter_version or DEFAULT_GGUF_CONVERTER_VERSION
-                ),
-            )
-            if onnx_plugin_ep is not None
-            else None
-        )
-        self._onnx_plugin_jp_bert_gguf_cache = (
-            JpBertGgufCache(
-                cache_dir=ggml_model_cache_dir
-                if ggml_model_cache_dir is not None
-                else get_save_dir() / "GgufModelCaches",
-            )
-            if onnx_plugin_ep is not None
-            else None
+        self._onnx_plugin_runtime = StyleBertVits2GgmlRuntime.create(
+            config=onnx_plugin_ep,
+            cache_dir=ggml_model_cache_dir,
+            default_cache_dir=get_save_dir() / "GgufModelCaches",
+            synthesis_converter_version=ggml_synthesis_converter_version,
         )
 
         # BERT モデルのキャッシュディレクトリ
@@ -252,82 +125,21 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         ## ref: https://github.com/microsoft/onnxruntime/issues/11627#issuecomment-1137668551
         ## ref: https://skottmckay.github.io/onnxruntime/docs/reference/api/c-api.html
         self.available_onnx_providers: list[str] = onnxruntime.get_available_providers()
-        self.onnx_providers: Sequence[str | tuple[str, dict[str, Any]]] = [
-            ("CPUExecutionProvider", {
-                "arena_extend_strategy": "kSameAsRequested",
-            }),
-        ]  # fmt: skip
-
-        # NVIDIA GPU が接続されていて CUDA がインストールされていれば、CUDAExecutionProvider が利用できる
-        ## DirectML よりも CUDA の方が推論速度が速いため、優先的に利用する
-        ## Windows では若干速度は落ちるが onnxruntime-directml で代用できるのとファイルサイズが 700MB 以上あるため、
-        ## onnxruntime-gpu は既定でインストールされない (Windows で CUDA 推論したいなら各自でインストールが必要)
-        ## Windows / Linux 共に NVIDIA GPU が必要な上に CUDA 自体のサイズが巨大なため、CUDA 自体は同梱していない
-        if preferred_onnx_provider is not None:
-            self.onnx_providers = _select_onnx_providers(
-                use_gpu=use_gpu,
-                available_onnx_providers=self.available_onnx_providers,
-                preferred_onnx_provider=preferred_onnx_provider,
-            )
-        elif (
-            use_gpu is True and "CUDAExecutionProvider" in self.available_onnx_providers
-        ):
-            self.onnx_providers = []
-            # HEURISTIC avoids the slow CUDA convolution path seen in
-            # Style-Bert-VITS2 SDP runs while keeping first-run cost bounded.
-            self.onnx_providers.append(("CUDAExecutionProvider", {
-                "arena_extend_strategy": "kSameAsRequested",
-                "cudnn_conv_algo_search": "HEURISTIC",
-            }))  # fmt: skip
-            # DirectML が利用可能なら、フォールバックとして DmlExecutionProvider も指定する
-            if "DmlExecutionProvider" in self.available_onnx_providers:
-                self.onnx_providers.append(("DmlExecutionProvider", {
-                    "device_id": 0,
-                }))  # fmt: skip
-            # フォールバックとして CPUExecutionProvider も指定する
-            self.onnx_providers.append(("CPUExecutionProvider", {
-                "arena_extend_strategy": "kSameAsRequested",
-            }))  # fmt: skip
-            logger.info("Using GPU (NVIDIA CUDA) for inference.")
-
-        # Windows なら DirectML (DmlExecutionProvider) を利用できる
-        ## iGPU でも利用できるが、大半のケースで CPU 推論よりも大幅に遅くなる
-        elif use_gpu is True and "DmlExecutionProvider" in self.available_onnx_providers:  # fmt: skip
-            self.onnx_providers = []
-            ## TODO: より適した Direct3D 上のデバイス ID を指定できるようにする
-            self.onnx_providers.append(("DmlExecutionProvider", {
-                "device_id": 0,
-            }))  # fmt: skip
-            # フォールバックとして CPUExecutionProvider も指定する
-            self.onnx_providers.append(("CPUExecutionProvider", {
-                "arena_extend_strategy": "kSameAsRequested",
-            }))  # fmt: skip
-            logger.info("Using GPU (DirectML) for inference.")
-
-        # GPU モードが指定されているが GPU が利用できない場合は CPU にフォールバック
-        elif use_gpu is True:
-            logger.warning("GPU is not available. Using CPU instead.")
-
-        # CPU モード指定時
-        else:
-            logger.info("Using CPU for inference.")
-
-        self.onnx_providers = _configure_onnx_plugin_execution_provider(
+        self.onnx_providers = select_builtin_execution_providers(
+            use_gpu=use_gpu,
+            available_providers=self.available_onnx_providers,
+            preferred_provider=preferred_onnx_provider,
+            logger=logger,
+        )
+        self.onnx_providers = self._onnx_plugin_runtime.configure_providers(
             base_providers=self.onnx_providers,
-            config=onnx_plugin_ep,
+            logger=logger,
         )
         self.available_onnx_providers = onnxruntime.get_available_providers()
-        strict_bert_provider_name = (
-            onnx_plugin_ep.provider_name
-            if onnx_plugin_ep is not None
-            and onnx_plugin_ep.strict
-            and onnx_plugin_ep.provider_options.get("claim_jp_bert_graph") == "1"
-            else None
-        )
         if onnx_plugin_ep is not None:
-            self._prepare_onnx_plugin_jp_bert_provider_options(
-                config=onnx_plugin_ep,
-                jp_bert_gguf_cache=self._onnx_plugin_jp_bert_gguf_cache,
+            self.onnx_providers = self._onnx_plugin_runtime.prepare_jp_bert_providers(
+                providers=self.onnx_providers,
+                resolve_jp_bert_onnx_path=self._resolve_jp_bert_onnx_path,
             )
 
         # Style-Bert-VITS2 本体のロガーを抑制
@@ -373,9 +185,11 @@ class StyleBertVITS2TTSEngine(TTSEngine):
                     exc_info=ex,
                 )
                 raise ex
-        self._validate_strict_session_provider(
+        validate_session_provider(
             session=bert_session,
-            required_provider_name=strict_bert_provider_name,
+            required_provider_name=self._onnx_plugin_runtime.strict_provider_name(
+                "jp_bert"
+            ),
             context="JP-BERT ONNX session",
         )
         logger.info(
@@ -392,49 +206,6 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         # VOICEVOX CORE の通常の CoreWrapper の代わりに MockCoreWrapper を利用する
         ## 継承元の TTSEngine は self._core に CoreWrapper を入れた CoreAdapter のインスタンスがないと動作しない
         self._core = CoreAdapter(MockCoreWrapper())
-
-    def _prepare_onnx_plugin_jp_bert_provider_options(
-        self,
-        *,
-        config: OnnxPluginExecutionProviderConfig,
-        jp_bert_gguf_cache: JpBertGgufCache | None,
-    ) -> None:
-        """Prepare BERT-only Plugin EP options before style-bert-vits2 opens BERT."""
-
-        if config.provider_name not in _provider_names(self.onnx_providers):
-            return
-        if config.provider_options.get("claim_jp_bert_graph") != "1":
-            self.onnx_providers = _remove_provider(
-                providers=self.onnx_providers,
-                provider_name=config.provider_name,
-            )
-            return
-
-        provider_options = dict(config.provider_options)
-        provider_options["claim_synthesis_graph"] = "0"
-        provider_options.pop("gguf_path", None)
-        if config.provider_options.get("jp_bert_gguf_path"):
-            self.onnx_providers = _replace_provider_options(
-                providers=self.onnx_providers,
-                provider_name=config.provider_name,
-                provider_options=provider_options,
-            )
-            return
-        if jp_bert_gguf_cache is None:
-            raise RuntimeError(
-                "ONNX Plugin EP requires a JP-BERT GGUF cache when "
-                "claim_jp_bert_graph=1."
-            )
-
-        jp_bert_onnx_path = self._resolve_jp_bert_onnx_path()
-        jp_bert_gguf_entry = jp_bert_gguf_cache.ensure(onnx_path=jp_bert_onnx_path)
-        config.provider_options["jp_bert_gguf_path"] = str(jp_bert_gguf_entry.gguf_path)
-        provider_options["jp_bert_gguf_path"] = str(jp_bert_gguf_entry.gguf_path)
-        self.onnx_providers = _replace_provider_options(
-            providers=self.onnx_providers,
-            provider_name=config.provider_name,
-            provider_options=provider_options,
-        )
 
     def _resolve_jp_bert_onnx_path(self) -> Path:
         """Resolve the JP-BERT ONNX file and required GGUF metadata files."""
@@ -463,7 +234,7 @@ class StyleBertVITS2TTSEngine(TTSEngine):
 
     def _load_bert_model_and_tokenizer(self) -> Any:
         """BERT モデルとトークナイザーをロードし、ローカルキャッシュを更新する。"""
-        with _onnx_plugin_inference_session_scope(self._onnx_plugin_ep):
+        with self._onnx_plugin_runtime.inference_session_scope():
             bert_session = onnx_bert_models.load_model(
                 language=Languages.JP,
                 pretrained_model_name_or_path=self.BERT_MODEL_REPOSITORY,
@@ -482,29 +253,6 @@ class StyleBertVITS2TTSEngine(TTSEngine):
             revision=self.BERT_MODEL_REVISION,
         )
         return bert_session
-
-    @staticmethod
-    def _validate_strict_session_provider(
-        *,
-        session: Any,
-        required_provider_name: str | None,
-        context: str,
-    ) -> None:
-        """Ensure an explicit ONNX provider selection did not silently fall back."""
-
-        if required_provider_name is None:
-            return
-        get_providers = getattr(session, "get_providers", None)
-        if not callable(get_providers):
-            return
-        actual_providers = list(get_providers())
-        actual_provider = actual_providers[0] if actual_providers else None
-        if actual_provider != required_provider_name:
-            raise RuntimeError(
-                f"Strict ONNX provider mode expected {context} to use "
-                f"{required_provider_name!r}, but ONNX Runtime selected "
-                f"{actual_provider!r}. Full provider list: {actual_providers}"
-            )
 
     @staticmethod
     def _log_session_providers(*, session: Any, context: str) -> None:
@@ -584,7 +332,7 @@ class StyleBertVITS2TTSEngine(TTSEngine):
 
         # AIVM メタデータを読み込む
         aivm_info = self.aivm_manager.get_aivm_info(aivm_model_uuid)
-        onnx_source_path = self._resolve_onnx_source_path(
+        onnx_source_path = resolve_aivmx_onnx_source_path(
             installed_file_path=aivm_info.file_path,
             aivm_model_uuid=aivm_model_uuid,
         )
@@ -626,14 +374,20 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         )  # fmt: skip
         start_time = time.time()
         logger.info(f"Loading {aivm_info.manifest.name} ({aivm_model_uuid}) ...")
-        with _onnx_plugin_inference_session_scope(self._onnx_plugin_ep):
+        with self._onnx_plugin_runtime.inference_session_scope():
             tts_model.load()
         if tts_model.onnx_session is not None:
             self._log_session_providers(
                 session=tts_model.onnx_session,
                 context=aivm_info.manifest.name,
             )
-        self._validate_strict_provider(tts_model)
+        validate_session_provider(
+            session=tts_model.onnx_session,
+            required_provider_name=self._onnx_plugin_runtime.strict_provider_name(
+                "synthesis"
+            ),
+            context="synthesis ONNX session",
+        )
         with self._tts_models_lock:
             # ロード中に別スレッドが同一モデルを先にロードした場合は、そのインスタンスを優先して利用する
             if aivm_model_uuid in self.tts_models:
@@ -653,101 +407,27 @@ class StyleBertVITS2TTSEngine(TTSEngine):
         self,
         *,
         onnx_source_path: Path,
-        aivm_metadata: AivmMetadata,
+        aivm_metadata: Any,
     ) -> Sequence[str | tuple[str, dict[str, Any]]]:
-        if self._onnx_plugin_ep is None:
+        if self._onnx_plugin_runtime.config is None:
             return self.onnx_providers
-
-        provider_options = dict(self._onnx_plugin_ep.provider_options)
-        if provider_options.get(
-            "claim_synthesis_graph"
-        ) == "1" and not provider_options.get("gguf_path"):
-            if self._onnx_plugin_gguf_cache is None:
-                raise HTTPException(
-                    status_code=500,
-                    detail="ONNX Plugin EP requires a GGUF cache to prepare synthesis artifacts.",
-                )
-            try:
-                gguf_entry = self._onnx_plugin_gguf_cache.ensure(
-                    aivm_file_path=onnx_source_path,
-                    aivm_metadata=aivm_metadata,
-                )
-            except Exception as ex:
-                logger.error(
-                    "%s: Failed to prepare ONNX Plugin EP GGUF cache.",
-                    onnx_source_path,
-                    exc_info=ex,
-                )
-                raise HTTPException(
-                    status_code=500,
-                    detail="Failed to prepare ONNX Plugin EP GGUF cache.",
-                ) from ex
-            provider_options["gguf_path"] = str(gguf_entry.gguf_path)
-
-        if provider_options.get(
-            "claim_jp_bert_graph"
-        ) == "1" and not provider_options.get("jp_bert_gguf_path"):
-            if self._onnx_plugin_jp_bert_gguf_cache is None:
-                raise HTTPException(
-                    status_code=500,
-                    detail="ONNX Plugin EP requires a GGUF cache to prepare JP-BERT artifacts.",
-                )
-            try:
-                jp_bert_onnx_path = self._resolve_jp_bert_onnx_path()
-                jp_bert_gguf_entry = self._onnx_plugin_jp_bert_gguf_cache.ensure(
-                    onnx_path=jp_bert_onnx_path,
-                )
-            except Exception as ex:
-                logger.error(
-                    "Failed to prepare ONNX Plugin EP JP-BERT GGUF cache.",
-                    exc_info=ex,
-                )
-                raise HTTPException(
-                    status_code=500,
-                    detail="Failed to prepare ONNX Plugin EP JP-BERT GGUF cache.",
-                ) from ex
-            provider_options["jp_bert_gguf_path"] = str(jp_bert_gguf_entry.gguf_path)
-
-        return _replace_provider_options(
-            providers=self.onnx_providers,
-            provider_name=self._onnx_plugin_ep.provider_name,
-            provider_options=provider_options,
-        )
-
-    def _validate_strict_provider(self, tts_model: TTSModel) -> None:
-        """Ensure ONNX Runtime did not silently fall back from a strict provider."""
-
-        if self._strict_onnx_provider_name is None:
-            return
-        if tts_model.onnx_session is None:
-            raise RuntimeError(
-                "Strict ONNX provider mode expected an ONNX Runtime session, "
-                "but the loaded model did not expose one."
+        try:
+            return self._onnx_plugin_runtime.prepare_synthesis_providers(
+                providers=self.onnx_providers,
+                onnx_source_path=onnx_source_path,
+                aivm_metadata=aivm_metadata,
+                resolve_jp_bert_onnx_path=self._resolve_jp_bert_onnx_path,
             )
-
-        actual_providers = tts_model.onnx_session.get_providers()
-        actual_provider = actual_providers[0] if actual_providers else None
-        if actual_provider != self._strict_onnx_provider_name:
-            raise RuntimeError(
-                "Strict ONNX provider mode expected provider "
-                f"{self._strict_onnx_provider_name!r}, but ONNX Runtime selected "
-                f"{actual_provider!r}. Full provider list: {actual_providers}"
+        except Exception as ex:
+            logger.error(
+                "%s: Failed to prepare ONNX Plugin EP GGUF cache.",
+                onnx_source_path,
+                exc_info=ex,
             )
-
-    def _resolve_onnx_source_path(
-        self,
-        *,
-        installed_file_path: Path,
-        aivm_model_uuid: str,
-    ) -> Path:
-        """Prefer same-UUID AIVMX/ONNX files as ONNX Runtime sources."""
-
-        if installed_file_path.suffix == ".aivmx":
-            return installed_file_path
-        aivmx_source_path = installed_file_path.with_name(f"{aivm_model_uuid}.aivmx")
-        if aivmx_source_path.exists() and aivmx_source_path.is_file():
-            return aivmx_source_path
-        return installed_file_path
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to prepare ONNX Plugin EP GGUF cache.",
+            ) from ex
 
     def unload_model(self, aivm_model_uuid: str) -> None:
         """

@@ -1,17 +1,8 @@
 """run.py ONNX GGML provider option tests."""
 
-from pathlib import Path
-from types import SimpleNamespace
-from typing import Any, cast
-
 import pytest
 
-from run import (
-    _build_ggml_onnx_ep_options,
-    _default_ggml_tts_server_backend,
-    decide_onnx_provider_from_env,
-)
-from voicevox_engine.utility.path_utility import engine_root
+from run import decide_onnx_provider_from_env
 
 
 def test_decide_onnx_provider_from_env_accepts_ggml(
@@ -45,77 +36,3 @@ def test_decide_onnx_provider_from_env_rejects_unknown_provider(
 
     with pytest.warns(UserWarning, match="Expected one of"):
         assert decide_onnx_provider_from_env("VV_ONNX_PROVIDER") is None
-
-
-def test_build_ggml_onnx_ep_options_defaults_to_claiming_supported_graphs() -> None:
-    """--onnx_provider ggml creates the production Plugin EP defaults."""
-
-    library_path = Path("opt/tts.cpp/libtts.so")
-    args = SimpleNamespace(
-        onnx_ep_options={},
-        ggml_tts_server_backend="vulkan",
-        ggml_vulkan_precision="accurate",
-        ggml_native_library_path=library_path,
-        ggml_vulkan_device="0",
-    )
-
-    provider_options = _build_ggml_onnx_ep_options(cast(Any, args))
-
-    assert provider_options == {
-        "backend": "vulkan",
-        "claim_jp_bert_graph": "1",
-        "claim_synthesis_graph": "1",
-        "device": "0",
-        "eager_load_model": "1",
-        "n_threads": "0",
-        "precision": "accurate",
-        "tts_cpp_library_path": str((engine_root() / library_path).resolve()),
-    }
-
-
-def test_default_ggml_tts_server_backend_matches_platform(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The packaged default backend follows the platform-specific sidecar build."""
-
-    monkeypatch.setattr("run.sys.platform", "darwin")
-    assert _default_ggml_tts_server_backend() == "metal"
-
-    monkeypatch.setattr("run.sys.platform", "linux")
-    assert _default_ggml_tts_server_backend() == "vulkan"
-
-
-def test_build_ggml_onnx_ep_options_sets_positive_threads_for_cpu_backend(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """TTS.cpp CPU backend requires a positive thread count."""
-
-    monkeypatch.setattr("run.os.cpu_count", lambda: 8)
-    args = SimpleNamespace(
-        onnx_ep_options={},
-        ggml_tts_server_backend="cpu",
-        ggml_vulkan_precision="accurate",
-        ggml_native_library_path=Path("/opt/tts.cpp/libtts.so"),
-        ggml_vulkan_device="0",
-    )
-
-    provider_options = _build_ggml_onnx_ep_options(cast(Any, args))
-
-    assert provider_options["backend"] == "cpu"
-    assert provider_options["n_threads"] == "8"
-    assert "device" not in provider_options
-
-
-def test_build_ggml_onnx_ep_options_requires_tts_cpp_library() -> None:
-    """The ggml Plugin EP cannot claim graphs without the TTS.cpp C API."""
-
-    args = SimpleNamespace(
-        onnx_ep_options={},
-        ggml_tts_server_backend="vulkan",
-        ggml_vulkan_precision="accurate",
-        ggml_native_library_path=None,
-        ggml_vulkan_device=None,
-    )
-
-    with pytest.raises(RuntimeError, match="tts_cpp_library_path"):
-        _build_ggml_onnx_ep_options(cast(Any, args))

@@ -12,27 +12,30 @@ from voicevox_engine.library.model import BaseLibraryInfo, VvlibManifest
 
 def simplify_operation_ids(app: FastAPI) -> FastAPI:
     """operation ID を簡略化してAPIクライアントで生成される関数名をシンプルにする。"""
-    for route in _iter_api_routes(app.routes):
-        route.openapi_extra = {**(route.openapi_extra or {}), "operationId": route.name}
+    routes = list(app.routes)
+    while routes:
+        route = routes.pop()
+
+        # FastAPI 0.138.1 以降では include_router() 済みのルーターが _IncludedRouter として残るため、
+        # 直下の route だけを見ると実際の API ルートへ operation_id の固定が届かない
+        child_routes = getattr(route, "routes", None)
+        if child_routes is not None:
+            routes.extend(child_routes)
+
+        # _IncludedRouter は実ルートを original_router 側に保持するため、ここも辿る
+        original_router = getattr(route, "original_router", None)
+        original_router_routes = getattr(original_router, "routes", None)
+        if original_router_routes is not None:
+            routes.extend(original_router_routes)
+
+        # route.operation_id を直接書き換えると、FastAPI が内部 schema 名の生成にもその値を使ってしまう
+        ## OpenAPI 出力の operationId だけを上書きし、Body_* などの既存 schema 名は維持する
+        if isinstance(route, APIRoute):
+            if route.openapi_extra is None:
+                route.openapi_extra = {}
+            route.openapi_extra["operationId"] = route.name
 
     return app
-
-
-def _iter_api_routes(routes: list[Any]) -> list[APIRoute]:
-    """FastAPI 0.129 以降の _IncludedRouter も含めて APIRoute を列挙する。"""
-    api_routes: list[APIRoute] = []
-    for route in routes:
-        if isinstance(route, APIRoute):
-            api_routes.append(route)
-            continue
-
-        nested_routes = getattr(route, "routes", None)
-        if nested_routes is None:
-            original_router = getattr(route, "original_router", None)
-            nested_routes = getattr(original_router, "routes", None)
-        if nested_routes is not None:
-            api_routes.extend(_iter_api_routes(nested_routes))
-    return api_routes
 
 
 def configure_openapi_schema(app: FastAPI, manage_library: bool | None) -> FastAPI:

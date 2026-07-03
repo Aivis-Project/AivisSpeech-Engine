@@ -37,19 +37,17 @@ import warnings
 from dataclasses import asdict, dataclass
 from io import TextIOWrapper
 from pathlib import Path
-from typing import Literal, TextIO, TypeVar
+from typing import TextIO, TypeVar
 
 import sentry_sdk
 import uvicorn
 from onnxruntime_ep_style_bert_vits2_ggml import get_ep_name
-from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
-    PluginExecutionProviderConfig as OnnxPluginExecutionProviderConfig,
+from onnxruntime_ep_style_bert_vits2_ggml.engine_integration import (
+    build_engine_execution_provider_config,
 )
 from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
-    build_provider_options,
+    BuiltinProvider,
     default_backend_for_platform,
-    default_cpu_threads,
-    resolve_library_path,
 )
 from pydantic import TypeAdapter
 
@@ -285,46 +283,6 @@ class _CLIArgs:
 _cli_args_adapter = TypeAdapter(_CLIArgs)
 
 
-def _default_ggml_cpu_threads() -> int:
-    """Return a positive thread count for the TTS.cpp CPU backend."""
-
-    return default_cpu_threads(os.cpu_count())
-
-
-def _default_ggml_tts_server_backend() -> str:
-    """Return the bundled TTS.cpp backend that matches the current platform."""
-
-    return default_backend_for_platform(sys.platform)
-
-
-def _resolve_default_onnx_ep_library_path(explicit_path: Path | None) -> Path:
-    try:
-        return resolve_library_path(explicit_path, base_dir=engine_root())
-    except Exception as ex:
-        raise RuntimeError(
-            "--onnx_provider ggml requires --onnx_ep_library_path or a packaged "
-            "onnxruntime_ep_style_bert_vits2_ggml library."
-        ) from ex
-
-
-def _build_ggml_onnx_ep_options(args: _CLIArgs) -> dict[str, str]:
-    try:
-        return build_provider_options(
-            base_options=args.onnx_ep_options,
-            backend=args.ggml_tts_server_backend,
-            precision=args.ggml_vulkan_precision,
-            tts_cpp_library_path=args.ggml_native_library_path,
-            vulkan_device=args.ggml_vulkan_device,
-            path_base_dir=engine_root(),
-            cpu_count=os.cpu_count(),
-        )
-    except RuntimeError as ex:
-        raise RuntimeError(
-            "--onnx_provider ggml requires --ggml_native_library_path or "
-            "--onnx_ep_option tts_cpp_library_path=<path-to-libtts>."
-        ) from ex
-
-
 def read_cli_arguments(envs: Envs) -> _CLIArgs:
     """コマンドライン引数を読み込む。"""
     parser = argparse.ArgumentParser(
@@ -377,7 +335,7 @@ def read_cli_arguments(envs: Envs) -> _CLIArgs:
     parser.add_argument(
         "--ggml_tts_server_backend",
         choices=("vulkan", "metal", "cpu"),
-        default=_default_ggml_tts_server_backend(),
+        default=default_backend_for_platform(sys.platform),
         help="ONNX GGML Plugin EP 内の TTS.cpp backend を指定します。",
     )
     parser.add_argument(
@@ -581,7 +539,7 @@ def main() -> None:
         select_first_not_none_or_none([args.onnx_provider, envs.onnx_provider])
         or "auto"
     )
-    builtin_onnx_provider: Literal["cuda", "directml"] | None = None
+    builtin_onnx_provider: BuiltinProvider | None = None
     if onnx_provider == "cuda":
         builtin_onnx_provider = "cuda"
     elif onnx_provider == "directml":
@@ -635,13 +593,16 @@ def main() -> None:
 
         onnx_plugin_ep = None
         if onnx_provider == "ggml":
-            onnx_plugin_ep = OnnxPluginExecutionProviderConfig(
-                library_path=_resolve_default_onnx_ep_library_path(
-                    args.onnx_ep_library_path
-                ),
+            onnx_plugin_ep = build_engine_execution_provider_config(
+                base_options=args.onnx_ep_options,
+                backend=args.ggml_tts_server_backend,
+                precision=args.ggml_vulkan_precision,
+                tts_cpp_library_path=args.ggml_native_library_path,
+                vulkan_device=args.ggml_vulkan_device,
+                path_base_dir=engine_root(),
+                library_path=args.onnx_ep_library_path,
                 registration_name=args.onnx_ep_registration_name,
-                provider_name=args.onnx_ep_name or _DEFAULT_ONNX_PLUGIN_EP_NAME,
-                provider_options=_build_ggml_onnx_ep_options(args),
+                provider_name=args.onnx_ep_name,
                 strict=True,
             )
 

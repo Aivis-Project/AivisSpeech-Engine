@@ -87,7 +87,7 @@ requires-dist = [
     { name = "onnxruntime", marker = "(platform_machine != 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and sys_platform == 'linux')", specifier = ">=1.24.0,<2.0.0" },
     { name = "onnxruntime", marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'", specifier = "==1.23.2" },
     { name = "onnxruntime-directml", marker = "sys_platform == 'win32'", specifier = ">=1.24.0,<2.0.0" },
-    { name = "onnxruntime-ep-style-bert-vits2-ggml", extras = ["convert"], git = "https://github.com/Myoland/onnxruntime-ep-style-bert-vits2-ggml?rev=3cf4a4751b3d240ebe63412e599eb8fbdd855723" },
+    { name = "onnxruntime-ep-style-bert-vits2-ggml", extras = ["convert"], git = "https://github.com/Myoland/onnxruntime-ep-style-bert-vits2-ggml?rev=c2e6862f226415196a7276086bbda4516a8a02d6" },
     { name = "onnxruntime-gpu", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = ">=1.24.0,<1.27.0" },
     { name = "platformdirs", specifier = ">=4.2.0" },
     { name = "psutil", specifier = ">=6.1.1" },
@@ -1066,7 +1066,7 @@ wheels = [
 [[package]]
 name = "onnxruntime-ep-style-bert-vits2-ggml"
 version = "0.1.0"
-source = { git = "https://github.com/Myoland/onnxruntime-ep-style-bert-vits2-ggml?rev=3cf4a4751b3d240ebe63412e599eb8fbdd855723#3cf4a4751b3d240ebe63412e599eb8fbdd855723" }
+source = { git = "https://github.com/Myoland/onnxruntime-ep-style-bert-vits2-ggml?rev=c2e6862f226415196a7276086bbda4516a8a02d6#c2e6862f226415196a7276086bbda4516a8a02d6" }
 
 [package.optional-dependencies]
 convert = [
