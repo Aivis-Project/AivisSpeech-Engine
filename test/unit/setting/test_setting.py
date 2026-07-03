@@ -61,6 +61,52 @@ def test_setting_handler_load_exist_file_3() -> None:
     assert true_setting == setting
 
 
+def test_setting_handler_load_allow_origin_empty_list(tmp_path: Path) -> None:
+    """`SettingHandler` は古い設定ファイルの空リストを未設定として読み込む。"""
+    # Inputs
+    setting_path = tmp_path / "setting-test-load-empty-list.yaml"
+    setting_path.write_text(
+        "allow_origin: []\ncors_policy_mode: localapps\n",
+        encoding="utf-8",
+    )
+    setting_loader = SettingHandler(setting_path)
+
+    # Expects
+    true_setting = Setting(cors_policy_mode=CorsPolicyMode.localapps, allow_origin=None)
+
+    # Outputs
+    setting = setting_loader.load()
+
+    # Test
+    assert true_setting == setting
+
+
+def test_setting_handler_load_allow_origin_list(tmp_path: Path) -> None:
+    """`SettingHandler` は古い設定ファイルのリストを空白区切り文字列として読み込む。"""
+    # Inputs
+    setting_path = tmp_path / "setting-test-load-list.yaml"
+    setting_path.write_text(
+        "allow_origin:\n"
+        "  - http://localhost:3000\n"
+        "  - http://127.0.0.1:5173\n"
+        "cors_policy_mode: localapps\n",
+        encoding="utf-8",
+    )
+    setting_loader = SettingHandler(setting_path)
+
+    # Expects
+    true_setting = Setting(
+        cors_policy_mode=CorsPolicyMode.localapps,
+        allow_origin="http://localhost:3000 http://127.0.0.1:5173",
+    )
+
+    # Outputs
+    setting = setting_loader.load()
+
+    # Test
+    assert true_setting == setting
+
+
 def test_setting_handler_save(tmp_path: Path) -> None:
     """`SettingHandler.save()` で設定値を保存できる。"""
     # Inputs

@@ -43,12 +43,16 @@ dependencies = [
   "e2k",
   # OS に応じて適切な ONNX Runtime プラグインをインストール
   ## onnxruntime (CPU): onnxruntime-directml / onnxruntime-gpu 非対応の環境すべて
-  "onnxruntime==1.23.0; sys_platform == 'darwin' and platform_machine == 'x86_64'",
-  "onnxruntime>=1.21.0,<2.0.0; (sys_platform == 'darwin' and platform_machine != 'x86_64') or (sys_platform == 'linux' and platform_machine != 'x86_64')",
+  ## macOS x64 のみ、Intel Mac に対応する最終バージョンである onnxruntime==1.23.2 に固定
+  "onnxruntime==1.23.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+  ## macOS arm64 / Linux aarch64 は Intel Mac 向け wheel の無い 1.24 以降を使う
+  ## (universal lock により 1.23.2 側に固定されるのを防ぐ)
+  "onnxruntime>=1.24.0,<2.0.0; (sys_platform == 'darwin' and platform_machine != 'x86_64') or (sys_platform == 'linux' and platform_machine != 'x86_64')",
   ## onnxruntime (DirectML): Windows のみ
-  "onnxruntime-directml>=1.21.0,<2.0.0; sys_platform == 'win32'",
+  "onnxruntime-directml>=1.24.0,<2.0.0; sys_platform == 'win32'",
   ## onnxruntime (GPU): Linux x64 のみ
-  "onnxruntime-gpu>=1.21.0,<2.0.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
+  ## 1.27.0 以降、import した時点で CUDA 13 の .so がないとエラー吐くように改悪されたので当面 1.26.x に固定
+  "onnxruntime-gpu>=1.24.0,<1.27.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
 
 [tool.uv]
@@ -56,7 +60,7 @@ default-groups = []
 exclude-newer = "1 week"
 
 [tool.uv.sources]
-style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "171f796f37651346bb5435afd75f2f6f3b335bb1" }
+style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "e702147d2f73a72667dac19ddf6acfe0cb4e3679" }
 e2k = { git = "https://github.com/tsukumijima/e2k", rev = "9920754e15d8c96404bef0bd81d424352fb7a48b" }
 onnxruntime-ep-aivis-ggml = { path = "experimental/onnxruntime-ep-aivis-ggml", editable = true }
 

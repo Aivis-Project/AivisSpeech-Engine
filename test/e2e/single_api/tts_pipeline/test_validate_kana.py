@@ -21,6 +21,15 @@ def test_post_validate_kana_400(
     assert snapshot_json == response.json()
 
 
+def test_post_validate_kana_empty_400(
+    client: TestClient, snapshot_json: SnapshotAssertion
+) -> None:
+    # 空文字も AquesTalk 風記法としては空のアクセント句になるためエラー
+    response = client.post("/validate_kana", params={"text": ""})
+    assert response.status_code == 400
+    assert snapshot_json == response.json()
+
+
 def test_post_validate_kana_422(
     client: TestClient, snapshot_json: SnapshotAssertion
 ) -> None:

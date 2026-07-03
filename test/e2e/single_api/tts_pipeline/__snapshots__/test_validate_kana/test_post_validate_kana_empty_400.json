@@ -1,0 +1,9 @@
+{
+  "detail": {
+    "error_args": {
+      "position": "1"
+    },
+    "error_name": "EMPTY_PHRASE",
+    "text": "1番目のアクセント句が空白です"
+  }
+}
