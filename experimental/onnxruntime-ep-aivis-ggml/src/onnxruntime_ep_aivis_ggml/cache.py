@@ -40,10 +40,9 @@ COMPILED_MODEL_COMPATIBILITY_VERSION = "aivis-ggml-compiled-model-compatibility-
 SIGNATURE_CONTRACT_VERSION = "aivis-ggml-signature-contract-v1"
 PROVIDER_NAME = "AivisGgmlExecutionProvider"
 PROVIDER_VERSION = "0.1.0"
-DEFAULT_CONVERTER_VERSION = (
-    "tts-cpp-style-bert-vits2-converter-f16-no-embed-norm-no-ups-v1"
-)
+F16_CONVERTER_VERSION = "tts-cpp-style-bert-vits2-converter-f16-no-embed-norm-no-ups-v1"
 F32_CONVERTER_VERSION = "tts-cpp-style-bert-vits2-converter-f32-v1"
+DEFAULT_CONVERTER_VERSION = F32_CONVERTER_VERSION
 TESTED_ORT_RUNTIME_VERSION = "1.26.0"
 ORT_PLUGIN_EP_API_VERSION = 26
 EXPECTED_TTS_CPP_RUNTIME_ABI_VERSION = 1

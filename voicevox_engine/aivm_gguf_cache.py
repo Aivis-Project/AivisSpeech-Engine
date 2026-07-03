@@ -18,10 +18,11 @@ from aivmlib.schemas.aivm_manifest import AivmMetadata, ModelFormat
 from voicevox_engine.logging import logger
 from voicevox_engine.utility.path_utility import ensure_directory_exists, get_save_dir
 
-DEFAULT_GGUF_CONVERTER_VERSION = (
+F16_GGUF_CONVERTER_VERSION = (
     "tts-cpp-style-bert-vits2-converter-f16-no-embed-norm-no-ups-v1"
 )
 F32_GGUF_CONVERTER_VERSION = "tts-cpp-style-bert-vits2-converter-f32-v1"
+DEFAULT_GGUF_CONVERTER_VERSION = F32_GGUF_CONVERTER_VERSION
 DEFAULT_GGUF_SCHEMA_VERSION = "style-bert-vits2-gguf-v1"
 DEFAULT_JP_BERT_GGUF_CONVERTER_VERSION = (
     "tts-cpp-style-bert-vits2-jp-bert-f16-linear-v1"

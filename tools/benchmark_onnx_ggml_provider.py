@@ -28,6 +28,7 @@ if str(_REPO_ROOT) not in sys.path:
 from run import _resolve_default_onnx_ep_library_path
 from voicevox_engine.aivm_gguf_cache import (
     DEFAULT_GGUF_CONVERTER_VERSION,
+    F16_GGUF_CONVERTER_VERSION,
     F32_GGUF_CONVERTER_VERSION,
 )
 from voicevox_engine.aivm_manager import AivmManager
@@ -229,12 +230,12 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--ggml_synthesis_converter_version",
-        choices=(DEFAULT_GGUF_CONVERTER_VERSION, F32_GGUF_CONVERTER_VERSION),
+        choices=(F32_GGUF_CONVERTER_VERSION, F16_GGUF_CONVERTER_VERSION),
         default=DEFAULT_GGUF_CONVERTER_VERSION,
         help=(
             "Synthesis GGUF converter version for ONNX GGML backends. The default "
-            "is the current FP16 cache recipe; use the F32 recipe to isolate "
-            "backend/runtime performance from FP16 GGUF compatibility issues."
+            "is the conservative FP32 cache recipe. Use the F16 recipe only for "
+            "explicit memory-profile validation."
         ),
     )
     parser.add_argument(

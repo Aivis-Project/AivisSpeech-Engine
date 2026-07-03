@@ -588,8 +588,8 @@ uv run task update-licenses
 uv run task build
 ```
 
-ONNX GGML Plugin EP を含む Linux x64 パッケージの構築・検証手順は
-[ONNX GGML Linux ビルド手順](docs/onnx-ggml-linux-build.md) を参照してください。
+ONNX GGML Plugin EP を含む各プラットフォーム向けパッケージの構築・検証手順は
+[ONNX GGML ビルド・検証手順](docs/onnx-ggml-build.md) を参照してください。
 
 ## ライセンス
 
