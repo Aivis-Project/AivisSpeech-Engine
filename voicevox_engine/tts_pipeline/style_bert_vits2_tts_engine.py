@@ -71,7 +71,7 @@ class OnnxPluginExecutionProviderConfig:
     provider_name: str
     provider_options: dict[str, str]
     library_path: Path | None = None
-    registration_name: str = "aivis_onnx_plugin_ep"
+    registration_name: str = "style_bert_vits2_onnx_plugin_ep"
     strict: bool = False
 
 

@@ -145,7 +145,7 @@ def _parse_args() -> argparse.Namespace:
         "--onnx-ep-library-path",
         type=Path,
         default=None,
-        help="Aivis GGML ONNX Runtime Plugin EP shared library path.",
+        help="Style-Bert-VITS2 GGML ONNX Runtime Plugin EP shared library path.",
     )
     parser.add_argument(
         "--library-dir",

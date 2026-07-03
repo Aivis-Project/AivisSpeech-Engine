@@ -1,4 +1,4 @@
-"""Benchmark ONNX CPU/CUDA against the Aivis GGML ONNX Plugin EP."""
+"""Benchmark ONNX CPU/CUDA against the Style-Bert-VITS2 GGML ONNX Plugin EP."""
 
 # ruff: noqa: E402
 
@@ -129,8 +129,7 @@ class _TruthComparison:
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Benchmark Aivis Style-Bert-VITS2 ONNX CPU/CUDA and ONNX GGML "
-            "Plugin EP paths."
+            "Benchmark Style-Bert-VITS2 ONNX CPU/CUDA and ONNX GGML Plugin EP paths."
         )
     )
     parser.add_argument(
@@ -220,7 +219,7 @@ def _parse_args() -> argparse.Namespace:
         "--onnx_ep_library_path",
         type=Path,
         default=None,
-        help="Aivis GGML ONNX Runtime Plugin EP shared library path.",
+        help="Style-Bert-VITS2 GGML ONNX Runtime Plugin EP shared library path.",
     )
     parser.add_argument(
         "--ggml_model_cache_dir",
@@ -416,7 +415,7 @@ def _build_ggml_plugin_config(
     if configured_jp_bert_gguf_path is not None:
         provider_options["jp_bert_gguf_path"] = str(configured_jp_bert_gguf_path)
     return OnnxPluginExecutionProviderConfig(
-        provider_name="AivisGgmlExecutionProvider",
+        provider_name="StyleBertVits2GgmlExecutionProvider",
         provider_options=provider_options,
         library_path=_resolve_default_onnx_ep_library_path(args.onnx_ep_library_path),
         strict=True,
@@ -447,7 +446,7 @@ def _build_backend_specs(args: argparse.Namespace) -> list[_BackendSpec]:
             _BackendSpec(
                 name=name,
                 use_gpu=False,
-                required_provider="AivisGgmlExecutionProvider",
+                required_provider="StyleBertVits2GgmlExecutionProvider",
                 onnx_plugin_ep=_build_ggml_plugin_config(
                     args,
                     ggml_backend=ggml_backend,

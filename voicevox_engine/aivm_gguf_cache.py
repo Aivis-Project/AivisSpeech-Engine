@@ -7,7 +7,6 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -420,23 +419,13 @@ class AivmGgufCache:
 
     def _load_onnx_prepare_ggml_cache(self) -> Any:
         try:
-            from onnxruntime_ep_aivis_ggml.cache import prepare_ggml_cache
+            from onnxruntime_ep_style_bert_vits2_ggml.cache import prepare_ggml_cache
 
             return prepare_ggml_cache
         except ModuleNotFoundError:
-            if _add_local_onnx_ep_package_src_to_path():
-                try:
-                    from onnxruntime_ep_aivis_ggml.cache import prepare_ggml_cache
-
-                    return prepare_ggml_cache
-                except ModuleNotFoundError as ex:
-                    raise AivmGgufCacheError(
-                        "AIVMX/ONNX GGUF conversion requires the "
-                        "onnxruntime-ep-aivis-ggml converter package."
-                    ) from ex
             raise AivmGgufCacheError(
                 "AIVMX/ONNX GGUF conversion requires the "
-                "onnxruntime-ep-aivis-ggml converter package."
+                "onnxruntime-ep-style-bert-vits2-ggml converter package."
             ) from None
 
     def _converter_command_prefix(self) -> list[str]:
@@ -724,21 +713,6 @@ class JpBertGgufCache:
                 continue
             manifest_path.unlink(missing_ok=True)
             manifest_path.with_suffix(".gguf").unlink(missing_ok=True)
-
-
-def _add_local_onnx_ep_package_src_to_path() -> bool:
-    package_src_path = (
-        Path(__file__).resolve().parents[1]
-        / "experimental"
-        / "onnxruntime-ep-aivis-ggml"
-        / "src"
-    )
-    if not package_src_path.exists():
-        return False
-    package_src_text = str(package_src_path)
-    if package_src_text not in sys.path:
-        sys.path.insert(0, package_src_text)
-    return True
 
 
 def _file_sha256(path: Path) -> str:

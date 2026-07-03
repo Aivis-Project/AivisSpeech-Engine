@@ -104,7 +104,7 @@ def _update_licenses(pip_licenses: list[_PipLicense]) -> list[_License]:
         "tokenizers": "https://raw.githubusercontent.com/huggingface/tokenizers/v0.19.1/LICENSE",
     }
     package_to_license_path: dict[str, str] = {
-        "onnxruntime-ep-aivis-ggml": "LICENSE",
+        "onnxruntime-ep-style-bert-vits2-ggml": "LICENSE",
     }
 
     updated_licenses = []

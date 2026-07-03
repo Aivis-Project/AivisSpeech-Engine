@@ -3,6 +3,7 @@
 import os
 import subprocess
 import sys
+import importlib.util
 from pathlib import Path
 from shutil import copy2, copytree, ignore_patterns, which
 
@@ -12,19 +13,13 @@ from PyInstaller.utils.hooks import (
     collect_submodules,
 )
 
-ONNX_GGML_PLUGIN_SRC = (
-    Path("experimental") / "onnxruntime-ep-aivis-ggml" / "src"
-).resolve()
-if ONNX_GGML_PLUGIN_SRC.exists():
-    sys.path.insert(0, str(ONNX_GGML_PLUGIN_SRC))
-
 datas = []
 datas += collect_data_files('e2k')
 datas += collect_data_files('pyopenjtalk')
 datas += collect_data_files('style_bert_vits2')
-datas += collect_data_files('onnxruntime_ep_aivis_ggml')
+datas += collect_data_files('onnxruntime_ep_style_bert_vits2_ggml')
 
-hiddenimports = collect_submodules('onnxruntime_ep_aivis_ggml')
+hiddenimports = collect_submodules('onnxruntime_ep_style_bert_vits2_ggml')
 
 # functorch のバイナリを収集
 # ONNX に移行したため不要なはずだが、念のため
@@ -42,7 +37,7 @@ if sys.platform == 'win32':
 
 a = Analysis(
     ['run.py'],
-    pathex=[str(ONNX_GGML_PLUGIN_SRC)] if ONNX_GGML_PLUGIN_SRC.exists() else [],
+    pathex=[],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
@@ -94,6 +89,16 @@ def _env_paths(name):
     return [Path(item) for item in value.split(os.pathsep) if item]
 
 
+def _package_dir(package_name):
+    spec = importlib.util.find_spec(package_name)
+    if spec is None or spec.submodule_search_locations is None:
+        return None
+    locations = list(spec.submodule_search_locations)
+    if not locations:
+        return None
+    return Path(locations[0]).resolve()
+
+
 def _copy_existing_files(candidates, dest_dir):
     copied = []
     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -140,11 +145,12 @@ def _patch_linux_rpath(libraries):
 
 
 def _copy_onnx_ggml_runtime(target_dir):
-    required = os.environ.get("AIVIS_ONNX_GGML_REQUIRED") == "1"
+    required = os.environ.get("STYLE_BERT_VITS2_GGML_REQUIRED") == "1"
+    bundle_dirs = _env_paths("STYLE_BERT_VITS2_GGML_BUNDLE_DIR")
 
-    package_src = ONNX_GGML_PLUGIN_SRC / "onnxruntime_ep_aivis_ggml"
-    package_dest = target_dir / "onnxruntime_ep_aivis_ggml"
-    if package_src.exists():
+    package_src = _package_dir("onnxruntime_ep_style_bert_vits2_ggml")
+    package_dest = target_dir / "onnxruntime_ep_style_bert_vits2_ggml"
+    if package_src is not None and package_src.exists():
         copytree(
             package_src,
             package_dest,
@@ -153,23 +159,22 @@ def _copy_onnx_ggml_runtime(target_dir):
         )
 
     ep_names = (
-        "libaivis_ggml_onnx_ep.so",
-        "libaivis_ggml_onnx_ep.dylib",
-        "aivis_ggml_onnx_ep.dll",
+        "libstyle_bert_vits2_ggml_onnx_ep.so",
+        "libstyle_bert_vits2_ggml_onnx_ep.dylib",
+        "style_bert_vits2_ggml_onnx_ep.dll",
     )
-    ep_candidates = _env_paths("AIVIS_ONNX_GGML_EP_LIBRARY_PATH")
-    ep_candidates += [package_dest / "lib" / name for name in ep_names]
+    ep_candidates = _env_paths("STYLE_BERT_VITS2_GGML_EP_LIBRARY_PATH")
     ep_candidates += [
-        Path("experimental")
-        / "onnxruntime-ep-aivis-ggml"
-        / "build"
-        / "native"
-        / name
+        bundle_dir / "onnxruntime_ep_style_bert_vits2_ggml" / "lib" / name
+        for bundle_dir in bundle_dirs
         for name in ep_names
     ]
+    ep_candidates += [package_dest / "lib" / name for name in ep_names]
+    if package_src is not None:
+        ep_candidates += [package_src / "lib" / name for name in ep_names]
     copied_ep = _copy_existing_files(
         ep_candidates,
-        target_dir / "onnxruntime_ep_aivis_ggml" / "lib",
+        target_dir / "onnxruntime_ep_style_bert_vits2_ggml" / "lib",
     )
 
     if sys.platform == "win32":
@@ -182,8 +187,9 @@ def _copy_onnx_ggml_runtime(target_dir):
         tts_patterns = ("libtts.so", "libtts.so.*")
         dependency_patterns = ("libggml*.so", "libggml*.so.*")
 
-    tts_candidates = _env_paths("AIVIS_TTS_CPP_LIBRARY_PATH")
-    tts_library_dirs = _env_paths("AIVIS_TTS_CPP_LIBRARY_DIRS")
+    tts_candidates = _env_paths("STYLE_BERT_VITS2_TTS_CPP_LIBRARY_PATH")
+    tts_library_dirs = _env_paths("STYLE_BERT_VITS2_TTS_CPP_LIBRARY_DIRS")
+    tts_library_dirs += [bundle_dir / "lib" for bundle_dir in bundle_dirs]
     copied_tts = _copy_existing_files(tts_candidates, target_dir / "lib")
     copied_tts += _copy_matching_files(tts_library_dirs, tts_patterns, target_dir / "lib")
     copied_deps = _copy_matching_files(
@@ -195,9 +201,9 @@ def _copy_onnx_ggml_runtime(target_dir):
 
     if required:
         if not copied_ep:
-            raise RuntimeError("AIVIS_ONNX_GGML_REQUIRED=1 but native Plugin EP was not packaged.")
+            raise RuntimeError("STYLE_BERT_VITS2_GGML_REQUIRED=1 but native Plugin EP was not packaged.")
         if not copied_tts:
-            raise RuntimeError("AIVIS_ONNX_GGML_REQUIRED=1 but TTS.cpp runtime was not packaged.")
+            raise RuntimeError("STYLE_BERT_VITS2_GGML_REQUIRED=1 but TTS.cpp runtime was not packaged.")
 
     print(f"Packaged ONNX GGML EP sidecars: {[str(path) for path in copied_ep]}")
     print(f"Packaged TTS.cpp sidecars: {[str(path) for path in copied_tts + copied_deps]}")

@@ -319,7 +319,7 @@ def test_configure_onnx_plugin_execution_provider_registers_and_prepends(
     monkeypatch.setattr(
         onnxruntime,
         "get_ep_devices",
-        lambda: [SimpleNamespace(ep_name="AivisGgmlExecutionProvider")],
+        lambda: [SimpleNamespace(ep_name="StyleBertVits2GgmlExecutionProvider")],
     )
 
     providers = _configure_onnx_plugin_execution_provider(
@@ -328,17 +328,22 @@ def test_configure_onnx_plugin_execution_provider_registers_and_prepends(
             ("CPUExecutionProvider", {"arena_extend_strategy": "kSameAsRequested"}),
         ],
         config=OnnxPluginExecutionProviderConfig(
-            provider_name="AivisGgmlExecutionProvider",
+            provider_name="StyleBertVits2GgmlExecutionProvider",
             provider_options={"backend": "vulkan", "device": "0"},
-            library_path=tmp_path / "libaivis_ggml_ep.so",
-            registration_name="aivis-ggml",
+            library_path=tmp_path / "libstyle_bert_vits2_ggml_ep.so",
+            registration_name="style-bert-vits2-ggml",
             strict=True,
         ),
     )
 
-    assert register_calls == [("aivis-ggml", str(tmp_path / "libaivis_ggml_ep.so"))]
+    assert register_calls == [
+        (
+            "style-bert-vits2-ggml",
+            str(tmp_path / "libstyle_bert_vits2_ggml_ep.so"),
+        )
+    ]
     assert providers[0] == (
-        "AivisGgmlExecutionProvider",
+        "StyleBertVits2GgmlExecutionProvider",
         {"backend": "vulkan", "device": "0"},
     )
     assert providers[1:] == [
@@ -373,14 +378,14 @@ def test_configure_onnx_plugin_execution_provider_raises_when_strict(
         _configure_onnx_plugin_execution_provider(
             base_providers=["CPUExecutionProvider"],
             config=OnnxPluginExecutionProviderConfig(
-                provider_name="AivisGgmlExecutionProvider",
+                provider_name="StyleBertVits2GgmlExecutionProvider",
                 provider_options={},
-                library_path=tmp_path / "libaivis_ggml_ep.so",
+                library_path=tmp_path / "libstyle_bert_vits2_ggml_ep.so",
                 strict=True,
             ),
         )
 
-    assert "AivisGgmlExecutionProvider" in str(exc_info.value)
+    assert "StyleBertVits2GgmlExecutionProvider" in str(exc_info.value)
     assert "Available providers" in str(exc_info.value)
 
 
@@ -420,7 +425,7 @@ def test_onnx_plugin_inference_session_scope_uses_ep_devices(
         )
         return "session"
 
-    ep_device = SimpleNamespace(ep_name="AivisGgmlExecutionProvider")
+    ep_device = SimpleNamespace(ep_name="StyleBertVits2GgmlExecutionProvider")
     monkeypatch.setattr(
         onnxruntime,
         "get_ep_devices",
@@ -438,11 +443,11 @@ def test_onnx_plugin_inference_session_scope_uses_ep_devices(
     )
 
     config = OnnxPluginExecutionProviderConfig(
-        provider_name="AivisGgmlExecutionProvider",
+        provider_name="StyleBertVits2GgmlExecutionProvider",
         provider_options={"backend": "vulkan"},
     )
     providers = [
-        ("AivisGgmlExecutionProvider", {"backend": "cpu", "n_threads": "4"}),
+        ("StyleBertVits2GgmlExecutionProvider", {"backend": "cpu", "n_threads": "4"}),
         "CPUExecutionProvider",
     ]
 
@@ -466,10 +471,10 @@ def test_validate_strict_session_provider_rejects_silent_cpu_fallback() -> None:
 
     session = SimpleNamespace(get_providers=lambda: ["CPUExecutionProvider"])
 
-    with pytest.raises(RuntimeError, match="AivisGgmlExecutionProvider"):
+    with pytest.raises(RuntimeError, match="StyleBertVits2GgmlExecutionProvider"):
         StyleBertVITS2TTSEngine._validate_strict_session_provider(  # noqa: SLF001
             session=session,
-            required_provider_name="AivisGgmlExecutionProvider",
+            required_provider_name="StyleBertVits2GgmlExecutionProvider",
             context="test session",
         )
 
@@ -483,7 +488,7 @@ def test_prepare_onnx_plugin_jp_bert_provider_options_fills_cache_path(
     engine = object.__new__(StyleBertVITS2TTSEngine)
     engine.onnx_providers = [
         (
-            "AivisGgmlExecutionProvider",
+            "StyleBertVits2GgmlExecutionProvider",
             {
                 "backend": "vulkan",
                 "claim_jp_bert_graph": "1",
@@ -506,7 +511,7 @@ def test_prepare_onnx_plugin_jp_bert_provider_options_fills_cache_path(
             return SimpleNamespace(gguf_path=jp_bert_gguf_path)
 
     config = OnnxPluginExecutionProviderConfig(
-        provider_name="AivisGgmlExecutionProvider",
+        provider_name="StyleBertVits2GgmlExecutionProvider",
         provider_options={
             "backend": "vulkan",
             "claim_jp_bert_graph": "1",
@@ -523,7 +528,7 @@ def test_prepare_onnx_plugin_jp_bert_provider_options_fills_cache_path(
     assert config.provider_options["jp_bert_gguf_path"] == str(jp_bert_gguf_path)
     assert config.provider_options["claim_synthesis_graph"] == "1"
     assert engine.onnx_providers[0] == (
-        "AivisGgmlExecutionProvider",
+        "StyleBertVits2GgmlExecutionProvider",
         {
             "backend": "vulkan",
             "claim_jp_bert_graph": "1",
@@ -540,7 +545,7 @@ def test_model_specific_onnx_providers_fills_synthesis_gguf_path(
 
     engine = object.__new__(StyleBertVITS2TTSEngine)
     config = OnnxPluginExecutionProviderConfig(
-        provider_name="AivisGgmlExecutionProvider",
+        provider_name="StyleBertVits2GgmlExecutionProvider",
         provider_options={
             "backend": "vulkan",
             "claim_jp_bert_graph": "0",
@@ -550,7 +555,7 @@ def test_model_specific_onnx_providers_fills_synthesis_gguf_path(
     )
     engine._onnx_plugin_ep = config  # noqa: SLF001
     engine.onnx_providers = [
-        ("AivisGgmlExecutionProvider", dict(config.provider_options)),
+        ("StyleBertVits2GgmlExecutionProvider", dict(config.provider_options)),
         "CPUExecutionProvider",
     ]
     gguf_path = tmp_path / "model.gguf"
@@ -570,7 +575,7 @@ def test_model_specific_onnx_providers_fills_synthesis_gguf_path(
     )
 
     assert providers[0] == (
-        "AivisGgmlExecutionProvider",
+        "StyleBertVits2GgmlExecutionProvider",
         {
             "backend": "vulkan",
             "claim_jp_bert_graph": "0",
@@ -583,7 +588,7 @@ def test_model_specific_onnx_providers_fills_synthesis_gguf_path(
 def test_supported_devices_does_not_report_onnx_plugin_ep_as_directml() -> None:
     engine = object.__new__(StyleBertVITS2TTSEngine)
     config = OnnxPluginExecutionProviderConfig(
-        provider_name="AivisGgmlExecutionProvider",
+        provider_name="StyleBertVits2GgmlExecutionProvider",
         provider_options={
             "backend": "cpu",
             "claim_jp_bert_graph": "1",
@@ -593,7 +598,7 @@ def test_supported_devices_does_not_report_onnx_plugin_ep_as_directml() -> None:
     )
     engine._onnx_plugin_ep = config  # noqa: SLF001
     engine.onnx_providers = [
-        ("AivisGgmlExecutionProvider", dict(config.provider_options)),
+        ("StyleBertVits2GgmlExecutionProvider", dict(config.provider_options)),
         "CPUExecutionProvider",
     ]
     engine.available_onnx_providers = ["CPUExecutionProvider"]
@@ -604,7 +609,7 @@ def test_supported_devices_does_not_report_onnx_plugin_ep_as_directml() -> None:
 def test_supported_devices_ignores_unselected_onnx_plugin_ep() -> None:
     engine = object.__new__(StyleBertVITS2TTSEngine)
     engine._onnx_plugin_ep = OnnxPluginExecutionProviderConfig(
-        provider_name="AivisGgmlExecutionProvider",
+        provider_name="StyleBertVits2GgmlExecutionProvider",
         provider_options={
             "backend": "cpu",
             "claim_jp_bert_graph": "1",

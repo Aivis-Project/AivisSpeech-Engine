@@ -73,12 +73,12 @@ from voicevox_engine.utility.user_agent_utility import collect_runtime_environme
 # ref: https://github.com/VOICEVOX/voicevox_engine/pull/647#issuecomment-1540204653
 _DEFAULT_HOST = "localhost"
 _DEFAULT_PORT = 10101
-_DEFAULT_ONNX_PLUGIN_EP_NAME = "AivisGgmlExecutionProvider"
+_DEFAULT_ONNX_PLUGIN_EP_NAME = "StyleBertVits2GgmlExecutionProvider"
 _ONNX_PROVIDER_CHOICES = ("auto", "cuda", "directml", "ggml")
 _ONNX_EP_LIBRARY_BASENAMES = (
-    "libaivis_ggml_onnx_ep.so",
-    "libaivis_ggml_onnx_ep.dylib",
-    "aivis_ggml_onnx_ep.dll",
+    "libstyle_bert_vits2_ggml_onnx_ep.so",
+    "libstyle_bert_vits2_ggml_onnx_ep.dylib",
+    "style_bert_vits2_ggml_onnx_ep.dll",
 )
 
 
@@ -295,17 +295,6 @@ def _default_ggml_tts_server_backend() -> str:
     return "vulkan"
 
 
-def _add_local_onnx_ep_package_src_to_path() -> None:
-    package_src_path = (
-        engine_root() / "experimental" / "onnxruntime-ep-aivis-ggml" / "src"
-    )
-    if not package_src_path.exists():
-        return
-    package_src_text = str(package_src_path)
-    if package_src_text not in sys.path:
-        sys.path.insert(0, package_src_text)
-
-
 def _resolve_engine_root_relative_path(path: Path) -> Path:
     if path.is_absolute():
         return path
@@ -318,27 +307,14 @@ def _resolve_default_onnx_ep_library_path(explicit_path: Path | None) -> Path:
 
     package_error: Exception | None = None
     try:
-        try:
-            plugin_ep = importlib.import_module("onnxruntime_ep_aivis_ggml")
-        except ModuleNotFoundError:
-            _add_local_onnx_ep_package_src_to_path()
-            plugin_ep = importlib.import_module("onnxruntime_ep_aivis_ggml")
+        plugin_ep = importlib.import_module("onnxruntime_ep_style_bert_vits2_ggml")
         return Path(plugin_ep.get_library_path())
     except Exception as ex:
         package_error = ex
 
-    build_dir = engine_root() / "experimental" / "onnxruntime-ep-aivis-ggml" / "build"
-    for basename in _ONNX_EP_LIBRARY_BASENAMES:
-        for candidate in (
-            build_dir / "native" / basename,
-            build_dir / basename,
-        ):
-            if candidate.exists():
-                return candidate
-
     raise RuntimeError(
         "--onnx_provider ggml requires --onnx_ep_library_path or a packaged "
-        "onnxruntime_ep_aivis_ggml library."
+        "onnxruntime_ep_style_bert_vits2_ggml library."
     ) from package_error
 
 
@@ -450,7 +426,7 @@ def read_cli_arguments(envs: Envs) -> _CLIArgs:
     )
     parser.add_argument(
         "--onnx_ep_registration_name",
-        default="aivis_onnx_plugin_ep",
+        default="style_bert_vits2_onnx_plugin_ep",
         help="ONNX Runtime Plugin EP library の登録名です。",
     )
     parser.add_argument(
