@@ -29,7 +29,7 @@ Linux では `run.spec` が `patchelf` で TTS.cpp / ggml sidecar の rpath を
 
 | 項目 | 値 |
 | --- | --- |
-| ONNX Runtime headers | `1.26.0` |
+| ONNX Runtime headers | Engine の OS 別 ONNX Runtime pin に合わせる（Windows x64: `1.24.4`、macOS x64: `1.23.2`、macOS arm64: `1.27.0`、Linux x64: `1.26.0`） |
 | TTS.cpp repository | `https://github.com/Myoland/TTS.cpp.git` |
 | TTS.cpp ref | `94792ed2599656618c1d5eb3934754c391eb2a54` |
 | ggml repository | `https://github.com/Myoland/ggml.git`（TTS.cpp submodule） |
@@ -55,25 +55,54 @@ macOS は TTS.cpp を `GGML_METAL=ON` でビルドします。Windows と Linux 
 ENGINE_DIR=<AivisSpeech-Engine の checkout>
 TTS_CPP_DIR="$ENGINE_DIR/build/TTS.cpp"
 TTS_CPP_BUILD_DIR="$ENGINE_DIR/build/TTS.cpp-build"
-ORT_VERSION=1.26.0
 ```
 
 ### 1. ONNX Runtime headers を準備する
 
 Plugin EP のビルドには ONNX Runtime の C/C++ headers だけを使います。
+headers は Engine が各 OS で使う ONNX Runtime package の pin に合わせます。
 release archive 内の `libonnxruntime` は Engine パッケージには入れません。
 
 ```bash
 cd "$ENGINE_DIR"
 
-ORT_ARCHIVE="onnxruntime-linux-x64-${ORT_VERSION}.tgz"
+case "$(uname -s):$(uname -m)" in
+  MINGW*:x86_64|MSYS*:x86_64|CYGWIN*:x86_64)
+    ORT_VERSION=1.24.4
+    ORT_ARCHIVE="onnxruntime-win-x64-${ORT_VERSION}.zip"
+    ;;
+  Darwin:x86_64)
+    ORT_VERSION=1.23.2
+    ORT_ARCHIVE="onnxruntime-osx-x86_64-${ORT_VERSION}.tgz"
+    ;;
+  Darwin:arm64)
+    ORT_VERSION=1.27.0
+    ORT_ARCHIVE="onnxruntime-osx-arm64-${ORT_VERSION}.tgz"
+    ;;
+  Linux:x86_64)
+    ORT_VERSION=1.26.0
+    ORT_ARCHIVE="onnxruntime-linux-x64-${ORT_VERSION}.tgz"
+    ;;
+  *)
+    echo "Unsupported platform: $(uname -s):$(uname -m)" >&2
+    exit 1
+    ;;
+esac
+
 ORT_DIR="$PWD/build/onnxruntime-${ORT_VERSION}"
 
 mkdir -p download "$ORT_DIR"
 curl -sSL \
   "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/${ORT_ARCHIVE}" \
   -o "download/${ORT_ARCHIVE}"
-tar -xzf "download/${ORT_ARCHIVE}" -C "$ORT_DIR" --strip-components=1 --exclude='*/lib/*'
+if [[ "$ORT_ARCHIVE" == *.zip ]]; then
+  tar -xf "download/${ORT_ARCHIVE}" -C "$ORT_DIR"
+  mv "$ORT_DIR"/onnxruntime-*/* "$ORT_DIR"/
+  rm -rf "$ORT_DIR"/onnxruntime-*
+  rm -rf "$ORT_DIR"/lib
+else
+  tar -xzf "download/${ORT_ARCHIVE}" -C "$ORT_DIR" --strip-components=1 --exclude='*/lib/*'
+fi
 
 export ORT_INCLUDE_DIR="$(dirname "$(find "$ORT_DIR" -name onnxruntime_cxx_api.h -type f | head -n 1)")"
 test -f "$ORT_INCLUDE_DIR/onnxruntime_cxx_api.h"

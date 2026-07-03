@@ -68,9 +68,8 @@ jobs:
       # GNUコマンド
       sed: ${{ startsWith(matrix.os, 'macos-') && 'gsed' || 'sed' }}
       split: ${{ startsWith(matrix.os, 'macos-') && 'gsplit' || 'split' }}
-      AIVIS_ONNX_GGML_ORT_VERSION: "1.26.0"
       AIVIS_ONNX_GGML_TTS_CPP_REPOSITORY: "https://github.com/Myoland/TTS.cpp.git"
-      AIVIS_ONNX_GGML_TTS_CPP_REF: "0c6678415023c44d52dcf322827c33d36a352cb2"
+      AIVIS_ONNX_GGML_TTS_CPP_REF: "94792ed2599656618c1d5eb3934754c391eb2a54"
       AIVIS_ONNX_GGML_GGML_REPOSITORY: "https://github.com/Myoland/ggml.git"
       VULKAN_SDK_VERSION: "1.3.296.0"
 
@@ -139,13 +138,41 @@ jobs:
         run: |
           set -eux
           mkdir -p download/
-          ORT_ARCHIVE="onnxruntime-linux-x64-${AIVIS_ONNX_GGML_ORT_VERSION}.tgz"
-          ORT_DIR="$PWD/build/onnxruntime-${AIVIS_ONNX_GGML_ORT_VERSION}"
+          case "${{ matrix.target }}" in
+            Windows-x64)
+              ORT_VERSION="1.24.4"
+              ORT_ARCHIVE="onnxruntime-win-x64-${ORT_VERSION}.zip"
+              ;;
+            macOS-x64)
+              ORT_VERSION="1.23.2"
+              ORT_ARCHIVE="onnxruntime-osx-x86_64-${ORT_VERSION}.tgz"
+              ;;
+            macOS-arm64)
+              ORT_VERSION="1.27.0"
+              ORT_ARCHIVE="onnxruntime-osx-arm64-${ORT_VERSION}.tgz"
+              ;;
+            Linux-x64)
+              ORT_VERSION="1.26.0"
+              ORT_ARCHIVE="onnxruntime-linux-x64-${ORT_VERSION}.tgz"
+              ;;
+            *)
+              echo "Unsupported target: ${{ matrix.target }}" >&2
+              exit 1
+              ;;
+          esac
+          ORT_DIR="$PWD/build/onnxruntime-${ORT_VERSION}"
           curl -sSL \
-            "https://github.com/microsoft/onnxruntime/releases/download/v${AIVIS_ONNX_GGML_ORT_VERSION}/${ORT_ARCHIVE}" \
+            "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/${ORT_ARCHIVE}" \
             -o "download/${ORT_ARCHIVE}"
           mkdir -p "${ORT_DIR}"
-          tar -xzf "download/${ORT_ARCHIVE}" -C "${ORT_DIR}" --strip-components=1 --exclude='*/lib/*'
+          if [[ "${ORT_ARCHIVE}" == *.zip ]]; then
+            tar -xf "download/${ORT_ARCHIVE}" -C "${ORT_DIR}"
+            mv "${ORT_DIR}"/onnxruntime-*/* "${ORT_DIR}/"
+            rm -rf "${ORT_DIR}"/onnxruntime-*
+            rm -rf "${ORT_DIR}/lib"
+          else
+            tar -xzf "download/${ORT_ARCHIVE}" -C "${ORT_DIR}" --strip-components=1 --exclude='*/lib/*'
+          fi
           ORT_HEADER_PATH="$(find "${ORT_DIR}" -name onnxruntime_cxx_api.h -type f | head -n 1)"
           ORT_INCLUDE_DIR="$(dirname "${ORT_HEADER_PATH}")"
           test -f "${ORT_INCLUDE_DIR}/onnxruntime_cxx_api.h"
