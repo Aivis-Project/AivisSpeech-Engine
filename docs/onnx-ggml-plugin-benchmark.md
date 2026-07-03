@@ -22,6 +22,21 @@ Benchmark rule: warmup synthesis must use texts that are different from the
 short/medium/long measured texts. This avoids warming text-specific frontend,
 symbol, graph, or runtime caches with the exact sample later used for timing.
 
+## Benchmark Model Inputs
+
+Benchmark AIVMX files are downloaded from
+[AivisHub](https://hub.aivis-project.com/). Download the AIVMX artifact from the
+model page and verify the SHA-256 checksum before running the benchmark.
+
+| model | AivisHub page | version | style id | SHA-256 |
+| --- | --- | --- | ---: | --- |
+| `まお` | <https://hub.aivis-project.com/aivm-models/a59cb814-0083-4369-8542-f51a29e72af7> | `1.2.0` | `888753760` (`ノーマル`) | `f87ccea2e8e2de0e0bfe52e803945af903b4086bf25621a015111628f00e4119` |
+| `コハク` | <https://hub.aivis-project.com/aivm-models/22e8ed77-94fe-4ef2-871f-a86f94e9a579> | `1.1.0` | `1878365376` (`ノーマル`) | `3f5c08b52bb8a64efd361268580c81510f96c927cd6905aa7dbae6851333270a` |
+
+The current Linux, Windows, and macOS refreshed benchmark tables use `まお`.
+Older historical Windows and JP-BERT quantization notes that explicitly say
+`コハク` use the second row.
+
 ## Deployment Default and Memory Profile
 
 The deployable GGML path should keep the same memory-saving assets used by this
@@ -159,45 +174,6 @@ Interpretation:
   The Vulkan probe reported `matrix cores: NV_coopmat2` for the RTX 3060 and
   `matrix cores: KHR_coopmat` for the AMD 780M. Runtime F16 remains disabled in
   this mode; only cooperative matrix kernels are enabled.
-- The standalone Android TTS.cpp benchmark has a different knob surface:
-  `STYLE_BERT_VITS2_VULKAN_PRECISION=fast` enables fast conv lowering but does
-  not disable ggml-vulkan runtime F16 by itself. JP-BERT has a separate
-  `STYLE_BERT_VITS2_JP_BERT_VULKAN_PRECISION` switch. To match this Linux
-  duration-safe intent on Android, run both components in `fast` mode with
-  `GGML_VK_DISABLE_F16=1` and leave coopmat enabled when the device supports
-  matrix cores. On the tested Adreno 840 physical device, NDK `28.2.13676358`'s
-  bundled `glslc` was too old and compiled ggml-vulkan without integer-dot or
-  cooperative-matrix shader support (`int dot: 0`, `matrix cores: none`).
-  Rebuilding with Homebrew `shaderc 2026.2` enabled `int dot: 1` and detected
-  `matrix cores: KHR_coopmat`, but ggml then disabled cooperative matrix because
-  Adreno exposes F16-accumulate modes instead of the F16-input/F32-accumulate
-  mode required by the current duration-safe ggml path.
-- The Android physical-device all-GGUF run on 2026-07-02 used the same
-  deployment asset classes: JP-BERT F16 `linear` plus the FP16 synthesis voice
-  GGUF. It still used host-generated `input_ids`/phone/tone/language/style
-  bundle data, but JP-BERT feature extraction and synthesis both ran on the
-  device. With `STYLE_BERT_VITS2_VULKAN_PRECISION=fast`,
-  `STYLE_BERT_VITS2_JP_BERT_VULKAN_PRECISION=fast`, and
-  `GGML_VK_DISABLE_F16=1`, Vulkan matched CPU sample counts for all three texts
-  and measured RTF `1.498 / 0.825 / 0.560` for short/medium/long after the
-  host `glslc` fix. The older NDK-`glslc` build measured
-  `2.554 / 1.398 / 1.000` with the same runtime env. Bare Android `fast` with
-  runtime F16 enabled did not produce the first measured sample after more than
-  90 seconds and is not a valid comparison path. Forcing the local experimental
-  F16-only coopmat path first failed during JP-BERT pipeline creation at
-  `matmul_f16_f32_f16acc_aligned_l`. After constraining that experiment to pure
-  F16/F16 unaligned small-tile coopmat, it ran but failed consistency: JP-BERT
-  BERT RMSE was `1.32054 / 1.33430 / 1.22560`, and output samples changed to
-  `24576 / 51200 / 234496`. A voice-only run using bundled BERT features
-  produced the same wrong sample counts, so Adreno F16-accumulate coopmat is not
-  duration-safe for this model.
-- Pure F32 cooperative matrix is present in the Adreno 840 Vulkan properties
-  (`A=B=C=Result=float32`, `M=64`, `N=64/32/16`, `K=8`), but current ggml-vulkan
-  does not generate a true `fp16=false + COOPMAT` KHR matmul shader family. Its
-  KHR `cm1` matmul shaders are generated from the `fp16=true` path, while the
-  true F32 `_fp32` shaders are non-coopmat. Testing pure F32 acceleration would
-  therefore require new shader generation, C++ pipeline wiring, and FP32 GGUF
-  assets, including FP32 JP-BERT for a full Android device-side parity run.
 - With the CUDA convolution search fix and CUDA 12 libraries available, ONNX
   CUDA is active and still the fastest path on the long sample. GGML Plugin EP
   Vulkan is faster than ONNX CPU for all three text lengths and faster than ONNX
@@ -728,7 +704,7 @@ validates the actual ONNX provider after model load, and then measures only
 Set local paths before running:
 
 ```bash
-export AIVMX_PATH="<path-to-model.aivmx>"
+export AIVMX_PATH="<path-to-downloaded-a59cb814-0083-4369-8542-f51a29e72af7.aivmx>"
 export STYLE_ID="888753760"
 export CUDA12_NVIDIA_LIBS="<colon-separated CUDA 12/cuDNN library dirs>"
 export AIVIS_GGML_ONNX_EP_LIBRARY_PATH="<path-to-libaivis_ggml_onnx_ep.so>"
@@ -738,6 +714,9 @@ export BENCHMARK_RTX3060_OUTPUT_JSON="docs/res/onnx-ggml-plugin-benchmark/linux-
 export BENCHMARK_RTX3060_AUDIO_WAV_DIR="<path-to-temporary-rtx3060-wav-output-dir>"
 export BENCHMARK_780M_OUTPUT_JSON="docs/res/onnx-ggml-plugin-benchmark/linux-780m-ggml.json"
 export BENCHMARK_780M_AUDIO_WAV_DIR="<path-to-temporary-780m-wav-output-dir>"
+
+test "$(shasum -a 256 "$AIVMX_PATH" | awk '{print $1}')" = \
+  "f87ccea2e8e2de0e0bfe52e803945af903b4086bf25621a015111628f00e4119"
 ```
 
 Run ONNX CPU, ONNX CUDA, and the ONNX GGML Plugin EP Vulkan default path in one

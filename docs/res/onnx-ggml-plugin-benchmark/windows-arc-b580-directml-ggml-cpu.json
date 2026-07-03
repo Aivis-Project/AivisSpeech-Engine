@@ -9,7 +9,15 @@
     ],
     "warmup_runs": 1,
     "runs": 3,
-    "tempo_dynamics_scale": 1.0
+    "tempo_dynamics_scale": 1.0,
+    "model_source": {
+      "repository": "AivisHub",
+      "url": "https://hub.aivis-project.com/aivm-models/22e8ed77-94fe-4ef2-871f-a86f94e9a579",
+      "model_name": "コハク",
+      "model_uuid": "22e8ed77-94fe-4ef2-871f-a86f94e9a579",
+      "model_version": "1.1.0",
+      "sha256": "3f5c08b52bb8a64efd361268580c81510f96c927cd6905aa7dbae6851333270a"
+    }
   },
   "provider_evidence": {
     "onnx-cpu": {

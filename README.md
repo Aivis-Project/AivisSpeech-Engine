@@ -588,6 +588,9 @@ uv run task update-licenses
 uv run task build
 ```
 
+ONNX GGML Plugin EP を含む Linux x64 パッケージの構築・検証手順は
+[ONNX GGML Linux ビルド手順](docs/onnx-ggml-linux-build.md) を参照してください。
+
 ## ライセンス
 
 ベースである VOICEVOX ENGINE のデュアルライセンスのうち、[LGPL-3.0](LICENSE) のみを単独で継承します。

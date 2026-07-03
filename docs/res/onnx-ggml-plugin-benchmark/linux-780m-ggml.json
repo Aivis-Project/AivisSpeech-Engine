@@ -21,7 +21,15 @@
     "ggml_vulkan_precision": "fast",
     "ggml_vulkan_math_mode": "coopmat",
     "ggml_default_synthesis_converter_version": "tts-cpp-style-bert-vits2-converter-f16-no-embed-norm-no-ups-v1",
-    "ggml_jp_bert_gguf_path": null
+    "ggml_jp_bert_gguf_path": null,
+    "model_source": {
+      "repository": "AivisHub",
+      "url": "https://hub.aivis-project.com/aivm-models/a59cb814-0083-4369-8542-f51a29e72af7",
+      "model_name": "まお",
+      "model_uuid": "a59cb814-0083-4369-8542-f51a29e72af7",
+      "model_version": "1.2.0",
+      "sha256": "f87ccea2e8e2de0e0bfe52e803945af903b4086bf25621a015111628f00e4119"
+    }
   },
   "provider_evidence": {
     "onnx-ggml-vulkan": {
