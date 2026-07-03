@@ -6,8 +6,6 @@ import shutil
 import threading
 import time
 from collections.abc import Sequence
-from contextlib import contextmanager
-from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Final, Literal
@@ -21,6 +19,27 @@ from fastapi import HTTPException
 from huggingface_hub import hf_hub_download
 from numpy.typing import NDArray
 from onnxruntime.capi.onnxruntime_pybind11_state import InvalidProtobuf, NoSuchFile
+from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
+    PluginExecutionProviderConfig as OnnxPluginExecutionProviderConfig,
+)
+from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
+    ProviderSetting as OnnxProviderSetting,
+)
+from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
+    configure_execution_provider,
+)
+from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
+    inference_session_scope as _onnx_plugin_inference_session_scope,
+)
+from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
+    provider_names as _provider_names,
+)
+from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
+    remove_provider as _remove_provider,
+)
+from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
+    replace_provider_options as _replace_provider_options,
+)
 from style_bert_vits2.constants import (
     DEFAULT_SDP_RATIO,
     DEFAULT_STYLE_WEIGHT,
@@ -60,102 +79,18 @@ from ..tts_pipeline.tts_engine import (
 from ..utility.path_utility import get_save_dir
 
 BuiltinOnnxProvider = Literal["cuda", "directml"]
-OnnxProviderSetting = str | tuple[str, dict[str, Any]]
-_ONNX_INFERENCE_SESSION_PATCH_LOCK = threading.RLock()
-
-
-@dataclass(frozen=True)
-class OnnxPluginExecutionProviderConfig:
-    """External ONNX Runtime Plugin EP registration and selection settings."""
-
-    provider_name: str
-    provider_options: dict[str, str]
-    library_path: Path | None = None
-    registration_name: str = "style_bert_vits2_onnx_plugin_ep"
-    strict: bool = False
 
 
 def _configure_onnx_plugin_execution_provider(
     *,
-    base_providers: Sequence[str | tuple[str, dict[str, Any]]],
+    base_providers: Sequence[OnnxProviderSetting],
     config: OnnxPluginExecutionProviderConfig | None,
-) -> list[str | tuple[str, dict[str, Any]]]:
-    """Register and prepend an external ONNX Runtime Plugin EP when configured."""
-
-    providers = list(base_providers)
-    if config is None:
-        return providers
-
-    registration_error: Exception | None = None
-    if config.library_path is not None:
-        try:
-            onnxruntime.register_execution_provider_library(
-                config.registration_name,
-                str(config.library_path),
-            )
-            logger.info(
-                "Registered ONNX Runtime Plugin EP library %s from %s.",
-                config.registration_name,
-                config.library_path,
-            )
-        except Exception as ex:
-            registration_error = ex
-
-    ep_devices = _get_onnx_plugin_ep_devices(config.provider_name)
-    available_providers = onnxruntime.get_available_providers()
-    if config.provider_name not in available_providers and not ep_devices:
-        detail = (
-            f"ONNX Runtime Plugin EP '{config.provider_name}' is not available. "
-            f"Available providers: {available_providers}. "
-            f"Available EP devices: {_available_onnx_ep_device_names()}"
-        )
-        if registration_error is not None:
-            detail += f" Registration failed: {registration_error}"
-        if config.strict:
-            raise RuntimeError(detail) from registration_error
-        logger.warning(detail)
-        return providers
-
-    if registration_error is not None:
-        logger.warning(
-            "ONNX Runtime Plugin EP library registration reported an error, "
-            "but provider %s is already available; continuing.",
-            config.provider_name,
-            exc_info=registration_error,
-        )
-
-    providers = [
-        provider
-        for provider in providers
-        if _onnx_provider_name(provider) != config.provider_name
-    ]
-    providers.insert(0, (config.provider_name, dict(config.provider_options)))
-    logger.info(
-        "Using external ONNX Runtime Plugin EP %s before fallback providers %s.",
-        config.provider_name,
-        [_onnx_provider_name(provider) for provider in providers[1:]],
+) -> list[OnnxProviderSetting]:
+    return configure_execution_provider(
+        base_providers=base_providers,
+        config=config,
+        logger=logger,
     )
-    return providers
-
-
-def _onnx_provider_name(provider: str | tuple[str, dict[str, Any]]) -> str:
-    """Return the ONNX Runtime provider name from string or option tuple forms."""
-
-    return provider if isinstance(provider, str) else provider[0]
-
-
-def _onnx_provider_options(
-    provider: str | tuple[str, dict[str, Any]],
-) -> dict[str, Any]:
-    """Return ONNX provider options from string or tuple provider forms."""
-
-    return {} if isinstance(provider, str) else dict(provider[1])
-
-
-def _provider_names(providers: Sequence[str | tuple[str, dict[str, Any]]]) -> list[str]:
-    """Return only ONNX Runtime provider names."""
-
-    return [_onnx_provider_name(provider) for provider in providers]
 
 
 def _cpu_onnx_providers() -> list[OnnxProviderSetting]:
@@ -233,151 +168,6 @@ def _select_onnx_providers(
 
     logger.warning("GPU is not available. Using CPU instead.")
     return _cpu_onnx_providers()
-
-
-def _get_onnx_plugin_ep_devices(provider_name: str) -> list[Any]:
-    """Return OrtEpDevice objects for a registered Plugin EP."""
-
-    get_ep_devices = getattr(onnxruntime, "get_ep_devices", None)
-    if not callable(get_ep_devices):
-        return []
-
-    return [
-        ep_device
-        for ep_device in get_ep_devices()
-        if getattr(ep_device, "ep_name", None) == provider_name
-    ]
-
-
-def _available_onnx_ep_device_names() -> list[str]:
-    """Return the ONNX Runtime EP device provider names visible to Python."""
-
-    get_ep_devices = getattr(onnxruntime, "get_ep_devices", None)
-    if not callable(get_ep_devices):
-        return []
-
-    return [str(getattr(ep_device, "ep_name", "")) for ep_device in get_ep_devices()]
-
-
-def _find_onnx_provider_options(
-    *,
-    providers: Sequence[str | tuple[str, dict[str, Any]]] | None,
-    provider_options: Sequence[dict[Any, Any]] | None,
-    provider_name: str,
-) -> dict[str, Any] | None:
-    """Find provider options for a provider in ONNX Runtime Python arguments."""
-
-    if providers is None:
-        return None
-
-    for index, provider in enumerate(providers):
-        if _onnx_provider_name(provider) != provider_name:
-            continue
-        if isinstance(provider, tuple):
-            return dict(provider[1])
-        if provider_options is not None and index < len(provider_options):
-            return dict(provider_options[index])
-        return {}
-
-    return None
-
-
-@contextmanager
-def _onnx_plugin_inference_session_scope(
-    config: OnnxPluginExecutionProviderConfig | None,
-) -> Any:
-    """Create Plugin EP sessions through the ORT 1.24 EpDevice API when needed."""
-
-    if config is None:
-        yield
-        return
-
-    with _ONNX_INFERENCE_SESSION_PATCH_LOCK:
-        original_inference_session = onnxruntime.InferenceSession
-
-        def plugin_aware_inference_session(
-            path_or_bytes: str | bytes | Path,
-            sess_options: Any | None = None,
-            providers: Sequence[str | tuple[str, dict[str, Any]]] | None = None,
-            provider_options: Sequence[dict[Any, Any]] | None = None,
-            **kwargs: Any,
-        ) -> Any:
-            plugin_provider_options = _find_onnx_provider_options(
-                providers=providers,
-                provider_options=provider_options,
-                provider_name=config.provider_name,
-            )
-            if plugin_provider_options is None:
-                return original_inference_session(
-                    path_or_bytes,
-                    sess_options=sess_options,
-                    providers=providers,
-                    provider_options=provider_options,
-                    **kwargs,
-                )
-
-            ep_devices = _get_onnx_plugin_ep_devices(config.provider_name)
-            if not ep_devices:
-                return original_inference_session(
-                    path_or_bytes,
-                    sess_options=sess_options,
-                    providers=providers,
-                    provider_options=provider_options,
-                    **kwargs,
-                )
-
-            if sess_options is None:
-                sess_options = onnxruntime.SessionOptions()
-            sess_options.add_provider_for_devices(
-                ep_devices,
-                {key: str(value) for key, value in plugin_provider_options.items()},
-            )
-            return original_inference_session(
-                path_or_bytes,
-                sess_options=sess_options,
-                **kwargs,
-            )
-
-        onnxruntime.InferenceSession = plugin_aware_inference_session  # type: ignore[assignment]
-        try:
-            yield
-        finally:
-            onnxruntime.InferenceSession = original_inference_session  # type: ignore[assignment]
-
-
-def _replace_provider_options(
-    *,
-    providers: Sequence[str | tuple[str, dict[str, Any]]],
-    provider_name: str,
-    provider_options: dict[str, str],
-) -> list[str | tuple[str, dict[str, Any]]]:
-    """Replace one configured provider tuple while preserving provider order."""
-
-    replaced: list[str | tuple[str, dict[str, Any]]] = []
-    found = False
-    for provider in providers:
-        if _onnx_provider_name(provider) == provider_name:
-            replaced.append((provider_name, dict(provider_options)))
-            found = True
-        else:
-            replaced.append(provider)
-    if not found:
-        replaced.insert(0, (provider_name, dict(provider_options)))
-    return replaced
-
-
-def _remove_provider(
-    *,
-    providers: Sequence[str | tuple[str, dict[str, Any]]],
-    provider_name: str,
-) -> list[str | tuple[str, dict[str, Any]]]:
-    """Remove one configured provider while preserving fallback provider order."""
-
-    return [
-        provider
-        for provider in providers
-        if _onnx_provider_name(provider) != provider_name
-    ]
 
 
 class StyleBertVITS2TTSEngine(TTSEngine):

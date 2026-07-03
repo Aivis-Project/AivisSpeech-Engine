@@ -29,7 +29,6 @@ truststore.inject_into_ssl()
 
 import argparse
 import gc
-import importlib
 import multiprocessing
 import os
 import sys
@@ -42,6 +41,13 @@ from typing import Literal, TextIO, TypeVar
 
 import sentry_sdk
 import uvicorn
+from onnxruntime_ep_style_bert_vits2_ggml import get_ep_name
+from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
+    build_provider_options,
+    default_backend_for_platform,
+    default_cpu_threads,
+    resolve_library_path,
+)
 from pydantic import TypeAdapter
 
 from voicevox_engine import __version__
@@ -73,13 +79,8 @@ from voicevox_engine.utility.user_agent_utility import collect_runtime_environme
 # ref: https://github.com/VOICEVOX/voicevox_engine/pull/647#issuecomment-1540204653
 _DEFAULT_HOST = "localhost"
 _DEFAULT_PORT = 10101
-_DEFAULT_ONNX_PLUGIN_EP_NAME = "StyleBertVits2GgmlExecutionProvider"
+_DEFAULT_ONNX_PLUGIN_EP_NAME = get_ep_name()
 _ONNX_PROVIDER_CHOICES = ("auto", "cuda", "directml", "ggml")
-_ONNX_EP_LIBRARY_BASENAMES = (
-    "libstyle_bert_vits2_ggml_onnx_ep.so",
-    "libstyle_bert_vits2_ggml_onnx_ep.dylib",
-    "style_bert_vits2_ggml_onnx_ep.dll",
-)
 
 
 def parse_key_value_options(raw_options: list[str] | None) -> dict[str, str]:
@@ -284,72 +285,41 @@ _cli_args_adapter = TypeAdapter(_CLIArgs)
 def _default_ggml_cpu_threads() -> int:
     """Return a positive thread count for the TTS.cpp CPU backend."""
 
-    return max(os.cpu_count() or 1, 1)
+    return default_cpu_threads(os.cpu_count())
 
 
 def _default_ggml_tts_server_backend() -> str:
     """Return the bundled TTS.cpp backend that matches the current platform."""
 
-    if sys.platform == "darwin":
-        return "metal"
-    return "vulkan"
-
-
-def _resolve_engine_root_relative_path(path: Path) -> Path:
-    if path.is_absolute():
-        return path
-    return (engine_root() / path).resolve()
+    return default_backend_for_platform(sys.platform)
 
 
 def _resolve_default_onnx_ep_library_path(explicit_path: Path | None) -> Path:
-    if explicit_path is not None:
-        return _resolve_engine_root_relative_path(explicit_path)
-
-    package_error: Exception | None = None
     try:
-        plugin_ep = importlib.import_module("onnxruntime_ep_style_bert_vits2_ggml")
-        return Path(plugin_ep.get_library_path())
+        return resolve_library_path(explicit_path, base_dir=engine_root())
     except Exception as ex:
-        package_error = ex
-
-    raise RuntimeError(
-        "--onnx_provider ggml requires --onnx_ep_library_path or a packaged "
-        "onnxruntime_ep_style_bert_vits2_ggml library."
-    ) from package_error
+        raise RuntimeError(
+            "--onnx_provider ggml requires --onnx_ep_library_path or a packaged "
+            "onnxruntime_ep_style_bert_vits2_ggml library."
+        ) from ex
 
 
 def _build_ggml_onnx_ep_options(args: _CLIArgs) -> dict[str, str]:
-    provider_options = dict(args.onnx_ep_options)
-    provider_options.setdefault("backend", args.ggml_tts_server_backend)
-    provider_options.setdefault("claim_jp_bert_graph", "1")
-    provider_options.setdefault("claim_synthesis_graph", "1")
-    provider_options.setdefault("eager_load_model", "1")
-    provider_options.setdefault("n_threads", "0")
-    provider_options.setdefault("precision", args.ggml_vulkan_precision)
-    if args.ggml_native_library_path is not None:
-        provider_options.setdefault(
-            "tts_cpp_library_path",
-            str(_resolve_engine_root_relative_path(args.ggml_native_library_path)),
+    try:
+        return build_provider_options(
+            base_options=args.onnx_ep_options,
+            backend=args.ggml_tts_server_backend,
+            precision=args.ggml_vulkan_precision,
+            tts_cpp_library_path=args.ggml_native_library_path,
+            vulkan_device=args.ggml_vulkan_device,
+            path_base_dir=engine_root(),
+            cpu_count=os.cpu_count(),
         )
-    tts_cpp_library_path = provider_options.get("tts_cpp_library_path")
-    if tts_cpp_library_path is not None and tts_cpp_library_path != "":
-        provider_options["tts_cpp_library_path"] = str(
-            _resolve_engine_root_relative_path(Path(tts_cpp_library_path))
-        )
-    if args.ggml_vulkan_device is not None and provider_options.get("backend") != "cpu":
-        provider_options.setdefault("device", args.ggml_vulkan_device)
-    if (
-        provider_options.get("backend") == "cpu"
-        and provider_options.get("n_threads") == "0"
-    ):
-        provider_options["n_threads"] = str(_default_ggml_cpu_threads())
-
-    if provider_options.get("tts_cpp_library_path") in {None, ""}:
+    except RuntimeError as ex:
         raise RuntimeError(
             "--onnx_provider ggml requires --ggml_native_library_path or "
             "--onnx_ep_option tts_cpp_library_path=<path-to-libtts>."
-        )
-    return provider_options
+        ) from ex
 
 
 def read_cli_arguments(envs: Envs) -> _CLIArgs:
