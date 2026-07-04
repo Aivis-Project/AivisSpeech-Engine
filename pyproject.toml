@@ -55,7 +55,7 @@ default-groups = []
 exclude-newer = "1 week"
 
 [tool.uv.sources]
-style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "e702147d2f73a72667dac19ddf6acfe0cb4e3679" }
+style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "6eca18a3cb45bf164d80831e722256d4eae98910" }
 e2k = { git = "https://github.com/tsukumijima/e2k", rev = "9920754e15d8c96404bef0bd81d424352fb7a48b" }
 
 [dependency-groups]

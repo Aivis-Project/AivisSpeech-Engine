@@ -101,7 +101,7 @@ requires-dist = [
     { name = "soundfile", specifier = ">=0.13.1,<1.0.0" },
     { name = "soxr", specifier = ">=0.5.0,<1.0.0" },
     { name = "starlette", specifier = ">=1.0.1,<2.0.0" },
-    { name = "style-bert-vits2", git = "https://github.com/tsukumijima/Style-Bert-VITS2?rev=e702147d2f73a72667dac19ddf6acfe0cb4e3679" },
+    { name = "style-bert-vits2", git = "https://github.com/tsukumijima/Style-Bert-VITS2?rev=6eca18a3cb45bf164d80831e722256d4eae98910" },
     { name = "truststore", specifier = ">=0.10.0,<1.0.0" },
     { name = "uvicorn", specifier = ">=0.34.0,<1.0.0" },
     { name = "wmi", marker = "sys_platform == 'win32'", specifier = ">=1.5.1,<2.0.0" },
@@ -1738,7 +1738,7 @@ wheels = [
 [[package]]
 name = "style-bert-vits2"
 version = "2.7.0"
-source = { git = "https://github.com/tsukumijima/Style-Bert-VITS2?rev=e702147d2f73a72667dac19ddf6acfe0cb4e3679#e702147d2f73a72667dac19ddf6acfe0cb4e3679" }
+source = { git = "https://github.com/tsukumijima/Style-Bert-VITS2?rev=6eca18a3cb45bf164d80831e722256d4eae98910#6eca18a3cb45bf164d80831e722256d4eae98910" }
 dependencies = [
     { name = "aivmlib" },
     { name = "cmudict" },
@@ -1800,14 +1800,14 @@ wheels = [
 
 [[package]]
 name = "syrupy"
-version = "5.3.3"
+version = "5.3.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pytest" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/de/90/34f8d7b20dfb6b9d95f353cde255f3be5c149db2f000be3c67428a2fc298/syrupy-5.3.3.tar.gz", hash = "sha256:6c065cd1ba9374e810ad3826feb466f4d43e6f1a7168703178e56b47902c736f", size = 86068, upload-time = "2026-06-25T11:32:03.89Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/81/17/95753634cd02a892cbc74d8df9c15f5ad053885a913eb11aa6061f278344/syrupy-5.3.4.tar.gz", hash = "sha256:10f192655a2d42473ad5772653e64b281f6823fe5e30458d92f8ca8e882884c1", size = 87078, upload-time = "2026-06-26T10:55:42.522Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7f/19/17c3f86af63d68f206678cb25d92b631286f0345632eb424719e2cc69ef4/syrupy-5.3.3-py3-none-any.whl", hash = "sha256:94b7c41192295fa03ec6de281d8075900e03739f45943935f7854d61824670d7", size = 52705, upload-time = "2026-06-25T11:32:02.615Z" },
+    { url = "https://files.pythonhosted.org/packages/00/7a/254f95860cebb6d51ddb3e815ee30085e8c8a3ba6df1f44ef4605b385621/syrupy-5.3.4-py3-none-any.whl", hash = "sha256:409348aa20afc4b7dab7c965331de0cd79ab46977877fb189014ce9294e947e5", size = 53103, upload-time = "2026-06-26T10:55:41.007Z" },
 ]
 
 [[package]]
