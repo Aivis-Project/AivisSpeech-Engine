@@ -4,33 +4,43 @@ import sys
 from pathlib import Path
 from shutil import copy2, copytree
 
-from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs
+from onnxruntime_ep_style_bert_vits2_ggml.pyinstaller import (
+    copy_runtime_bundle_from_env,
+)
+from PyInstaller.utils.hooks import (
+    collect_data_files,
+    collect_dynamic_libs,
+    collect_submodules,
+)
 
 datas = []
-datas += collect_data_files('e2k')
-datas += collect_data_files('pyopenjtalk')
-datas += collect_data_files('style_bert_vits2')
+datas += collect_data_files("e2k")
+datas += collect_data_files("pyopenjtalk")
+datas += collect_data_files("style_bert_vits2")
+datas += collect_data_files("onnxruntime_ep_style_bert_vits2_ggml")
+
+hiddenimports = collect_submodules("onnxruntime_ep_style_bert_vits2_ggml")
 
 # functorch のバイナリを収集
 # ONNX に移行したため不要なはずだが、念のため
-binaries = collect_dynamic_libs('functorch')
+binaries = collect_dynamic_libs("functorch")
 
 # Windows: Intel MKL 関連の DLL を収集
 # これをやらないと PyTorch が CPU 版か CUDA 版かに関わらずクラッシュする…
 # ONNX に移行したため不要なはずだが、念のため
-if sys.platform == 'win32':
-    lib_dir_path = Path(sys.prefix) / 'Library' / 'bin'
+if sys.platform == "win32":
+    lib_dir_path = Path(sys.prefix) / "Library" / "bin"
     if lib_dir_path.exists():
-        mkl_dlls = list(lib_dir_path.glob('*.dll'))
+        mkl_dlls = list(lib_dir_path.glob("*.dll"))
         for dll in mkl_dlls:
-            binaries.append((str(dll), '.'))
+            binaries.append((str(dll), "."))
 
 a = Analysis(
-    ['run.py'],
+    ["run.py"],
     pathex=[],
     binaries=binaries,
     datas=datas,
-    hiddenimports=[],
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -38,7 +48,7 @@ a = Analysis(
     noarchive=False,
     module_collection_mode={
         # Style-Bert-VITS2 内部で使われている TorchScript (@torch.jit) による問題を回避するために必要
-        'style_bert_vits2': 'pyz+py',
+        "style_bert_vits2": "pyz+py",
     },
 )
 
@@ -49,7 +59,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='run',
+    name="run",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -60,7 +70,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    contents_directory='engine_internal',  # 実行時に sys._MEIPASS が参照するディレクトリ名
+    contents_directory="engine_internal",  # 実行時に sys._MEIPASS が参照するディレクトリ名
 )
 
 coll = COLLECT(
@@ -70,17 +80,19 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='run',
+    name="run",
 )
 
 # 実行ファイルのディレクトリに配置するファイルのコピー
-target_dir = Path(DISTPATH) / 'run'
+target_dir = Path(DISTPATH) / "run"
 
 # リソースをコピー
-manifest_file_path = Path('engine_manifest.json')
+manifest_file_path = Path("engine_manifest.json")
 copy2(manifest_file_path, target_dir)
-copytree('resources', target_dir / 'resources')
+copytree("resources", target_dir / "resources")
 
-license_file_path = Path('licenses.json')
+license_file_path = Path("licenses.json")
 if license_file_path.is_file():
     copy2(license_file_path, target_dir)
+
+copy_runtime_bundle_from_env(target_dir)
