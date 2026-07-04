@@ -1,0 +1,4 @@
+interface:
+  display_name: "AivisSpeech Engine Sentry トリアージ"
+  short_description: "AivisSpeech Engine の Sentry ノイズ分類"
+  default_prompt: "$aivisspeech-engine-sentry-triage を使って、AivisSpeech Engine の Sentry issue を分類し、必要ならノイズフィルタを更新してください。"

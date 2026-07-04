@@ -12,6 +12,21 @@ from sentry_sdk.types import Event, Hint
 _ExceptionPredicate = Callable[[str, str], bool]
 _ExceptionInfo = tuple[type[BaseException], BaseException, TracebackType | None]
 
+_PATH_SEPARATOR_PATTERN = r"[\\/]"
+_USER_DICTIONARY_TEMP_FILE_PATTERN = r"user\.dict_compiled-[^\\/\s'\"]+\.tmp"
+_AIVIS_ENGINE_MODEL_PATTERN = (
+    rf"AivisSpeech-Engine{_PATH_SEPARATOR_PATTERN}.*"
+    rf"Models{_PATH_SEPARATOR_PATTERN}.+\.aivmx"
+)
+_BERT_CACHE_PATH_PATTERN = (
+    rf"BertModelCaches{_PATH_SEPARATOR_PATTERN}.+"
+    rf"tsukumijima--deberta-v2-large-japanese-char-wwm-onnx"
+)
+_ENGINE_MANIFEST_ICON_PATTERN = (
+    rf"resources{_PATH_SEPARATOR_PATTERN}"
+    rf"engine_manifest_assets{_PATH_SEPARATOR_PATTERN}icon\.png"
+)
+
 
 _ADDRESS_ALREADY_IN_USE_PATTERNS = (
     re.compile(r"\[Errno (?:48|10048)\].*attempting to bind", re.IGNORECASE),
@@ -24,7 +39,9 @@ _ADDRESS_ALREADY_IN_USE_PATTERNS = (
 )
 
 _USER_DICTIONARY_TEMP_FILE_PATTERNS = (
-    re.compile(r"Failed to CreateFileW for .+user\.dict_compiled-.+\.tmp"),
+    re.compile(rf"Failed to CreateFileW for .+{_USER_DICTIONARY_TEMP_FILE_PATTERN}"),
+    re.compile(rf"No such file or directory: .+{_USER_DICTIONARY_TEMP_FILE_PATTERN}"),
+    re.compile(rf"\[WinError 2\].+{_USER_DICTIONARY_TEMP_FILE_PATTERN}"),
 )
 
 _MEMORY_OR_GPU_RESOURCE_PATTERNS = (
@@ -59,14 +76,85 @@ _AUDIO_QUERY_VALIDATION_PATTERNS = (
     re.compile(r"validation error for AudioQuery", re.IGNORECASE),
 )
 
+_CLIENT_INPUT_OR_REQUEST_ERROR_PATTERNS = (
+    re.compile(r"validation error for Setting", re.IGNORECASE),
+    re.compile(r"validation error for ParseKanaBadRequest", re.IGNORECASE),
+    re.compile(r"Exceeds the limit \(\d+ digits\) for integer string conversion"),
+    re.compile(r"Input text is too long after normalization"),
+    re.compile(
+        r"Model [0-9a-fA-F-]{36} is a default model\. It cannot be uninstalled\."
+    ),
+    re.compile(r"AivisSpeech Engine must have at least one installed model\."),
+    re.compile(r"Singer info is not supported in AivisSpeech Engine\."),
+    re.compile(r"Singers is not supported in AivisSpeech Engine\."),
+)
+
+_LOCAL_MODEL_OR_USER_DATA_ERROR_PATTERNS = (
+    re.compile(r"Failed to decode AIVM metadata"),
+    re.compile(r"This file is not an AIVMX \(ONNX\) file"),
+    re.compile(r"Failed to read AIVM metadata"),
+    re.compile(r"指定された AIVMX ファイルの形式が正しくありません"),
+    re.compile(r"AIVMX ファイルの書き込みに失敗しました"),
+    re.compile(rf"No such file or directory: .+{_AIVIS_ENGINE_MODEL_PATTERN}"),
+    re.compile(rf"Permission denied: .+{_AIVIS_ENGINE_MODEL_PATTERN}"),
+    re.compile(r"Cannot load file containing pickled data"),
+    re.compile(r"validation error for EngineManifestJson", re.IGNORECASE),
+    re.compile(r"validation error for dict\[str,function-after", re.IGNORECASE),
+    re.compile(
+        r"validation errors for dict\[str,SaveFormatUserDictWord", re.IGNORECASE
+    ),
+    re.compile(r"ユーザー辞書のインポートに失敗しました"),
+    re.compile(r"辞書の読み込みに失敗しました"),
+)
+
 _LOCAL_BERT_CACHE_ERROR_PATTERNS = (
     re.compile(r"BertModelCaches.+File doesn't exist"),
     re.compile(r"BertModelCaches.+No such file or directory"),
+    re.compile(r"No such file or directory: .+BertModelCaches"),
+    re.compile(rf"Load model from .+{_BERT_CACHE_PATH_PATTERN}"),
     re.compile(
         r"Can't load tokenizer for 'tsukumijima/deberta-v2-large-japanese-char-wwm-onnx'"
     ),
     re.compile(r"tsukumijima/deberta-v2-large-japanese-char-wwm-onnx.+config\.json"),
     re.compile(r"cannot find the requested files in the local cache"),
+)
+
+_BROKEN_INSTALL_RESOURCE_PATTERNS = (
+    re.compile(rf"No such file or directory: .+{_ENGINE_MANIFEST_ICON_PATTERN}"),
+)
+
+_EXTERNAL_DOWNLOAD_OR_PROXY_ERROR_PATTERNS = (
+    re.compile(r"AIVMX ファイルのダウンロードに失敗しました"),
+    re.compile(r"\bConnectTimeout\b[\s\S]*\btimed out\b", re.IGNORECASE),
+    re.compile(r"\bReadTimeout\b[\s\S]*timed out", re.IGNORECASE),
+    re.compile(r"\bReadError\b[\s\S]*_ssl\.c", re.IGNORECASE),
+    re.compile(r"\bHTTPStatusError\b[\s\S]*api\.aivis-project\.com.+/download"),
+    re.compile(r"\bRemoteProtocolError\b[\s\S]*peer closed connection", re.IGNORECASE),
+    re.compile(r"ConnectionResetError\(10054"),
+    re.compile(r"Proxy Authentication Required", re.IGNORECASE),
+    re.compile(r"Max retries exceeded with url", re.IGNORECASE),
+    re.compile(r"Request URL has an unsupported protocol 'aivmx://'", re.IGNORECASE),
+    re.compile(r"UNEXPECTED_EOF_WHILE_READING"),
+    re.compile(r"ChunkedEncodingError"),
+    re.compile(r"IncompleteRead\("),
+    re.compile(r"HfHubHTTPError: 503 Server Error"),
+    re.compile(r"https?://(?:huggingface\.co|[^\s/]+\.xethub\.hf\.co)/"),
+)
+
+_INTERRUPTED_SHUTDOWN_PATTERNS = (
+    re.compile(r"\bKeyboardInterrupt\b"),
+    re.compile(r"\bCancelledError\b"),
+)
+
+_OS_OR_BROKEN_RUNTIME_ERROR_PATTERNS = (
+    re.compile(
+        r"can't handle event type Response when role=SERVER and state=MUST_CLOSE"
+    ),
+    re.compile(r"Permission denied: 'dmesg'"),
+    re.compile(
+        r"No mapping for the Unicode character exists in the target multi-byte code page"
+    ),
+    re.compile(r"Unable to compare versions for regex.+Consider reinstalling regex"),
 )
 
 
@@ -311,6 +399,42 @@ def _is_audio_query_validation_error(exception_type: str, exception_text: str) -
     return _matches_any_pattern(_AUDIO_QUERY_VALIDATION_PATTERNS, exception_text)
 
 
+def _is_client_input_or_request_error(exception_type: str, exception_text: str) -> bool:
+    """
+    不正な設定値や未対応リクエストを判定する。
+
+    Args:
+        exception_type (str): 例外型名
+        exception_text (str): イベント内の文字列を連結したテキスト
+
+    Returns
+    -------
+        bool: 外部入力や未対応 API 呼び出しとして破棄する場合は True
+    """
+
+    return _matches_any_pattern(_CLIENT_INPUT_OR_REQUEST_ERROR_PATTERNS, exception_text)
+
+
+def _is_local_model_or_user_data_error(
+    exception_type: str, exception_text: str
+) -> bool:
+    """
+    ローカルのモデルファイルやユーザーデータ破損かどうかを判定する。
+
+    Args:
+        exception_type (str): 例外型名
+        exception_text (str): イベント内の文字列を連結したテキスト
+
+    Returns
+    -------
+        bool: 利用者環境のファイル破損や権限問題として破棄する場合は True
+    """
+
+    return _matches_any_pattern(
+        _LOCAL_MODEL_OR_USER_DATA_ERROR_PATTERNS, exception_text
+    )
+
+
 def _is_local_bert_cache_error(exception_type: str, exception_text: str) -> bool:
     """
     ローカルの BERT モデルキャッシュ欠損や取得失敗かどうかを判定する。
@@ -327,12 +451,91 @@ def _is_local_bert_cache_error(exception_type: str, exception_text: str) -> bool
     return _matches_any_pattern(_LOCAL_BERT_CACHE_ERROR_PATTERNS, exception_text)
 
 
+def _is_broken_install_resource_error(exception_type: str, exception_text: str) -> bool:
+    """
+    インストール済みリソースの欠損かどうかを判定する。
+
+    Args:
+        exception_type (str): 例外型名
+        exception_text (str): イベント内の文字列を連結したテキスト
+
+    Returns
+    -------
+        bool: 壊れたインストール状態として破棄する場合は True
+    """
+
+    return _matches_any_pattern(_BROKEN_INSTALL_RESOURCE_PATTERNS, exception_text)
+
+
+def _is_external_download_or_proxy_error(
+    exception_type: str, exception_text: str
+) -> bool:
+    """
+    外部サービスやプロキシによるダウンロード失敗かどうかを判定する。
+
+    Args:
+        exception_type (str): 例外型名
+        exception_text (str): イベント内の文字列を連結したテキスト
+
+    Returns
+    -------
+        bool: ネットワーク環境や外部サービス側の問題として破棄する場合は True
+    """
+
+    return _matches_any_pattern(
+        _EXTERNAL_DOWNLOAD_OR_PROXY_ERROR_PATTERNS, exception_text
+    )
+
+
+def _is_interrupted_shutdown_error(exception_type: str, exception_text: str) -> bool:
+    """
+    ユーザー操作やプロセス終了で中断されたエラーかどうかを判定する。
+
+    Args:
+        exception_type (str): 例外型名
+        exception_text (str): イベント内の文字列を連結したテキスト
+
+    Returns
+    -------
+        bool: 通常の終了操作に伴う中断として破棄する場合は True
+    """
+
+    # KeyboardInterrupt は Ctrl+C や親プロセスからの終了で発生し、アプリ側で直せる例外ではない
+    ## Uvicorn の終了処理では KeyboardInterrupt の後続として CancelledError だけが送られる場合もある
+    if exception_type in {"KeyboardInterrupt", "CancelledError"}:
+        return True
+
+    return _matches_any_pattern(_INTERRUPTED_SHUTDOWN_PATTERNS, exception_text)
+
+
+def _is_os_or_broken_runtime_error(exception_type: str, exception_text: str) -> bool:
+    """
+    OS の制約や壊れた実行環境に由来するエラーかどうかを判定する。
+
+    Args:
+        exception_type (str): 例外型名
+        exception_text (str): イベント内の文字列を連結したテキスト
+
+    Returns
+    -------
+        bool: アプリ側から修正できない実行環境の問題として破棄する場合は True
+    """
+
+    return _matches_any_pattern(_OS_OR_BROKEN_RUNTIME_ERROR_PATTERNS, exception_text)
+
+
 _SENTRY_DROP_PREDICATES: tuple[_ExceptionPredicate, ...] = (
     _is_client_disconnect_error,
+    _is_interrupted_shutdown_error,
     _is_port_already_in_use_error,
     _is_user_dictionary_temp_file_error,
     _is_memory_or_gpu_resource_error,
     _is_missing_aivm_resource_error,
     _is_audio_query_validation_error,
+    _is_client_input_or_request_error,
+    _is_local_model_or_user_data_error,
     _is_local_bert_cache_error,
+    _is_broken_install_resource_error,
+    _is_external_download_or_proxy_error,
+    _is_os_or_broken_runtime_error,
 )

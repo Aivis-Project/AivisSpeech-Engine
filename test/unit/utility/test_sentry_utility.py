@@ -7,6 +7,10 @@ from sentry_sdk.types import Event, Hint
 
 from voicevox_engine.utility.sentry_utility import filter_sentry_event
 
+_WINDOWS_ENGINE_ROOT = "C:\\Program Files\\AivisSpeech\\AivisSpeech-Engine"
+_WINDOWS_ENGINE_DATA_ROOT = "C:\\Users\\Taro\\AppData\\Roaming\\AivisSpeech-Engine"
+_POSIX_ENGINE_ROOT = "/opt/AivisSpeech-Engine"
+
 
 def _generate_exception_event(exception_type: str, exception_value: str) -> Event:
     """
@@ -103,7 +107,25 @@ def _generate_hint(exception: BaseException) -> Hint:
             _generate_exception_event(
                 "RuntimeError",
                 "Failed to CreateFileW for "
-                "C:\\Users\\user\\AppData\\Local\\AivisSpeech-Engine\\user.dict_compiled-abc.tmp",
+                f"{_WINDOWS_ENGINE_DATA_ROOT}\\user.dict_compiled-abc.tmp",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "FileNotFoundError",
+                "No such file or directory: "
+                f"{_WINDOWS_ENGINE_DATA_ROOT}\\"
+                "user.dict_compiled-a96ccc50-022a-43ee-9bae-d9b018f198a9.tmp",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "FileNotFoundError",
+                "[WinError 2] 指定されたファイルが見つかりません。: "
+                f"{_WINDOWS_ENGINE_DATA_ROOT}\\"
+                "user.dict_compiled-a96ccc50-022a-43ee-9bae-d9b018f198a9.tmp",
             ),
             {},
         ),
@@ -171,9 +193,19 @@ def _generate_hint(exception: BaseException) -> Hint:
             _generate_exception_event(
                 "NoSuchFile",
                 "[ONNXRuntimeError] : 3 : NO_SUCHFILE : Load model from "
-                "C:\\Users\\user\\AppData\\Roaming\\AivisSpeech-Engine\\BertModelCaches\\"
+                f"{_WINDOWS_ENGINE_DATA_ROOT}\\BertModelCaches\\"
                 "models--tsukumijima--deberta-v2-large-japanese-char-wwm-onnx\\"
                 "snapshots\\hash\\model_fp16.onnx failed. File doesn't exist",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "Fail",
+                "[ONNXRuntimeError] : 1 : FAIL : Load model from "
+                f"{_WINDOWS_ENGINE_DATA_ROOT}\\BertModelCaches\\"
+                "models--tsukumijima--deberta-v2-large-japanese-char-wwm-onnx\\"
+                "snapshots\\hash\\model_fp16.onnx failed: bad allocation",
             ),
             {},
         ),
@@ -185,7 +217,264 @@ def _generate_hint(exception: BaseException) -> Hint:
             ),
             {},
         ),
+        (
+            _generate_exception_event(
+                "FileNotFoundError",
+                "No such file or directory: "
+                f"{_POSIX_ENGINE_ROOT}/BertModelCaches/"
+                "models--tsukumijima--deberta-v2-large-japanese-char-wwm-onnx\\"
+                "snapshots\\hash\\tokenizer_config.json",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "ValidationError",
+                "1 validation error for Setting\n"
+                "allow_origin\n"
+                "  Input should be a valid string [type=string_type, input_value=[], input_type=list]",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "ValidationError",
+                "1 validation error for ParseKanaBadRequest\n"
+                "error_args.position\n"
+                "  Input should be a valid string [type=string_type, input_value=1, input_type=int]",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "ValueError",
+                "Exceeds the limit (4300 digits) for integer string conversion: "
+                "value has 7620 digits; use sys.set_int_max_str_digits() to increase the limit",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "RuntimeError",
+                "Input text is too long after normalization",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "HTTPException",
+                "Model a59cb814-0083-4369-8542-f51a29e72af7 is a default model. "
+                "It cannot be uninstalled.",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "HTTPException",
+                "AivisSpeech Engine must have at least one installed model.",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "HTTPException",
+                "Singer info is not supported in AivisSpeech Engine.",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "HTTPException",
+                "Singers is not supported in AivisSpeech Engine.",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "HTTPException",
+                "AIVMX ファイルのダウンロードに失敗しました。(timed out)",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "ConnectTimeout",
+                "timed out",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "ReadTimeout",
+                "The read operation timed out",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "ReadError",
+                "The operation did not complete (read) (_ssl.c:2580)",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "HTTPStatusError",
+                "Client error '404 Not Found' for url "
+                "'https://api.aivis-project.com/v1/aivm-models/model/download?model_type=AIVMX'",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "RemoteProtocolError",
+                "peer closed connection without sending complete message body "
+                "(received 86376448 bytes, expected 258037076)",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "ConnectionError",
+                "Connection aborted. ConnectionResetError(10054, "
+                "'既存の接続はリモート ホストに強制的に切断されました。')",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "ProxyError",
+                "407 Proxy Authentication Required",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "UnsupportedProtocol",
+                "Request URL has an unsupported protocol 'aivmx://'.",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "ChunkedEncodingError",
+                "Connection broken: IncompleteRead(231734924 bytes read, 421340775 more expected)",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "HfHubHTTPError",
+                "503 Server Error: Service Unavailable for url: "
+                "https://cas-bridge.xethub.hf.co/xet-bridge-us/model",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "AivmValidationError",
+                "Failed to decode AIVM metadata. This file is not an AIVMX (ONNX) file.",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "HTTPException",
+                "ユーザー辞書のインポートに失敗しました。",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "PermissionError",
+                "Permission denied: "
+                f"{_WINDOWS_ENGINE_DATA_ROOT}\\Models\\"
+                "a59cb814-0083-4369-8542-f51a29e72af7.aivmx",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "ValueError",
+                "Cannot load file containing pickled data when allow_pickle=False",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "ValidationError",
+                "540 validation errors for dict[str,SaveFormatUserDictWord]",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "FileNotFoundError",
+                "No such file or directory: "
+                f"{_WINDOWS_ENGINE_ROOT}\\"
+                "resources\\engine_manifest_assets\\icon.png",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "RuntimeException",
+                "[ONNXRuntimeError] : 6 : RUNTIME_EXCEPTION : Exception during initialization: "
+                "No mapping for the Unicode character exists in the target multi-byte code page.",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "ValueError",
+                "Unable to compare versions for regex>=2025.10.22: need=2025.10.22 "
+                "found=None. This is unusual. Consider reinstalling regex.",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "PermissionError",
+                "Permission denied: 'dmesg'",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "LocalProtocolError",
+                "can't handle event type Response when role=SERVER and state=MUST_CLOSE",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "KeyboardInterrupt",
+                "",
+            ),
+            {},
+        ),
+        (
+            _generate_exception_event(
+                "CancelledError",
+                "",
+            ),
+            {},
+        ),
+        (
+            {
+                "message": "Traceback (most recent call last):\n"
+                '  File "uvicorn\\server.py", line 339, in capture_signals\n'
+                '  File "asyncio\\runners.py", line 157, in _on_sigint\n'
+                "KeyboardInterrupt\n"
+                "\n"
+                "During handling of the above exception, another exception occurred:\n"
+                "\n"
+                "asyncio.exceptions.CancelledError\n"
+            },
+            {},
+        ),
         ({}, _generate_hint(MemoryError("Unable to allocate 1024 bytes"))),
+        ({}, _generate_hint(KeyboardInterrupt())),
     ],
 )
 def test_filter_sentry_event_drops_known_unrecoverable_errors(
@@ -238,24 +527,6 @@ def test_filter_sentry_event_drops_known_unrecoverable_errors(
             _generate_exception_event(
                 "RuntimeError",
                 "The browser zoom level was changed in the control room",
-            ),
-            {},
-        ),
-        (
-            _generate_exception_event(
-                "ValidationError",
-                "1 validation error for Setting\n"
-                "allow_origin\n"
-                "  Input should be a valid string [type=string_type, input_value=[], input_type=list]",
-            ),
-            {},
-        ),
-        (
-            _generate_exception_event(
-                "ValidationError",
-                "1 validation error for ParseKanaBadRequest\n"
-                "error_args.position\n"
-                "  Input should be a valid string [type=string_type, input_value=1, input_type=int]",
             ),
             {},
         ),
