@@ -227,7 +227,10 @@ def test_supported_devices_does_not_report_onnx_plugin_ep_as_directml() -> None:
 
 def test_supported_devices_ignores_unselected_onnx_plugin_ep() -> None:
     engine = object.__new__(StyleBertVITS2TTSEngine)
-    engine.available_onnx_providers = ["CPUExecutionProvider"]
+    engine.available_onnx_providers = [
+        "StyleBertVits2GgmlExecutionProvider",
+        "CPUExecutionProvider",
+    ]
 
     assert engine.supported_devices == DeviceSupport(cpu=True, cuda=False, dml=False)
 
