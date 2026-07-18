@@ -41,6 +41,14 @@ from typing import TextIO, TypeVar
 
 import sentry_sdk
 import uvicorn
+from onnxruntime_ep_style_bert_vits2_ggml import get_ep_name
+from onnxruntime_ep_style_bert_vits2_ggml.engine_integration import (
+    build_engine_execution_provider_config,
+)
+from onnxruntime_ep_style_bert_vits2_ggml.runtime import (
+    BuiltinProvider,
+    default_backend_for_platform,
+)
 from pydantic import TypeAdapter
 
 from voicevox_engine import __version__
@@ -72,6 +80,37 @@ from voicevox_engine.utility.user_agent_utility import collect_runtime_environme
 # ref: https://github.com/VOICEVOX/voicevox_engine/pull/647#issuecomment-1540204653
 _DEFAULT_HOST = "localhost"
 _DEFAULT_PORT = 10101
+_DEFAULT_ONNX_PLUGIN_EP_NAME = get_ep_name()
+_ONNX_PROVIDER_CHOICES = ("auto", "cuda", "directml", "ggml")
+
+
+def parse_key_value_options(raw_options: list[str] | None) -> dict[str, str]:
+    """Parse repeated KEY=VALUE CLI options into a dictionary."""
+
+    parsed_options: dict[str, str] = {}
+    for raw_option in raw_options or []:
+        key, separator, value = raw_option.partition("=")
+        if separator == "" or key == "":
+            raise ValueError(f"Expected KEY=VALUE, got: {raw_option}")
+        parsed_options[key] = value
+    return parsed_options
+
+
+def decide_onnx_provider_from_env(env_name: str) -> str | None:
+    """Read an explicit ONNX provider selection from the environment."""
+
+    env = os.getenv(env_name)
+    if env is None or env == "":
+        return None
+    provider = env.lower()
+    if provider in _ONNX_PROVIDER_CHOICES:
+        return provider
+    msg = (
+        f"Invalid environment variable value: {env_name}={env}. "
+        f"Expected one of: {', '.join(_ONNX_PROVIDER_CHOICES)}"
+    )
+    warnings.warn(msg, stacklevel=1)
+    return None
 
 
 def decide_boolean_from_env(env_name: str) -> bool:
@@ -127,6 +166,7 @@ class Envs:
     host: str | None
     port: int | None
     use_gpu: bool
+    onnx_provider: str | None
 
 
 _env_adapter = TypeAdapter(Envs)
@@ -142,6 +182,7 @@ def read_environment_variables() -> Envs:
         host=os.getenv("VV_HOST"),
         port=decide_port_from_env("VV_PORT"),
         use_gpu=decide_boolean_from_env("VV_USE_GPU"),
+        onnx_provider=decide_onnx_provider_from_env("VV_ONNX_PROVIDER"),
     )
     return _env_adapter.validate_python(asdict(envs))
 
@@ -210,6 +251,16 @@ class _CLIArgs:
     host: str | None
     port: int | None
     use_gpu: bool | None
+    onnx_provider: str | None
+    ggml_model_cache_dir: Path | None
+    ggml_native_library_path: Path | None
+    ggml_tts_server_backend: str
+    ggml_vulkan_device: str | None
+    ggml_vulkan_precision: str
+    onnx_ep_library_path: Path | None
+    onnx_ep_registration_name: str
+    onnx_ep_name: str | None
+    onnx_ep_options: dict[str, str]
     load_all_models: bool
     output_log_utf8: bool
     cors_policy_mode: CorsPolicyMode | None
@@ -254,6 +305,74 @@ def read_cli_arguments(envs: Envs) -> _CLIArgs:
             "GPUを使って音声合成するか設定します。指定しない場合、代わりに環境変数 VV_USE_GPU の値が使われます。"
             "VV_USE_GPU の値が1の場合はGPUを使用し、0または空文字、値がない場合は使用されません。"
         ),
+    )
+    parser.add_argument(
+        "--onnx_provider",
+        choices=_ONNX_PROVIDER_CHOICES,
+        default=None,
+        help=(
+            "Style-Bert-VITS2 の ONNX 推論で使う provider を指定します。"
+            "auto は既存の --use_gpu に従い、cuda / directml は組み込み Execution Provider を明示的に使い、"
+            "ggml は外部 ONNX Runtime Plugin EP を使います。"
+            "指定しない場合、代わりに環境変数 VV_ONNX_PROVIDER の値が使われます。"
+        ),
+    )
+    parser.add_argument(
+        "--ggml_model_cache_dir",
+        type=Path,
+        default=None,
+        help="ONNX GGML Plugin EP 用に変換した GGUF モデルのキャッシュディレクトリです。",
+    )
+    parser.add_argument(
+        "--ggml_native_library_path",
+        type=Path,
+        default=None,
+        help=(
+            "ONNX GGML Plugin EP が利用する TTS.cpp C API 共有ライブラリのパスです。"
+            "--onnx_provider ggml では必須です。"
+        ),
+    )
+    parser.add_argument(
+        "--ggml_tts_server_backend",
+        choices=("vulkan", "metal", "cpu"),
+        default=default_backend_for_platform(sys.platform),
+        help="ONNX GGML Plugin EP 内の TTS.cpp backend を指定します。",
+    )
+    parser.add_argument(
+        "--ggml_vulkan_device",
+        default=None,
+        help="Vulkan/Metal backend で利用する device id を provider option として渡します。",
+    )
+    parser.add_argument(
+        "--ggml_vulkan_precision",
+        choices=("accurate", "fast"),
+        default="accurate",
+        help="ONNX GGML Plugin EP の Vulkan precision を指定します。",
+    )
+    parser.add_argument(
+        "--onnx_ep_library_path",
+        type=Path,
+        default=None,
+        help="ONNX Runtime Plugin EP 共有ライブラリのパスです。省略時はパッケージまたはローカル build から探します。",
+    )
+    parser.add_argument(
+        "--onnx_ep_registration_name",
+        default="style_bert_vits2_onnx_plugin_ep",
+        help="ONNX Runtime Plugin EP library の登録名です。",
+    )
+    parser.add_argument(
+        "--onnx_ep_name",
+        default=None,
+        help=(
+            "優先する ONNX Runtime Plugin EP 名です。省略時は "
+            f"{_DEFAULT_ONNX_PLUGIN_EP_NAME} を使います。"
+        ),
+    )
+    parser.add_argument(
+        "--onnx_ep_option",
+        action="append",
+        default=[],
+        help="ONNX Runtime Plugin EP に渡す追加オプションです。KEY=VALUE 形式で複数指定できます。",
     )
     # parser.add_argument(
     #     "--voicevox_dir",
@@ -380,6 +499,12 @@ def read_cli_arguments(envs: Envs) -> _CLIArgs:
     # args_dict["voicelib_dirs"] = args_dict.pop("voicelib_dir")
     # args_dict["runtime_dirs"] = args_dict.pop("runtime_dir")
     args_dict["allow_origins"] = args_dict.pop("allow_origin")
+    try:
+        args_dict["onnx_ep_options"] = parse_key_value_options(
+            args_dict.pop("onnx_ep_option")
+        )
+    except ValueError as ex:
+        parser.error(str(ex))
 
     # --host に 127.0.0.1 が指定されたとき、Windows 上で localhost でアクセスした際に
     # IPv6 でバインドされないことによる接続遅延を防ぐために、代わりに localhost を指定し IPv4 と IPv6 の両方でバインドする
@@ -410,6 +535,17 @@ def main() -> None:
         set_output_log_utf8()
 
     use_gpu = select_first_not_none([args.use_gpu, envs.use_gpu])
+    onnx_provider = (
+        select_first_not_none_or_none([args.onnx_provider, envs.onnx_provider])
+        or "auto"
+    )
+    builtin_onnx_provider: BuiltinProvider | None = None
+    if onnx_provider == "cuda":
+        builtin_onnx_provider = "cuda"
+    elif onnx_provider == "directml":
+        builtin_onnx_provider = "directml"
+    if onnx_provider in {"cuda", "directml", "ggml"}:
+        use_gpu = True
 
     # この PC の動作環境情報を取得
     # 起動時の可能な限り早い段階で実行結果をキャッシュしておくのが重要
@@ -455,10 +591,32 @@ def main() -> None:
             StyleBertVITS2TTSEngine,
         )
 
+        onnx_plugin_ep = None
+        if onnx_provider == "ggml":
+            onnx_plugin_ep = build_engine_execution_provider_config(
+                base_options=args.onnx_ep_options,
+                backend=args.ggml_tts_server_backend,
+                precision=args.ggml_vulkan_precision,
+                tts_cpp_library_path=args.ggml_native_library_path,
+                vulkan_device=args.ggml_vulkan_device,
+                path_base_dir=engine_root(),
+                library_path=args.onnx_ep_library_path,
+                registration_name=args.onnx_ep_registration_name,
+                provider_name=args.onnx_ep_name,
+                strict=True,
+            )
+
         # AivisSpeech Engine 独自の StyleBertVITS2TTSEngine を通常の TTSEngine の代わりに利用
         tts_engines = TTSEngineManager()
         tts_engines.register_engine(
-            StyleBertVITS2TTSEngine(aivm_manager, use_gpu, args.load_all_models),
+            StyleBertVITS2TTSEngine(
+                aivm_manager,
+                use_gpu,
+                args.load_all_models,
+                preferred_onnx_provider=builtin_onnx_provider,
+                onnx_plugin_ep=onnx_plugin_ep,
+                ggml_model_cache_dir=args.ggml_model_cache_dir,
+            ),
             MOCK_CORE_VERSION,
         )
 

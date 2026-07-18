@@ -18,6 +18,7 @@ from numpy.typing import NDArray
 from style_bert_vits2.constants import DEFAULT_SDP_RATIO, DEFAULT_STYLE_WEIGHT
 
 from voicevox_engine.aivm_manager import AivmManager
+from voicevox_engine.core.core_adapter import DeviceSupport
 from voicevox_engine.metas.metas import StyleId
 from voicevox_engine.model import AudioQuery
 from voicevox_engine.tts_pipeline.model import AccentPhrase, Mora
@@ -215,6 +216,23 @@ def _synthesize_and_get_infer_kwargs(
 
     assert recording_tts_model.infer_kwargs is not None
     return recording_tts_model.infer_kwargs
+
+
+def test_supported_devices_does_not_report_onnx_plugin_ep_as_directml() -> None:
+    engine = object.__new__(StyleBertVITS2TTSEngine)
+    engine.available_onnx_providers = ["CPUExecutionProvider"]
+
+    assert engine.supported_devices == DeviceSupport(cpu=True, cuda=False, dml=False)
+
+
+def test_supported_devices_ignores_unselected_onnx_plugin_ep() -> None:
+    engine = object.__new__(StyleBertVITS2TTSEngine)
+    engine.available_onnx_providers = [
+        "StyleBertVits2GgmlExecutionProvider",
+        "CPUExecutionProvider",
+    ]
+
+    assert engine.supported_devices == DeviceSupport(cpu=True, cuda=False, dml=False)
 
 
 def test_synthesize_wave_uses_trimmed_kana_as_inference_text() -> None:

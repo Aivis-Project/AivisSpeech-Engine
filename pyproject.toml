@@ -33,6 +33,7 @@ dependencies = [
   "truststore>=0.10.0,<1.0.0",
   # aivmlib は AIVMX ファイルのメタデータ読み取りに必要
   "aivmlib>=1.2.1,<2.0.0",
+  "onnxruntime-ep-style-bert-vits2-ggml[convert]",
   # AivisSpeech-Engine にはカスタマイズされた Style-Bert-VITS2 と e2k が必要
   "style-bert-vits2",
   "e2k",
@@ -57,6 +58,7 @@ exclude-newer = "1 week"
 [tool.uv.sources]
 style-bert-vits2 = { git = "https://github.com/tsukumijima/Style-Bert-VITS2", rev = "ef67a93443a1929674a016f6f288873c69638ed7" }
 e2k = { git = "https://github.com/tsukumijima/e2k", rev = "9920754e15d8c96404bef0bd81d424352fb7a48b" }
+onnxruntime-ep-style-bert-vits2-ggml = { git = "https://github.com/Myoland/onnxruntime-ep-style-bert-vits2-ggml", rev = "c2e6862f226415196a7276086bbda4516a8a02d6" }
 
 [dependency-groups]
 build = [
@@ -128,7 +130,7 @@ docstring-code-format = true
 strict = true
 plugins = "numpy.typing.mypy_plugin,pydantic.mypy"
 python_version = "3.11"
-exclude = ["dist"]
+exclude = ["dist", "build"]
 ignore_missing_imports = true
 warn_unreachable = false
 warn_unused_ignores = false
