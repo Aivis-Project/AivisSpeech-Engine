@@ -588,6 +588,10 @@ uv run task update-licenses
 uv run task build
 ```
 
+ONNX GGML Plugin EP runtime の構築・検証手順は
+[onnxruntime-ep-style-bert-vits2-ggml](https://github.com/Myoland/onnxruntime-ep-style-bert-vits2-ggml)
+を参照してください。
+
 ## ライセンス
 
 ベースである VOICEVOX ENGINE のデュアルライセンスのうち、[LGPL-3.0](LICENSE) のみを単独で継承します。
