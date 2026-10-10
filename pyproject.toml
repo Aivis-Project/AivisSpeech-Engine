@@ -26,6 +26,7 @@ dependencies = [
   "gputil>=1.4.0",
   "py-cpuinfo>=9.0.0",
   "sentry-sdk[fastapi]>=2.19.2,<3.0.0",
+  "sudachipy>=0.6.11,<0.7.0",  # pyopenjtalk-plus の依存関係 (0.7.x は不安定なので 0.6.x に固定)
   "wmi>=1.5.1,<2.0.0; sys_platform == 'win32'",
   # truststore は HTTPS 通信時にシステムにインストールされた証明書ストアを使うために必要
   ## ref: https://github.com/psf/requests/issues/2966
