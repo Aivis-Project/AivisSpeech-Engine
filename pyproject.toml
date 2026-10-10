@@ -35,7 +35,7 @@ dependencies = [
   # aivmlib は AIVMX ファイルのメタデータ読み取りに必要
   "aivmlib>=1.2.1,<2.0.0",
   # AivisSpeech-Engine にはカスタマイズされた Style-Bert-VITS2 が必要
-  "style-bert-vits2 @ git+https://github.com/tsukumijima/Style-Bert-VITS2@6b0ec1352fd09b5295568fc98db4e851d3c17249",
+  "style-bert-vits2 @ git+https://github.com/tsukumijima/Style-Bert-VITS2@3ecd8b8a06b5923e69adc02ec855de0f435c407f",
   # OS に応じて適切な ONNX Runtime プラグインをインストール
   ## onnxruntime (CPU): onnxruntime-directml / onnxruntime-gpu 非対応の環境すべて
   ## macOS x64 のみ、Intel Mac に対応する最終バージョンである onnxruntime==1.23.2 に固定
