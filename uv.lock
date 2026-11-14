@@ -101,7 +101,7 @@ requires-dist = [
     { name = "soundfile", specifier = ">=0.13.1,<1.0.0" },
     { name = "soxr", specifier = ">=0.5.0,<1.0.0" },
     { name = "starlette", specifier = ">=1.0.1,<2.0.0" },
-    { name = "style-bert-vits2", git = "https://github.com/tsukumijima/Style-Bert-VITS2?rev=b9373614d713e18937fa8a9e200b9af257578138" },
+    { name = "style-bert-vits2", git = "https://github.com/tsukumijima/Style-Bert-VITS2?rev=c6e70b8cb49704579476427d36c67045a595834c" },
     { name = "sudachipy", specifier = ">=0.6.11,<0.7.0" },
     { name = "truststore", specifier = ">=0.10.0,<1.0.0" },
     { name = "uvicorn", specifier = ">=0.34.0,<1.0.0" },
@@ -1808,7 +1808,7 @@ wheels = [
 [[package]]
 name = "style-bert-vits2"
 version = "2.7.0"
-source = { git = "https://github.com/tsukumijima/Style-Bert-VITS2?rev=b9373614d713e18937fa8a9e200b9af257578138#b9373614d713e18937fa8a9e200b9af257578138" }
+source = { git = "https://github.com/tsukumijima/Style-Bert-VITS2?rev=c6e70b8cb49704579476427d36c67045a595834c#c6e70b8cb49704579476427d36c67045a595834c" }
 dependencies = [
     { name = "aivmlib" },
     { name = "cmudict" },

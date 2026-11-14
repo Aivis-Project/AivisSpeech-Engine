@@ -129,7 +129,7 @@ README.md の「開発方針」節に明記されている、以下の方針を�
 ## 開発時の注意
 
 - **パッケージ管理は uv に固定**: `python` / `pip` を直接使わず、必ず `uv run` 経由でコマンドを実行する
-- **音声合成コアである `style-bert-vits2` は git 依存**: `pyproject.toml` の `project.dependencies` によって特定コミットに固定されている (2026年10月21日時点は `b937361`)。更新する際はこのコミットを張り替えた上で `uv lock` を実行する
+- **音声合成コアである `style-bert-vits2` は git 依存**: `pyproject.toml` の `project.dependencies` によって特定コミットに固定されている (2026年11月15日時点は `c6e70b8`)。更新する際はこのコミットを張り替えた上で `uv lock` を実行する
 - **リンタ/フォーマッタ/型チェック**: 編集後は必ず `uv run task lint` (ruff check --fix + mypy strict) と `uv run task format` (ruff format) を実行しなければならない。CI (`test.yml`) でも同じチェックが Windows / macOS / Ubuntu の 4 環境で走る
 - **pre-commit は push 時のみ実行**: `.pre-commit-config.yaml` の各フックはすべて `stages: [pre-push]` であり、コミット時には走らない。コミット前に手元で `uv run task lint` などを明示的に実行しておくこと
 - **テスト**: `uv run task test` (pytest) 。スナップショット更新は `uv run task update-snapshots` (syrupy) 。`uv.lock` の整合性チェックは CI で `uv lock --check` として実行される
