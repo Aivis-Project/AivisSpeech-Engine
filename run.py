@@ -64,6 +64,9 @@ from voicevox_engine.utility.path_utility import (
     engine_root,
     get_save_dir,
 )
+from voicevox_engine.utility.proxy_utility import (
+    remove_invalid_proxy_environment_variables,
+)
 from voicevox_engine.utility.sentry_utility import filter_sentry_event
 from voicevox_engine.utility.user_agent_utility import collect_runtime_environment
 
@@ -401,6 +404,10 @@ def main() -> None:
 
     # ユーザーの環境変数で hf_transfer が有効化されている場合に備え、事前に無効化しておく
     os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
+
+    # 解析できないプロキシの環境変数があると、AivisHub API や Hugging Face Hub への通信のたびに例外が発生して起動できなくなるため、
+    # 起動時に検証して利用できない値を取り除く
+    remove_invalid_proxy_environment_variables()
 
     envs = read_environment_variables()
     if envs.output_log_utf8:
