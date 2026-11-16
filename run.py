@@ -11,16 +11,14 @@
 ## ref: https://docs.openssl.org/3.0/man3/SSL_CTX_set_options/
 ## ref: https://yamori-jp.blogspot.com/2022/09/python-ssl-unsafelegacyrenegotiationdis.html
 # fmt: off
+import ssl  # isort: skip
 import truststore._api as truststore_api  # isort: skip
 import truststore  # isort: skip
 class _PatchedTrustStoreSSLContext(truststore.SSLContext):
     def __init__(self, protocol: int | None = None) -> None:
         super().__init__(protocol)  # type: ignore
-        # TLS ハンドシェイク拒否を回避するため、SSL_OP_LEGACY_SERVER_CONNECT 相当のビットを常に有効化する
-        ## Python 3.11 では ssl.OP_LEGACY_SERVER_CONNECT が公開されていないため、
-        ## OpenSSL の定義値 (SSL_OP_BIT(2) == 1 << 2) を直接利用する
-        _SSL_OP_LEGACY_SERVER_CONNECT = 1 << 2
-        self.options |= _SSL_OP_LEGACY_SERVER_CONNECT
+        # TLS ハンドシェイク拒否を回避するため、SSL_OP_LEGACY_SERVER_CONNECT を常に有効化する
+        self.options |= ssl.OP_LEGACY_SERVER_CONNECT
 truststore.SSLContext = _PatchedTrustStoreSSLContext  # type: ignore
 truststore_api.SSLContext = _PatchedTrustStoreSSLContext  # type: ignore
 truststore.inject_into_ssl()
@@ -37,7 +35,7 @@ import warnings
 from dataclasses import asdict, dataclass
 from io import TextIOWrapper
 from pathlib import Path
-from typing import TextIO, TypeVar
+from typing import TextIO
 
 import sentry_sdk
 import uvicorn
@@ -186,11 +184,7 @@ def set_output_log_utf8() -> None:
         sys.stderr = _prepare_utf8_stdio(sys.stderr)
 
 
-# NOTE: AivisSpeech Engine は Python 3.11 系のため、Python 3.12 以降の型パラメータ構文は使わない
-T = TypeVar("T")
-
-
-def select_first_not_none(candidates: list[T | None]) -> T:
+def select_first_not_none[T](candidates: list[T | None]) -> T:
     """None でない最初の値を取り出す。全て None の場合はエラーを送出する。"""
     for candidate in candidates:
         if candidate is not None:
@@ -198,10 +192,7 @@ def select_first_not_none(candidates: list[T | None]) -> T:
     raise RuntimeError("すべての候補値が None です")
 
 
-S = TypeVar("S")
-
-
-def select_first_not_none_or_none(candidates: list[S | None]) -> S | None:
+def select_first_not_none_or_none[T](candidates: list[T | None]) -> T | None:
     """None でない最初の値を取り出そうとし、全て None の場合は None を返す。"""
     for candidate in candidates:
         if candidate is not None:

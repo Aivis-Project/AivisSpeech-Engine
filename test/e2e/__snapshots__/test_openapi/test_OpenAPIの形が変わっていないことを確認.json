@@ -501,6 +501,9 @@
         "title": "Body_sing_frame_volume_sing_frame_volume_post",
         "type": "object"
       },
+      "BrandName": {
+        "type": "string"
+      },
       "CorsPolicyMode": {
         "description": "CORS の許可モード。",
         "enum": [
@@ -514,9 +517,8 @@
         "description": "エンジン自体に関する情報。",
         "properties": {
           "brand_name": {
-            "description": "ブランド名",
-            "title": "Brand Name",
-            "type": "string"
+            "$ref": "#/components/schemas/BrandName",
+            "description": "ブランド名"
           },
           "default_sampling_rate": {
             "description": "デフォルトのサンプリング周波数",
@@ -547,9 +549,8 @@
             "type": "string"
           },
           "name": {
-            "description": "エンジン名",
-            "title": "Name",
-            "type": "string"
+            "$ref": "#/components/schemas/EngineName",
+            "description": "エンジン名"
           },
           "supported_features": {
             "$ref": "#/components/schemas/SupportedFeatures",
@@ -600,6 +601,9 @@
         ],
         "title": "EngineManifest",
         "type": "object"
+      },
+      "EngineName": {
+        "type": "string"
       },
       "FrameAudioQuery": {
         "description": "フレームごとの音声合成用のクエリ。",

@@ -33,8 +33,8 @@ RUN <<EOF
     rm -rf /var/lib/apt/lists/*
 EOF
 
-ARG PYTHON_VERSION=3.11.9
-ARG PYENV_VERSION=v2.4.11
+ARG PYTHON_VERSION=3.13.18
+ARG PYENV_VERSION=v2.8.15
 ARG PYENV_ROOT=/tmp/.pyenv
 ARG PYBUILD_ROOT=/tmp/python-build
 RUN <<EOF

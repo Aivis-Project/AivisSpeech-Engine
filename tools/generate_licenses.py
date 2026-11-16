@@ -147,7 +147,7 @@ def _update_licenses(pip_licenses: list[_PipLicense]) -> list[_License]:
 
 
 def _add_licenses_manually(licenses: list[_License]) -> None:
-    python_version = "3.11.9"
+    python_version = "3.13.18"
 
     additional_licenses = [
         # AivisSpeech Engine のフォーク元である VOICEVOX ENGINE のライセンス表記を一番上に置く

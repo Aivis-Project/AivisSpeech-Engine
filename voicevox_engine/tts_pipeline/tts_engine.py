@@ -463,7 +463,7 @@ class MockTTSEngineNotFound(Exception):
     """モック TTSEngine が見つからないエラー"""
 
 
-LatestVersion = Literal["LATEST_VERSION"]
+type LatestVersion = Literal["LATEST_VERSION"]
 LATEST_VERSION: Final[LatestVersion] = "LATEST_VERSION"
 
 

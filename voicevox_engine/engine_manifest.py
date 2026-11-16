@@ -121,8 +121,8 @@ class SupportedFeatures(BaseModel):
     )
 
 
-EngineName = str
-BrandName = str
+type EngineName = str
+type BrandName = str
 
 
 class EngineManifest(BaseModel):

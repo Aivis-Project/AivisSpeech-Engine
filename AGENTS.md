@@ -16,7 +16,7 @@
 
 ### 技術スタック
 
-- Python: 3.11 系
+- Python: 3.13 系
 - パッケージ管理: uv (`pip` や `poetry` は使わない)
 - Web フレームワーク: Uvicorn + FastAPI (`fastapi-slim` ベース) + Pydantic v2
 - 音声合成: `style-bert-vits2` (フォーク版、`pyproject.toml` の `project.dependencies` で特定コミットに固定) + ONNX Runtime
@@ -92,6 +92,9 @@ VOICEVOX ENGINE とのコード差分を最小限に保ち upstream に追従し
 迂闊にバージョン上限・下限を変更してはならない。
 
 - **macOS x64 (Intel Mac)**: `onnxruntime==1.23.2` に固定。Intel Mac 向け wheel が提供される最終バージョンのため
+  - onnxruntime 1.23.2 は Python 3.13 向けまでしか wheel が提供されていないため、Intel Mac 向けのビルドを続ける限り、Python を 3.14 系以降に上げることはできない  
+    upstream (VOICEVOX ENGINE) は onnxruntime の Python パッケージに依存せず、VOICEVOX CORE が独自にビルドした ONNX Runtime (Intel Mac 向けを含む) を読み込んでいるため、Python 3.14 系に移行できている  
+    一方、AivisSpeech Engine は音声合成モデルの推論に onnxruntime の Python パッケージを使っているため、この制約を回避できない
 - **macOS arm64 / Linux aarch64**: `onnxruntime>=1.24.0,<2.0.0`。1.23.2 に固定すると Intel Mac 側の制約に引きずられて universal lock が解決できなくなるため、明示的に 1.24.0 以降を指定している (コミット `e724f0d`) 。当初は「Intel Mac 向け wheel の存在を lock 時に必須化する」ための `required-environments` 設定も入れていたが、実際に依存解決を検証した結果不要と判断し削除した (コミット `ef581ea`)
 - **Linux x64 (GPU 版、`onnxruntime-gpu`)**: `>=1.24.0,<1.27.0` に固定。1.27.0 以降は import した時点で CUDA 13 系の共有ライブラリが存在しないとエラーになる仕様変更が入ってしまい、CUDA 13 未導入の環境で起動不能になる。そのため当面 1.26.x 系に固定している (コミット `d69f322`) 。upstream (onnxruntime-gpu) 側の互換性問題であり、AivisSpeech Engine 側のバグではない
 

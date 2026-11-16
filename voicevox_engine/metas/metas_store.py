@@ -16,7 +16,7 @@ from voicevox_engine.metas.metas import (
 )
 from voicevox_engine.resource_manager import ResourceManager, ResourceManagerError
 
-ResourceFormat = Literal["base64", "url"]
+type ResourceFormat = Literal["base64", "url"]
 
 
 def cast_styles(cores: list[CoreCharacterStyle]) -> list[SpeakerStyle]:
@@ -51,7 +51,7 @@ class _EngineCharacter(BaseModel):
     )
 
 
-GetCoreCharacters = Callable[[str | None], list[CoreCharacter]]
+type GetCoreCharacters = Callable[[str | None], list[CoreCharacter]]
 
 
 class CharacterNotFoundError(Exception):

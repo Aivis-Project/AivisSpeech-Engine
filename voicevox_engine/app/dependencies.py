@@ -5,7 +5,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
-VerifyMutabilityAllowed = Callable[[], Coroutine[Any, Any, None]]
+type VerifyMutabilityAllowed = Callable[[], Coroutine[Any, Any, None]]
 
 
 def generate_mutability_allowed_verifier(

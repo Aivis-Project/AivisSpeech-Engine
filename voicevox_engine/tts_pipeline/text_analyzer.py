@@ -232,8 +232,8 @@ def mora_to_text(mora_phonemes: str) -> str:
         return mora_phonemes
 
 
-AccentPhaseLabels = list[_Label]
-PauseGroup = list[AccentPhaseLabels]
+type AccentPhaseLabels = list[_Label]
+type PauseGroup = list[AccentPhaseLabels]
 
 
 def full_context_labels_to_accent_phrases(

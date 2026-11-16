@@ -1,7 +1,7 @@
 [project]
 name = "AivisSpeech-Engine"
 version = "1.2.0" # TODO: できれば version を自動管理する
-requires-python = ">=3.11,<3.12"
+requires-python = "==3.13.18"
 dependencies = [
   "fastapi>=0.115.5,<1.0.0",
   "jinja2>=3.1.6,<4.0.0",  # NOTE: required by fastapi.templating.Jinja2Templates (fastapi-slim's unmanaged dependency)
@@ -96,7 +96,7 @@ check-licenses = "bash -c \"OUTPUT_LICENSE_JSON_PATH=/dev/null bash tools/create
 build = "uv run pyinstaller --noconfirm run.spec"
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "B", "I", "W", "UP", "D", "D213", "PT", "NPY"]
@@ -129,7 +129,7 @@ docstring-code-format = true
 [tool.mypy]
 strict = true
 plugins = "numpy.typing.mypy_plugin,pydantic.mypy"
-python_version = "3.11"
+python_version = "3.13"
 exclude = ["dist"]
 ignore_missing_imports = true
 warn_unreachable = false

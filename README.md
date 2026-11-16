@@ -543,7 +543,7 @@ GitHub アカウントをお持ちの方は、[GitHub の Issue](https://github.
 ## 開発環境の構築
 
 手順はオリジナルの VOICEVOX ENGINE と大幅に異なります。  
-事前に Python 3.11 がインストールされている必要があります。
+事前に Python 3.13 がインストールされている必要があります。
 
 ```bash
 # uv と pre-commit をインストール
@@ -1144,7 +1144,7 @@ VOICEVOX ENGINE は皆さんのコントリビューションをお待ちして�
 
 ### 環境構築
 
-`Python 3.11.9` を用いて開発されています。
+`Python 3.13.18` を用いて開発されています。
 インストールするには、各 OS ごとの C/C++ コンパイラ、CMake が必要になります。
 
 パッケージ管理ツールに [uv](https://docs.astral.sh/uv/) を使用しています。
