@@ -53,7 +53,7 @@ jobs:
           - os: macos-15-intel
             target: macOS-x64
           # macOS arm64 (Apple Silicon Mac)
-          - os: macos-14
+          - os: macos-15
             target: macOS-arm64
           # Linux x64
           - os: ubuntu-22.04
