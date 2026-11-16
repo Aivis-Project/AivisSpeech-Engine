@@ -1,6 +1,8 @@
 """波形合成のテスト"""
 
 '''
+import math
+
 import numpy as np
 
 from test.unit.tts_pipeline.tts_utils import gen_mora, sec
@@ -9,6 +11,7 @@ from voicevox_engine.tts_pipeline.audio_postprocessing import (
     _apply_output_sampling_rate,
     _apply_output_stereo,
     _apply_volume_scale,
+    raw_wave_stream_to_output_wave,
     raw_wave_to_output_wave,
 )
 from voicevox_engine.tts_pipeline.model import AccentPhrase
@@ -280,7 +283,7 @@ def test_query_to_decoder_feature() -> None:
     true_f0 = np.array(true1_f0 + true2_f0 + true3_f0, dtype=np.float32)
 
     # Outputs
-    phoneme, f0 = _query_to_decoder_feature(query)
+    phoneme, f0 = _query_to_decoder_feature(query, False)
 
     # Test
     assert np.array_equal(phoneme, true_phoneme)
@@ -317,4 +320,26 @@ def test_raw_wave_to_output_wave_without_resample() -> None:
     wave = raw_wave_to_output_wave(query, raw_wave, sr_raw_wave)
 
     assert np.allclose(wave, true_wave)
+
+
+def test_raw_wave_stream_to_output_wave() -> None:
+    """`raw_wave_to_output_wave`と`raw_wave_stream_to_output_wave`の出力が一致する"""
+    # Inputs
+    query = _gen_query(volumeScale=2, outputSamplingRate=44100, outputStereo=True)
+    raw_wave = np.random.default_rng().random(24000).astype(np.float32)
+    sr_raw_wave = 24000
+    chunks = np.array_split(raw_wave, math.floor(len(raw_wave) / (0.3 * sr_raw_wave)))
+
+    # Expects
+    expect = raw_wave_to_output_wave(query, raw_wave, sr_raw_wave)
+
+    # Outputs
+    wave_length, actual_stream = raw_wave_stream_to_output_wave(
+        query, len(raw_wave), iter(chunks), sr_raw_wave
+    )
+    actual = np.concatenate(list(actual_stream))
+
+    assert wave_length == len(expect) == len(actual)
+    assert expect.shape == actual.shape
+    assert np.allclose(expect, actual)
 '''

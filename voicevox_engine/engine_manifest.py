@@ -9,7 +9,6 @@ import json
 from base64 import b64encode
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import TypeAlias
 
 from pydantic import BaseModel, Field, TypeAdapter
 from pydantic.json_schema import SkipJsonSchema
@@ -41,6 +40,7 @@ class SupportedFeaturesJson:
     manage_library: FeatureSupportJson
     return_resource_url: FeatureSupportJson
     apply_katakana_english: FeatureSupportJson
+    streaming_synthesis: FeatureSupportJson
 
 
 @dataclass(frozen=True)
@@ -116,10 +116,13 @@ class SupportedFeatures(BaseModel):
     apply_katakana_english: bool | SkipJsonSchema[None] = Field(
         default=None, description="未知の英単語をカタカナ読みに変換"
     )
+    streaming_synthesis: bool | SkipJsonSchema[None] = Field(
+        default=None, description="ストリーミング音声合成"
+    )
 
 
-EngineName: TypeAlias = str
-BrandName: TypeAlias = str
+EngineName = str
+BrandName = str
 
 
 class EngineManifest(BaseModel):

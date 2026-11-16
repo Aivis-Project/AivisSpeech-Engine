@@ -113,6 +113,8 @@ def generate_app(
     app.include_router(generate_engine_info_router(core_version_list, engine_manifest))
     app.include_router(generate_portal_page_router(engine_manifest.name))
 
+    # NOTE: upstream は generate_unique_id_function で operation ID を簡略化しているが、
+    # その方法では Body_* などの schema 名も変わり AivisSpeech エディタ側の生成コードと食い違うため、従来の方法を維持する
     app = simplify_operation_ids(app)
     app = configure_openapi_schema(
         app, engine_manifest.supported_features.manage_library

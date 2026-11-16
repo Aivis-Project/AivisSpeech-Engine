@@ -22,8 +22,14 @@ from voicevox_engine.utility.path_utility import engine_manifest_path, get_save_
 
 def _generate_engine_fake_server(root_dir: Path) -> TestClient:
     aivm_manager = AivmManager(get_save_dir() / "Models")
+    # AivisSpeech Engine では CPU affinity を変更しないため、run.py と同じく configure_cpu_execution() は呼ばない
+    # cpu_num_threads = configure_cpu_execution(None)
+    cpu_num_threads = 0
     core_manager = initialize_cores(
-        voicevox_dir=root_dir, use_gpu=False, enable_mock=False
+        use_gpu=False,
+        cpu_num_threads=cpu_num_threads,
+        voicevox_dir=root_dir,
+        enable_mock=False,
     )
     tts_engines = make_tts_engines_from_cores(core_manager)
     song_engines = make_song_engines_from_cores(core_manager)

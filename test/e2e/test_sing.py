@@ -20,7 +20,7 @@ def test_楽譜とキャラクターIDから音声を合成できる(
         ]
     }
     frame_audio_query_res = client.post(
-        "/sing_frame_audio_query", params={"speaker": 0}, json=score
+        "/sing_frame_audio_query", params={"speaker": 7}, json=score
     )
     # AivisSpeech Engine では未実装 (501 Not Implemented を返す)
     assert frame_audio_query_res.status_code == 501
@@ -29,7 +29,7 @@ def test_楽譜とキャラクターIDから音声を合成できる(
 
     # FrameAudioQuery から音声波形を生成する
     frame_synthesis_res = client.post(
-        "/frame_synthesis", params={"speaker": 0}, json=frame_audio_query
+        "/frame_synthesis", params={"speaker": 7}, json=frame_audio_query
     )
 
     # リクエストが成功している

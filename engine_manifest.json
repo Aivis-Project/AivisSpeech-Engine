@@ -79,6 +79,11 @@
             "type": "bool",
             "value": true,
             "name": "未知の英単語をカタカナ読みに変換"
+        },
+        "streaming_synthesis": {
+            "type": "bool",
+            "value": false,
+            "name": "ストリーミング音声合成"
         }
     }
 }

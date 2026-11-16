@@ -183,6 +183,7 @@ def set_output_log_utf8() -> None:
         sys.stderr = _prepare_utf8_stdio(sys.stderr)
 
 
+# NOTE: AivisSpeech Engine は Python 3.11 系のため、Python 3.12 以降の型パラメータ構文は使わない
 T = TypeVar("T")
 
 
@@ -462,19 +463,29 @@ def main() -> None:
             MOCK_CORE_VERSION,
         )
 
+        # AivisSpeech Engine の音声合成は VOICEVOX CORE を使わないため、CPU affinity を変更する configure_cpu_execution() は呼ばない
+        ## プロセス全体の CPU affinity が変わると、実際の音声合成を担う ONNX Runtime の推論性能にも影響してしまう
+        # cpu_num_threads = configure_cpu_execution(args.cpu_num_threads)
+        cpu_num_threads = (
+            args.cpu_num_threads if args.cpu_num_threads is not None else 0
+        )
         core_manager = initialize_cores(
             use_gpu=use_gpu,
+            cpu_num_threads=cpu_num_threads,
             voicelib_dirs=args.voicelib_dirs,
             voicevox_dir=args.voicevox_dir,
             runtime_dirs=args.runtime_dirs,
-            cpu_num_threads=args.cpu_num_threads,
             enable_mock=args.enable_mock,
             load_all_models=args.load_all_models,
         )
         # tts_engines = make_tts_engines_from_cores(core_manager)
         song_engines = make_song_engines_from_cores(core_manager)
-        # assert len(tts_engines.versions()) != 0, "音声合成エンジンがありません。"
-        assert len(song_engines.versions()) != 0, "音声合成エンジンがありません。"
+        # assert len(tts_engines.versions()) != 0, (
+        #     "テキスト音声合成エンジンがありません。コアが見つからなかった可能性があります。"
+        # )
+        assert len(song_engines.versions()) != 0, (
+            "歌声音声合成エンジンがありません。コアが見つからなかった可能性があります。"
+        )
 
         cancellable_engine: CancellableEngine | None = None
         if args.enable_cancellable_synthesis:
@@ -483,8 +494,8 @@ def main() -> None:
                 use_gpu=use_gpu,
                 voicelib_dirs=args.voicelib_dirs,
                 voicevox_dir=args.voicevox_dir,
+                cpu_num_threads=cpu_num_threads,
                 runtime_dirs=args.runtime_dirs,
-                cpu_num_threads=args.cpu_num_threads,
                 enable_mock=args.enable_mock,
             )
 

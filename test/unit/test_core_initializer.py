@@ -1,14 +1,11 @@
 """`core_initializer.py` のテスト"""
 
-from unittest.mock import patch
-
 import pytest
 
 from voicevox_engine.core.core_adapter import CoreAdapter
 from voicevox_engine.core.core_initializer import (
     CoreManager,
     CoreNotFound,
-    _determine_default_cpu_num_threads,
 )
 from voicevox_engine.dev.core.mock import MockCoreWrapper
 
@@ -128,28 +125,3 @@ def test_cores_items() -> None:
 
     # Test
     assert true_items == items
-
-
-@pytest.mark.parametrize(
-    ("logical_cores", "physical_cores", "expected"),
-    [
-        (8, 8, 4),
-        (9, 9, 4),
-        (8, 4, 0),
-        (8, None, 4),
-        (None, None, 0),
-    ],
-)
-def test_determine_default_cpu_num_threads(
-    logical_cores: int | None, physical_cores: int | None, expected: int
-) -> None:
-    """_determine_default_cpu_num_threads() でデフォルトのCPUスレッド数を決定できる。"""
-    # Outputs
-    with patch(
-        "psutil.cpu_count",
-        side_effect=lambda logical=True: logical_cores if logical else physical_cores,
-    ):
-        cpu_num_threads = _determine_default_cpu_num_threads()
-
-    # Test
-    assert expected == cpu_num_threads

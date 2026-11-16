@@ -35,18 +35,18 @@ class CancellableEngine:
         self,
         init_processes: int,
         use_gpu: bool,
+        cpu_num_threads: int,
         voicelib_dirs: list[Path] | None = None,
         voicevox_dir: Path | None = None,
         runtime_dirs: list[Path] | None = None,
-        cpu_num_threads: int | None = None,
         enable_mock: bool = True,
     ) -> None:
         """init_processesの数だけ同時処理できるエンジンを立ち上げる。その他の引数はcore_initializerを参照。"""
         self.use_gpu = use_gpu
+        self.cpu_num_threads = cpu_num_threads
         self.voicelib_dirs = voicelib_dirs
         self.voicevox_dir = voicevox_dir
         self.runtime_dirs = runtime_dirs
-        self.cpu_num_threads = cpu_num_threads
         self.enable_mock = enable_mock
 
         # 実行中プール
@@ -68,10 +68,10 @@ class CancellableEngine:
             target=start_synthesis_subprocess,
             kwargs={
                 "use_gpu": self.use_gpu,
+                "cpu_num_threads": self.cpu_num_threads,
                 "voicelib_dirs": self.voicelib_dirs,
                 "voicevox_dir": self.voicevox_dir,
                 "runtime_dirs": self.runtime_dirs,
-                "cpu_num_threads": self.cpu_num_threads,
                 "enable_mock": self.enable_mock,
                 "connection": connection_inner,
             },
@@ -177,18 +177,18 @@ class CancellableEngine:
 # NOTE: pickle化の関係でグローバルに書いている
 def start_synthesis_subprocess(
     use_gpu: bool,
+    cpu_num_threads: int,
     voicelib_dirs: list[Path] | None,
     voicevox_dir: Path | None,
     runtime_dirs: list[Path] | None,
-    cpu_num_threads: int | None,
     enable_mock: bool,
     connection: ConnectionType,
 ) -> None:
     """
     コネクションへの入力に応答して音声合成するループを実行する
 
-    引数 use_gpu, voicelib_dirs, voicevox_dir,
-    runtime_dirs, cpu_num_threads, enable_mock は、 core_initializer を参照
+    引数 use_gpu, cpu_num_threads, voicelib_dirs, voicevox_dir,
+    runtime_dirs, enable_mock は、 core_initializer を参照
 
     Parameters
     ----------
@@ -198,14 +198,16 @@ def start_synthesis_subprocess(
     # 音声合成エンジンを用意する
     core_manager = initialize_cores(
         use_gpu=use_gpu,
+        cpu_num_threads=cpu_num_threads,
         voicelib_dirs=voicelib_dirs,
         voicevox_dir=voicevox_dir,
         runtime_dirs=runtime_dirs,
-        cpu_num_threads=cpu_num_threads,
         enable_mock=enable_mock,
     )
     tts_engines = make_tts_engines_from_cores(core_manager)
-    assert len(tts_engines.versions()) != 0, "音声合成エンジンがありません。"
+    assert len(tts_engines.versions()) != 0, (
+        "テキスト音声合成エンジンがありません。コアが見つからなかった可能性があります。"
+    )
 
     while True:
         try:

@@ -4,6 +4,8 @@
 モデルの注意点は `voicevox_engine/model.py` の module docstring を確認すること。
 """
 
+from typing import Annotated
+
 from pydantic import BaseModel, Field
 from pydantic.json_schema import SkipJsonSchema
 
@@ -18,6 +20,7 @@ class Preset(BaseModel):
     speaker_uuid: str = Field(description="キャラクターの UUID 。")
     style_id: StyleId = Field(description="スタイル ID 。")
     speedScale: float = Field(
+        gt=0,
         description=(
             "全体の話速を 0.5 ~ 2.0 の範囲で指定する (デフォルト: 1.0) 。\n"
             "2.0 で 2 倍速、0.5 で 0.5 倍速になる。"
@@ -51,20 +54,22 @@ class Preset(BaseModel):
         ),
     )
     volumeScale: float = Field(
+        ge=0,
         description=(
             "全体の音量を 0.0 ~ 2.0 の範囲で指定する (デフォルト: 1.0) 。\n"
             "数値が大きいほど大きな声になる。"
         ),
     )
-    prePhonemeLength: float = Field(description="音声の前の無音時間 (秒)。")
-    postPhonemeLength: float = Field(description="音声の後の無音時間 (秒)。")
-    pauseLength: float | SkipJsonSchema[None] = Field(
+    prePhonemeLength: float = Field(ge=0, description="音声の前の無音時間 (秒)。")
+    postPhonemeLength: float = Field(ge=0, description="音声の後の無音時間 (秒)。")
+    pauseLength: Annotated[float, Field(ge=0)] | SkipJsonSchema[None] = Field(
         default=None,
         title="AivisSpeech Engine ではサポートされていないフィールドです (常に無視されます)",
         description="句読点などの無音時間。null のときは無視される。デフォルト値は null 。",
     )
     pauseLengthScale: float = Field(
         default=1,
+        ge=0,
         title="AivisSpeech Engine ではサポートされていないフィールドです (常に無視されます)",
         description="句読点などの無音時間（倍率）。デフォルト値は 1 。",
     )

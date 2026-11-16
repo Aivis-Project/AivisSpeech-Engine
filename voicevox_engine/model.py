@@ -102,6 +102,7 @@ class AudioQuery(BaseModel):
 
     accent_phrases: list[AccentPhrase] = Field(description="アクセント句のリスト。")
     speedScale: float = Field(
+        gt=0,
         description=(
             "全体の話速を 0.5 ~ 2.0 の範囲で指定する (デフォルト: 1.0) 。\n"
             "2.0 で 2 倍速、0.5 で 0.5 倍速になる。"
@@ -135,24 +136,29 @@ class AudioQuery(BaseModel):
         ),
     )
     volumeScale: float = Field(
+        ge=0,
         description=(
             "全体の音量を 0.0 ~ 2.0 の範囲で指定する (デフォルト: 1.0) 。\n"
             "数値が大きいほど大きな声になる。"
         ),
     )
-    prePhonemeLength: float = Field(description="音声の前の無音時間 (秒)。")
-    postPhonemeLength: float = Field(description="音声の後の無音時間 (秒)。")
+    prePhonemeLength: float = Field(ge=0, description="音声の前の無音時間 (秒)。")
+    postPhonemeLength: float = Field(ge=0, description="音声の後の無音時間 (秒)。")
     pauseLength: float | None = Field(
         default=None,
+        ge=0,
         title="AivisSpeech Engine ではサポートされていないフィールドです (常に無視されます)",
         description="句読点などの無音時間。null のときは無視される。デフォルト値は null 。",
     )
     pauseLengthScale: float = Field(
         default=1,
+        ge=0,
         title="AivisSpeech Engine ではサポートされていないフィールドです (常に無視されます)",
         description="句読点などの無音時間（倍率）。デフォルト値は 1 。",
     )
-    outputSamplingRate: int = Field(description="音声データの出力サンプリングレート。")
+    outputSamplingRate: int = Field(
+        gt=0, description="音声データの出力サンプリングレート。"
+    )
     outputStereo: bool = Field(description="音声データをステレオ出力するか否か。")
     kana: str | SkipJsonSchema[None] = Field(
         default=None,

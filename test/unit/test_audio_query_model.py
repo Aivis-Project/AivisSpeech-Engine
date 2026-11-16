@@ -136,7 +136,9 @@ def test_audio_query_rejects_empty_moras_in_accent_phrase() -> None:
 def test_audio_query_rejects_out_of_range_accent(accent: int) -> None:
     """アクセント位置がモーラ数の範囲外なら AudioQuery の生成時点で拒否する。"""
 
-    with pytest.raises(ValidationError, match="accent"):
+    # アクセント位置の検証は AccentPhrase (upstream の値域制約) と AudioQuery の両方で行われるため、
+    # どちらのエラーメッセージにも一致するよう大文字小文字を区別しない
+    with pytest.raises(ValidationError, match="(?i)accent"):
         _generate_audio_query(accent=accent)
 
 

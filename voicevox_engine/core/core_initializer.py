@@ -1,27 +1,13 @@
 """VOICEVOX CORE インスタンスの生成"""
 
 import json
-import warnings
 from pathlib import Path
-
-import psutil
 
 from ..logging import logger
 from ..utility.core_version_utility import MOCK_CORE_VERSION, get_latest_version
 from ..utility.path_utility import engine_root, get_save_dir
 from .core_adapter import CoreAdapter
 from .core_wrapper import CoreWrapper, load_runtime_lib
-
-
-def _determine_default_cpu_num_threads() -> int:
-    """論理コア数が不明な場合は0を返す。論理コア数と物理コア数が判明していて異なる場合は0を返す。それ以外は論理コア数の半分を返す。"""
-    logical_cores: int | None = psutil.cpu_count(logical=True)
-    if logical_cores is None:
-        return 0
-    physical_cores: int | None = psutil.cpu_count(logical=False)
-    if physical_cores is not None and physical_cores != logical_cores:
-        return 0
-    return logical_cores // 2
 
 
 class CoreNotFound(Exception):
@@ -65,10 +51,10 @@ class CoreManager:
 
 def initialize_cores(
     use_gpu: bool,
+    cpu_num_threads: int,
     voicelib_dirs: list[Path] | None = None,
     voicevox_dir: Path | None = None,
     runtime_dirs: list[Path] | None = None,
-    cpu_num_threads: int | None = None,
     enable_mock: bool = True,
     load_all_models: bool = False,
 ) -> CoreManager:
@@ -79,6 +65,8 @@ def initialize_cores(
     ----------
     use_gpu: bool
         音声ライブラリに GPU を使わせるか否か
+    cpu_num_threads:
+        音声ライブラリが推論に用いるCPUスレッド数。0の場合はランタイムによって自動的に決定される
     voicelib_dirs:
         音声ライブラリ自体があるディレクトリのリスト
     voicevox_dir:
@@ -86,20 +74,11 @@ def initialize_cores(
     runtime_dirs:
         コアで使用するライブラリのあるディレクトリのリスト
         None のとき、voicevox_dir、カレントディレクトリになる
-    cpu_num_threads:
-        音声ライブラリが、推論に用いるCPUスレッド数を設定する
-        Noneのとき、論理コア数が物理コア数と同じか物理コア数が不明な場合、論理コア数の半分が指定される
-        そうではない場合はランタイムによって自動的に決定される
     enable_mock:
         コア読み込みに失敗したとき、代わりにmockを使用するかどうか
     load_all_models:
         起動時に全てのモデルを読み込むかどうか
     """
-    if cpu_num_threads == 0 or cpu_num_threads is None:
-        msg = "cpu_num_threads is set to 0. Setting it to an appropriate value."
-        warnings.warn(msg, stacklevel=1)
-        cpu_num_threads = _determine_default_cpu_num_threads()
-
     root_dir = engine_root()
 
     # 引数による指定を反映し、無ければ `root_dir` とする

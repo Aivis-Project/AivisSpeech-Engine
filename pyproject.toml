@@ -52,6 +52,10 @@ dependencies = [
 ]
 
 [tool.uv]
+# NOTE: emSign 証明書問題への対応として、Python 公式の告知が推奨する certifi 2026.10.19 以上を使う (VOICEVOX ENGINE #1899 と同じ対応)
+constraint-dependencies = [
+  "certifi>=2026.10.19",
+]
 default-groups = ["build", "dev"]
 exclude-newer = "1 week"
 exclude-newer-package = { pyopenjtalk-plus = false }
